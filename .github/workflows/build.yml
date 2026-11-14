@@ -1,0 +1,68 @@
+name: Compilar app iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto de Xcode
+        run: xcodegen generate
+
+      - name: Compilar (sin firma)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project CFMotoLink.xcodeproj \
+            -scheme CFMotoLink \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build.log
+
+      - name: Empaquetar .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/CFMotoLink.app Payload/
+          zip -qry CFMotoLink.ipa Payload
+          ls -la CFMotoLink.ipa
+
+      - name: Publicar release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa \
+            --title "CFMoto Link · compilación ${{ github.run_number }}" \
+            --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
+
+      # El resumen del registro se publica en la rama ci-logs para poder leer los errores
+      # de compilación sin iniciar sesión.
+      - name: Publicar registro de compilación
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/cilog
+          touch build.log
+          echo "run=${{ github.run_number }} sha=${{ github.sha }} status=${{ job.status }}" > /tmp/cilog/status.txt
+          grep -E "error:|BUILD SUCCEEDED|BUILD FAILED|\*\* " build.log | sort -u | head -n 200 > /tmp/cilog/errors.txt || true
+          tail -n 200 build.log > /tmp/cilog/tail.txt || true
+          cd /tmp/cilog
+          git init -q -b ci-logs
+          git add .
+          git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -qm "Registro de la compilación ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs
