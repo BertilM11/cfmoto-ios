@@ -119,12 +119,24 @@ final class ScreenSource: FrameSource {
         return out
     }
 
+    static func ciOrientation(_ o: CGImagePropertyOrientation) -> CGImagePropertyOrientation {
+        switch o {
+        case .left: return .right
+        case .right: return .left
+        case .leftMirrored: return .rightMirrored
+        case .rightMirrored: return .leftMirrored
+        default: return o
+        }
+    }
+
     private func render(_ raw: CVPixelBuffer, _ orientation: CGImagePropertyOrientation) -> CVPixelBuffer? {
         guard let out = newBuffer() else { return nil }
         let W = CGFloat(width)
         let H = CGFloat(height)
 
-        var img = CIImage(cvPixelBuffer: raw).oriented(orientation)
+        // ReplayKit marca el giro en el sentido contrario al que aplica CIImage: en horizontal
+        // la imagen salía al revés (180°). Se intercambian izquierda y derecha.
+        var img = CIImage(cvPixelBuffer: raw).oriented(ScreenSource.ciOrientation(orientation))
         let e = img.extent
         if !loggedSize {
             loggedSize = true
