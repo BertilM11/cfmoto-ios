@@ -3,9 +3,10 @@
 App de iPhone que intenta enviar imagen a la pantalla TFT de una moto CFMOTO por el
 Wi-Fi de la moto, usando el mismo protocolo EasyConnect que la app oficial de Android.
 
-**Estado: experimental.** La versión 0.1 comprobó que el iPhone completa el saludo con la
-pantalla y le envía vídeo (imagen de prueba). La 0.2 añade una extensión de "Transmitir
-pantalla" (ReplayKit) que envía la pantalla real del iPhone. No es CarPlay.
+**Estado: experimental.** La versión 0.3 añade navegación GPS propia con los mapas de Apple
+(búsqueda, rutas reales con alternativas, guía giro a giro con voz y recálculo) y una pantalla
+de navegación dibujada a la medida de la moto. También puede duplicar la pantalla del iPhone
+(extensión ReplayKit) para ver Waze o Google Maps. No es CarPlay.
 
 No está afiliada a CFMOTO ni a Carbit. Úsala bajo tu propia responsabilidad y nunca
 mientras conduces.
