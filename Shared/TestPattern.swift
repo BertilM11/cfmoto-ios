@@ -5,7 +5,7 @@ import CoreVideo
 
 /// Imagen de prueba animada (barras de color, reloj y contador). Si esto aparece en la pantalla
 /// de la moto, el enlace iPhone -> moto funciona de punta a punta.
-final class TestPattern {
+final class TestPattern: FrameSource {
     private let width: Int
     private let height: Int
     private let fps: Int
@@ -94,8 +94,12 @@ final class TestPattern {
         ctx.setFillColor(UIColor.orange.cgColor)
         ctx.fill(CGRect(x: x, y: h - box - 4, width: box, height: box))
 
-        let titleSize = h * 0.15
+        // Ajustar el tamaño del título al ancho disponible para que no se corte.
         let title = "iPhone conectado a CFMOTO" as NSString
+        var titleSize = h * 0.15
+        while titleSize > 10 && title.size(withAttributes: [.font: UIFont.boldSystemFont(ofSize: titleSize)]).width > w * 0.92 {
+            titleSize -= 1
+        }
         title.draw(
             at: CGPoint(x: w * 0.04, y: h * 0.22),
             withAttributes: [

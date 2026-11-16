@@ -3,9 +3,9 @@
 App de iPhone que intenta enviar imagen a la pantalla TFT de una moto CFMOTO por el
 Wi-Fi de la moto, usando el mismo protocolo EasyConnect que la app oficial de Android.
 
-**Estado: prueba de concepto.** Esta versión solo comprueba que el iPhone puede completar
-el saludo con la pantalla y enviarle una imagen de prueba (barras de color y un reloj).
-Todavía no duplica la pantalla del iPhone. No es CarPlay.
+**Estado: experimental.** La versión 0.1 comprobó que el iPhone completa el saludo con la
+pantalla y le envía vídeo (imagen de prueba). La 0.2 añade una extensión de "Transmitir
+pantalla" (ReplayKit) que envía la pantalla real del iPhone. No es CarPlay.
 
 No está afiliada a CFMOTO ni a Carbit. Úsala bajo tu propia responsabilidad y nunca
 mientras conduces.
@@ -18,7 +18,9 @@ mientras conduces.
 3. En el iPhone: Ajustes > General > VPN y gestión de dispositivos > confía en tu Apple ID.
 4. En la moto, abre la pantalla del código QR ("Conéctese con el teléfono móvil") y déjala abierta.
 5. En el iPhone: Ajustes > Wi-Fi > conéctate a la red `DIRECT-…-CFMOTO-…` de la moto.
-6. Abre CFMoto Link, pulsa **Conectar** y acepta el permiso de red local.
+6. Abre CFMoto Link, pulsa **Transmitir pantalla a la moto** y luego **Iniciar transmisión**
+   (también se puede desde el Centro de control: mantén pulsado *Grabar pantalla* y elige
+   CFMoto Link). La opción *Prueba con imagen de prueba* sigue disponible.
 7. Mira la pantalla de la moto. Pase lo que pase, pulsa **Copiar registro** y guarda el texto:
    es lo que permite saber hasta dónde llegó la conexión.
 

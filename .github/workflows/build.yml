@@ -38,6 +38,8 @@ jobs:
         run: |
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/CFMotoLink.app Payload/
+          ls Payload/CFMotoLink.app/PlugIns
+          test -d Payload/CFMotoLink.app/PlugIns/CFMotoLinkBroadcast.appex
           zip -qry CFMotoLink.ipa Payload
           ls -la CFMotoLink.ipa
 

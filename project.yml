@@ -12,12 +12,15 @@ targets:
       - path: App
         excludes:
           - Info.plist
+      - path: Shared
+    dependencies:
+      - target: CFMotoLinkBroadcast
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: CFMoto Link
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
@@ -34,6 +37,36 @@ targets:
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
         ENABLE_BITCODE: "NO"
+  CFMotoLinkBroadcast:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Broadcast
+        excludes:
+          - Info.plist
+      - path: Shared
+    info:
+      path: Broadcast/Info.plist
+      properties:
+        CFBundleDisplayName: CFMoto Link
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
+        NSLocalNetworkUsageDescription: CFMoto Link se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.broadcast-services-upload
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).SampleHandler
+          RPBroadcastProcessMode: RPBroadcastProcessModeSampleBuffer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.cfmotolink.app.broadcast
+        PRODUCT_NAME: CFMotoLinkBroadcast
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+        ENABLE_BITCODE: "NO"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
 schemes:
   CFMotoLink:
     build:

@@ -21,6 +21,12 @@ final class BikeLink {
     static let spoofedPackage = "com.cfmoto.cfmotointernational"
 
     var onStatus: ((String) -> Void)?
+    /// Qué se envía a la moto. Por defecto, la imagen de prueba.
+    var sourceFactory: FrameSourceFactory = { w, h, fps, sink in
+        TestPattern(width: w, height: h, fps: fps, sink: sink)
+    }
+    /// Etiqueta para el registro: "app" o "transmisión".
+    var role = "app"
 
     private let lock = NSLock()
     private var running = false
@@ -35,7 +41,7 @@ final class BikeLink {
     private var negW = 800
     private var negH = 384
     private var encoder: H264Encoder?
-    private var pattern: TestPattern?
+    private var pattern: FrameSource?
     private var framesSent = 0
     private var heartbeatsSeen = 0
     private var timeSyncSeen = 0
@@ -54,17 +60,18 @@ final class BikeLink {
         onStatus?(s)
     }
 
-    func start(manualBikeIp: String) {
+    @discardableResult
+    func start(manualBikeIp: String) -> Bool {
         stop()
 
-        logLine("---- CFMoto Link \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") ----")
+        logLine("---- CFMoto Link \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(role)) ----")
         logLine("dispositivo: \(UIDevice.current.model) iOS \(UIDevice.current.systemVersion)")
 
         let interfaces = wifiInterfaces()
         if interfaces.isEmpty {
             logLine("!! no hay Wi-Fi con dirección IP. Conéctate primero a la red de la moto en Ajustes > Wi-Fi.")
             status("Sin Wi-Fi: conéctate a la red de la moto")
-            return
+            return false
         }
         for i in interfaces {
             logLine("interfaz \(i.iface): ip=\(i.ip) moto(supuesta)=\(i.gateway)")
@@ -107,8 +114,8 @@ final class BikeLink {
             lock.lock()
             running = false
             lock.unlock()
-            status("Error: puertos ocupados (cierra la app CFMOTO oficial)")
-            return
+            status("Error: puertos ocupados (detén la otra conexión o la app CFMOTO oficial)")
+            return false
         }
         lock.lock()
         listeners = opened
@@ -121,6 +128,7 @@ final class BikeLink {
         }
         Thread.detachNewThread { [weak self] in self?.discover(gen) }
         Thread.detachNewThread { [weak self] in self?.statusLoop(gen) }
+        return true
     }
 
     func stop() {
@@ -558,14 +566,14 @@ final class BikeLink {
             logLine("!! no se pudo iniciar el codificador de vídeo")
             return
         }
-        let pat = TestPattern(width: negW, height: negH, fps: fps) { [weak enc] buffer in
+        let pat = sourceFactory(negW, negH, fps) { [weak enc] buffer in
             enc?.encode(buffer)
         }
         encoder = enc
         pattern = pat
         enc.restartStream()
         pat.start()
-        logLine("[VIDEO] imagen de prueba iniciada \(negW)x\(negH)")
+        logLine("[VIDEO] origen de imagen (\(role)) iniciado \(negW)x\(negH)")
     }
 
     // MARK: - Estado periódico

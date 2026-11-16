@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import Foundation
+import Combine
 
 /// Registro en pantalla. Es el único canal de diagnóstico: el usuario lo copia y lo envía.
+/// Se puede escribir desde cualquier hilo; `lines` (para la interfaz) se actualiza en el principal.
 final class LogBus: ObservableObject {
     static let shared = LogBus()
 
     @Published private(set) var lines: [String] = []
+
+    private let lock = NSLock()
+    private var buffer: [String] = []
 
     private let formatter: DateFormatter = {
         let f = DateFormatter()
@@ -15,21 +20,32 @@ final class LogBus: ObservableObject {
     }()
 
     func log(_ message: String) {
+        lock.lock()
         let line = formatter.string(from: Date()) + " " + message
+        buffer.append(line)
+        if buffer.count > 3000 {
+            buffer.removeFirst(1000)
+        }
+        let snapshot = buffer
+        lock.unlock()
         NSLog("%@", line)
         DispatchQueue.main.async {
-            self.lines.append(line)
-            if self.lines.count > 3000 {
-                self.lines.removeFirst(1000)
-            }
+            self.lines = snapshot
         }
     }
 
     func clear() {
+        lock.lock()
+        buffer.removeAll()
+        lock.unlock()
         DispatchQueue.main.async { self.lines.removeAll() }
     }
 
-    var text: String { lines.joined(separator: "\n") }
+    var text: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffer.joined(separator: "\n")
+    }
 }
 
 func logLine(_ message: String) {
