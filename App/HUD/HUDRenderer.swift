@@ -228,17 +228,24 @@ final class HUDRenderer {
     private var zoom: CGFloat = 0.6
     private var zoomReady = false
 
+    /// Parte baja de la imagen que la moto tapa con sus propios indicadores (velocidad, marcha).
+    /// Ahí no se dibuja nada importante. 0 = usar toda la altura.
+    static var reservedBottom: CGFloat = 0.22
+    private let fullHeight: CGFloat
+
     init(width: Int, height: Int) {
         self.width = CGFloat(width)
-        self.height = CGFloat(height)
-        k = CGFloat(height) / 400
+        fullHeight = CGFloat(height)
+        let usable = (CGFloat(height) * (1 - max(0, min(0.4, HUDRenderer.reservedBottom)))).rounded()
+        self.height = usable
+        k = usable / 400
     }
 
     /// El contexto debe tener el origen arriba a la izquierda y el eje Y hacia abajo.
     func draw(_ s: HUDSnapshot, now: Date, in ctx: CGContext) {
         let p = s.style == .day ? HUDPalette.day : HUDPalette.night
         ctx.setFillColor(p.background)
-        ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        ctx.fill(CGRect(x: 0, y: 0, width: width, height: fullHeight))
         if s.arrived {
             zoomReady = false
             drawArrived(s, p, ctx)
