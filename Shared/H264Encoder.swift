@@ -44,52 +44,124 @@ final class FrameQueue {
 
 /// Codificador H.264 Baseline 3.1 con salida Annex-B (SPS/PPS delante de cada fotograma clave),
 /// que es lo que acepta el decodificador de la pantalla.
+///
+/// iOS invalida la sesión de VideoToolbox cuando la app cambia entre primer y segundo plano.
+/// Por eso, ante cualquier fallo, la sesión se vuelve a crear sola (alternando el codificador
+/// por hardware y el de software) y el flujo se reanuda en un fotograma clave.
 final class H264Encoder {
     let width: Int
     let height: Int
     let fps: Int
+    private let bitrate: Int
 
+    private let sessionLock = NSLock()
     private var session: VTCompressionSession?
+    private var usingSoftware = false
+    private var recreateCount = 0
+    private var lastRecreate = Date.distantPast
+
     private let queue = FrameQueue(capacity: 8)
     private let lock = NSLock()
     private var awaitKeyframe = true
     private var forceKeyframe = true
     private var frameIndex: Int64 = 0
-    private(set) var encodedFrames = 0
+    private var encodedCount = 0
+    private var failureCount = 0
+    private var keyframe: Data?
+
+    var encodedFrames: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return encodedCount
+    }
+
+    var errorCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return failureCount
+    }
+
+    /// Último fotograma clave completo. Sirve para repetirlo si el codificador se queda sin salida.
+    var lastKeyframe: Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        return keyframe
+    }
+
+    var backend: String {
+        sessionLock.lock()
+        defer { sessionLock.unlock() }
+        if session == nil { return "ninguno" }
+        return usingSoftware ? "software" : "hardware"
+    }
 
     init?(width: Int, height: Int, fps: Int, bitrate: Int) {
         self.width = width
         self.height = height
         self.fps = fps
+        self.bitrate = bitrate
+        if !(openSession(software: false, quiet: false) || openSession(software: true, quiet: false)) {
+            logLine("[VIDEO] no se pudo crear ningún codificador H.264")
+            return nil
+        }
+    }
 
-        var s: VTCompressionSession?
+    private func openSession(software: Bool, quiet: Bool) -> Bool {
+        var spec: CFDictionary?
+        if software {
+            spec = [
+                "EnableHardwareAcceleratedVideoEncoder": false,
+                "RequireHardwareAcceleratedVideoEncoder": false,
+            ] as CFDictionary
+        }
+        var created: VTCompressionSession?
         let status = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
             width: Int32(width),
             height: Int32(height),
             codecType: kCMVideoCodecType_H264,
-            encoderSpecification: nil,
+            encoderSpecification: spec,
             imageBufferAttributes: nil,
             compressedDataAllocator: nil,
             outputCallback: nil,
             refcon: nil,
-            compressionSessionOut: &s
+            compressionSessionOut: &created
         )
-        guard status == noErr, let created = s else {
-            logLine("[VIDEO] no se pudo crear el codificador (status \(status))")
-            return nil
+        guard status == noErr, let s = created else {
+            if !quiet {
+                logLine("[VIDEO] no se pudo crear el codificador \(software ? "por software" : "por hardware") (status \(status))")
+            }
+            return false
         }
-        session = created
 
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_1)
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_AllowFrameReordering, value: kCFBooleanFalse)
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_AverageBitRate, value: NSNumber(value: bitrate))
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_ExpectedFrameRate, value: NSNumber(value: fps))
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: NSNumber(value: fps))
-        VTSessionSetProperty(created, key: kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, value: NSNumber(value: 1))
-        VTCompressionSessionPrepareToEncodeFrames(created)
-        logLine("[VIDEO] codificador H.264 listo \(width)x\(height) @\(fps)fps \(bitrate / 1000)kbps")
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_RealTime, value: kCFBooleanTrue)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_Baseline_3_1)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AllowFrameReordering, value: kCFBooleanFalse)
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_AverageBitRate, value: NSNumber(value: bitrate))
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_ExpectedFrameRate, value: NSNumber(value: fps))
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameInterval, value: NSNumber(value: fps))
+        VTSessionSetProperty(s, key: kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, value: NSNumber(value: 1))
+        let prepared = VTCompressionSessionPrepareToEncodeFrames(s)
+        if prepared != noErr {
+            if !quiet {
+                logLine("[VIDEO] el codificador \(software ? "por software" : "por hardware") no arrancó (status \(prepared))")
+            }
+            VTCompressionSessionInvalidate(s)
+            return false
+        }
+
+        var value: CFTypeRef?
+        VTSessionCopyProperty(s, key: "UsingHardwareAcceleratedVideoEncoder" as CFString, allocator: kCFAllocatorDefault, valueOut: &value)
+        let accelerated = (value as? Bool).map { $0 ? "sí" : "no" } ?? "?"
+
+        sessionLock.lock()
+        session = s
+        usingSoftware = software
+        sessionLock.unlock()
+        if !quiet {
+            logLine("[VIDEO] codificador H.264 listo \(width)x\(height) @\(fps)fps \(bitrate / 1000)kbps · pedido=\(software ? "software" : "hardware") · acelerado=\(accelerated)")
+        }
+        return true
     }
 
     /// La moto se acaba de enganchar: vaciar la cola y garantizar que lo primero que reciba
@@ -102,8 +174,33 @@ final class H264Encoder {
         queue.clear()
     }
 
+    /// La app volvió al frente: si se estaba usando el codificador por software, volver al de
+    /// hardware, que gasta menos batería.
+    func preferHardware() {
+        sessionLock.lock()
+        let software = usingSoftware
+        let old = session
+        if software {
+            session = nil
+            // Que un fallo simultáneo no cree otra sesión a la vez.
+            lastRecreate = Date()
+        }
+        sessionLock.unlock()
+        guard software else { return }
+        if let old = old { VTCompressionSessionInvalidate(old) }
+        _ = openSession(software: false, quiet: false) || openSession(software: true, quiet: false)
+        restartStream()
+    }
+
     func encode(_ pixelBuffer: CVPixelBuffer) {
-        guard let s = session else { return }
+        sessionLock.lock()
+        let current = session
+        sessionLock.unlock()
+        guard let s = current else {
+            recover(reason: "sin sesión", status: 0)
+            return
+        }
+
         lock.lock()
         let force = forceKeyframe
         forceKeyframe = false
@@ -124,12 +221,52 @@ final class H264Encoder {
             frameProperties: props,
             infoFlagsOut: nil
         ) { [weak self] status, _, sample in
-            guard status == noErr, let sample = sample else { return }
-            self?.handle(sample)
+            guard let self = self else { return }
+            if status != noErr {
+                self.recover(reason: "salida", status: status)
+                return
+            }
+            if let sample = sample {
+                self.handle(sample)
+            }
         }
         if status != noErr {
-            logLine("[VIDEO] error al codificar (status \(status))")
+            recover(reason: "entrada", status: status)
         }
+    }
+
+    /// Algo falló (lo habitual: la app cambió de primer a segundo plano). Crear otra sesión,
+    /// como mucho una vez por segundo.
+    private func recover(reason: String, status: OSStatus) {
+        lock.lock()
+        failureCount += 1
+        let failures = failureCount
+        lock.unlock()
+        if failures <= 6 || failures % 200 == 0 {
+            logLine("[VIDEO] fallo del codificador (\(reason), status \(status)) · fallo #\(failures)")
+        }
+
+        sessionLock.lock()
+        if Date().timeIntervalSince(lastRecreate) < 1.0 {
+            sessionLock.unlock()
+            return
+        }
+        lastRecreate = Date()
+        recreateCount += 1
+        let attempt = recreateCount
+        let old = session
+        session = nil
+        sessionLock.unlock()
+
+        if let old = old { VTCompressionSessionInvalidate(old) }
+        let verbose = attempt <= 6 || attempt % 30 == 0
+        // Intentos impares: hardware primero. Pares: software primero.
+        let softwareFirst = attempt % 2 == 0
+        let ok = openSession(software: softwareFirst, quiet: !verbose) || openSession(software: !softwareFirst, quiet: !verbose)
+        if verbose {
+            logLine("[VIDEO] reinicio del codificador #\(attempt): \(ok ? "hecho" : "sin éxito")")
+        }
+        if ok { restartStream() }
     }
 
     func nextFrame(timeoutMs: Int) -> Data? {
@@ -137,10 +274,15 @@ final class H264Encoder {
     }
 
     func stop() {
-        if let s = session {
-            VTCompressionSessionInvalidate(s)
-        }
+        sessionLock.lock()
+        let old = session
         session = nil
+        // Evita que un fallo tardío vuelva a crear la sesión.
+        lastRecreate = Date.distantFuture
+        sessionLock.unlock()
+        if let old = old {
+            VTCompressionSessionInvalidate(old)
+        }
         queue.clear()
     }
 
@@ -205,7 +347,11 @@ final class H264Encoder {
         }
         if out.isEmpty { return }
 
-        encodedFrames += 1
+        lock.lock()
+        encodedCount += 1
+        if isKey { keyframe = out }
+        lock.unlock()
+
         if !queue.push(out) {
             // La moto va más lenta que el codificador: tirar lo acumulado y recomenzar en un
             // fotograma clave, para no enviarle nunca fotogramas con referencias perdidas.

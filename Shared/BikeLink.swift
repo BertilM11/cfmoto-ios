@@ -27,6 +27,8 @@ final class BikeLink {
     }
     /// Etiqueta para el registro: "app" o "transmisión".
     var role = "app"
+    /// Estado de la app ("activa", "segundo plano"…) para el registro periódico.
+    var stateProvider: (() -> String)?
 
     private let lock = NSLock()
     private var running = false
@@ -43,6 +45,7 @@ final class BikeLink {
     private var encoder: H264Encoder?
     private var pattern: FrameSource?
     private var framesSent = 0
+    private var framesRepeated = 0
     private var heartbeatsSeen = 0
     private var timeSyncSeen = 0
     private var touchSeen = 0
@@ -87,6 +90,7 @@ final class BikeLink {
         everConnected = false
         reprobing = false
         framesSent = 0
+        framesRepeated = 0
         heartbeatsSeen = 0
         timeSyncSeen = 0
         touchSeen = 0
@@ -520,7 +524,19 @@ final class BikeLink {
 
         case 114: // REQ_RV_DATA_NEXT: un fotograma, en crudo: [tamaño i32 LE][H.264 Annex-B]
             if encoder == nil { startVideo() }
-            guard let frame = encoder?.nextFrame(timeoutMs: 1500) else {
+            var next = encoder?.nextFrame(timeoutMs: 1200)
+            if next == nil, let key = encoder?.lastKeyframe {
+                // El codificador no entregó nada a tiempo (pasa al cambiar de primer a segundo
+                // plano). Se repite el último fotograma clave para no dejar a la moto esperando,
+                // y lo siguiente que salga será otro fotograma clave.
+                next = key
+                encoder?.restartStream()
+                framesRepeated += 1
+                if framesRepeated <= 3 || framesRepeated % 50 == 0 {
+                    logLine("[\(tag)] sin fotograma nuevo: se repite el último (#\(framesRepeated))")
+                }
+            }
+            guard let frame = next else {
                 logLine("[\(tag)] DATA_NEXT: no hay fotograma listo")
                 return
             }
@@ -576,6 +592,14 @@ final class BikeLink {
         logLine("[VIDEO] origen de imagen (\(role)) iniciado \(negW)x\(negH)")
     }
 
+    /// La app volvió al frente: recuperar el codificador por hardware si hacía falta.
+    func appBecameActive() {
+        lock.lock()
+        let enc = encoder
+        lock.unlock()
+        enc?.preferHardware()
+    }
+
     // MARK: - Estado periódico
 
     private func statusLoop(_ gen: Int) {
@@ -587,7 +611,12 @@ final class BikeLink {
             lock.lock()
             let n = clients.count
             lock.unlock()
-            logLine("estado #\(i): aceptado=\(probed) conexiones=\(n) fotogramas=\(framesSent)")
+            let enc = encoder
+            let state = stateProvider?() ?? "-"
+            let encoded = enc?.encodedFrames ?? 0
+            let failures = enc?.errorCount ?? 0
+            let backend = enc?.backend ?? "-"
+            logLine("estado #\(i): app=\(state) aceptado=\(probed) conexiones=\(n) enviados=\(framesSent) repetidos=\(framesRepeated) codificados=\(encoded) fallos=\(failures) codificador=\(backend)")
         }
     }
 }
