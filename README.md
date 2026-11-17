@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.0 — Navegación y multimedia
+# CFMoto Link 0.6.1 — Estabilidad y navegación premium
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,6 +9,10 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
+- **Mapa con el iPhone bloqueado** (0.6.1): la app guarda la ruta entera por delante mientras
+  está abierta y la usa al bloquear; Navegación avisa cuándo ya se puede bloquear. Con la
+  **Pantalla negra** el mapa sigue en vivo sin bloquear.
+- **Diagnóstico** (0.6.1): Más > Diagnóstico, con informe exportable.
 - **Imagen completa**: la app usa los 800×400 que pide la moto; los indicadores de la moto
   (velocidad, rpm, marcha, testigos) siguen en su propia franja, debajo, sin taparse
   (comprobado con fotos de la 0.3 y la 0.5).
@@ -49,8 +53,9 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.0_NavegacionMultimedia.zip` trae el código, la documentación, las
-láminas de las pruebas y los resultados.
+El paquete `CFMotoLink_0.6.1_Estabilidad.zip` trae el código, la documentación, las láminas de
+las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
+Volver a la 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
 ejecuta en un iPhone con iOS 16 o posterior.
 
@@ -82,6 +87,9 @@ firmar en *Releases*.
 
 ## Documentación
 
+- [CHANGELOG.md](CHANGELOG.md): cambios de cada versión.
+- [docs/ERROR_REPORT.md](docs/ERROR_REPORT.md): errores encontrados en la 0.6.0 y su corrección.
+- [docs/INSTALL.md](docs/INSTALL.md) y [docs/ROLLBACK.md](docs/ROLLBACK.md): instalar y volver atrás.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): estructura y componentes.
 - [docs/CONNECTION.md](docs/CONNECTION.md): comunicación con la moto.
 - [docs/FEATURES.md](docs/FEATURES.md): estado real de cada función.

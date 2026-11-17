@@ -27,6 +27,14 @@ Hay tres niveles. Solo el tercero prueba la moto de verdad.
   transición entre canciones mezcla los colores.
 - **Proveedores (0.6)**: enlaces oficiales de Waze (`waze://ul` y `https://waze.com/ul`) y
   Google Maps (app y web); CFMoto Link no abre nada; ningún proveedor externo dice dar giros.
+- **Mapa guardado para el iPhone bloqueado (0.6.1)**, con una ruta de prueba de 15 km y dos
+  giros: se detectan los giros; la ruta queda guardada entera y sin huecos; cada curva tiene su
+  imagen orientada a la calle nueva; nada se pide dos veces; con poca memoria se guarda lo más
+  cercano; lo recorrido y lo lejano se sueltan; se detecta un tramo sin imagen; al recalcular se
+  conserva el tramo común y solo se pide el nuevo; lo que se recorrerá de noche se guarda en
+  oscuro; el tema correcto gana; sin imagen que sirva, mapa simple; la imagen en vivo reciente
+  manda y una vieja solo como último recurso; tiempo de revisar la cobertura.
+- **Spotify (0.6.1)**: una portada que llega tarde no se queda con otra canción.
 - **Reglas automáticas**.
 - **Proyección del mapa**: la homografía de 4 puntos reproduce una perspectiva exacta; con una
   cámara de prueba girada, la ruta cae a menos de 1 píxel de donde debe.
@@ -43,7 +51,7 @@ de noche, pantalla dividida de día, guía en Waze, ruta de alto contraste y rut
 swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift \
        App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift \
        App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift \
-       App/Dashboard/Appearance.swift -o dashcheck
+       App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck
 ./dashcheck salida
 ```
 
@@ -56,6 +64,12 @@ GitHub Actions compila la app, la instala en un simulador de iPhone, lanza un re
 simulado por Ciudad de Guatemala con rutas reales de Apple y guarda capturas de las pantallas y
 de la imagen que se enviaría a la moto en cada modo, **con el mapa de calles real de Apple**
 (`tft-night-*.png`, `tft-light-*.png`).
+
+Desde la 0.6.1 hay además una prueba con la app en **segundo plano**: con la ruta simulada en
+marcha, se abre otra app 50 s y se vuelve; se guardan la imagen para la moto en cada momento
+(`bg-1-al-frente.png`, `bg-2-segundo-plano.png`, `bg-3-de-vuelta.png`) y el registro
+(`log-segundo-plano.txt`). El simulador no bloquea la pantalla ni aplica todas las reglas de
+segundo plano de un iPhone real: sirve de indicio, no de prueba.
 
 Esto **no** prueba: GPS real, sonido, música (el simulador no tiene app Música), permisos en un
 iPhone real ni nada de la conexión con la moto.
@@ -103,3 +117,27 @@ iPhone real ni nada de la conexión con la moto.
    menos de medio segundo. Prueba los fondos fijos en Más > Personalización del tablero.
 10. (0.6) Con el tema en Automático, mira la moto antes y después del atardecer (17:30 en
     Guatemala en noviembre): el mapa pasa de claro a oscuro con un fundido.
+
+
+## 4. Pruebas en la moto de la 0.6.1 (iPhone bloqueado)
+
+Antes de cada prueba: ruta con CFMoto Link, moto conectada, datos móviles activos. Al terminar:
+**Más > Diagnóstico > Exportar informe** (el registro guarda una línea `[DIAG]` cada 10 s con
+posición, edad de la imagen, cobertura, imágenes guardadas, ritmo de envío, memoria, red y
+temperatura).
+
+| Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el informe |
+| --- | --- | --- | --- |
+| A | Ruta con el iPhone desbloqueado | Calles en vivo | `mapa=en vivo`, edad < 3 s |
+| B | Esperar "Mapa guardado" en verde y bloquear 2 min | Calles sin huecos | `mapa=guardada`, `fijos=…bg` subiendo, `envio≈10fps` |
+| C | Igual, 5 min | Igual | Cobertura que baja según avanzas |
+| D | Igual, 10 min | Igual | Que no aparezca `ninguna: mapa simple` dentro de la ruta guardada |
+| E | Desviarse por calles fuera de la ruta con el iPhone bloqueado | Mapa simple fuera de lo guardado (esperado) | `[RUTA] fuera de la ruta`, tiempo del recálculo |
+| F | Bloquear antes de que termine de guardar | Calles hasta donde llegó; después, mapa simple | `cobertura=` al bloquear y cuándo se acaba |
+| G | Bloquear con datos móviles activos | — | `[RED] … datos móviles` |
+| H | Moto conectada y abrir una web en el iPhone | La moto sigue recibiendo | `[RED] con salida por datos móviles` |
+| I | Desbloquear tras una interrupción | Calles en vivo en segundos | `[MAPA] la app vuelve al frente`, llegadas tardías descartadas |
+| J | Ruta larga (> 20 km), bloquear y recorrerla | Calles todo lo guardado | Cobertura inicial, memoria (`mem=`) y temperatura (`temp=`) |
+| K | Pantalla negra (botón de la luna) en vez de bloquear | Calles en vivo todo el viaje | `mapa=en vivo`, batería y temperatura |
+
+Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.

@@ -102,3 +102,14 @@ HUDRenderer.drawDashboard (adaptador de la moto) ─► H264Encoder ─► BikeL
 
 La moto nunca recibe nada de las apps externas: todo lo que se dibuja sale de MapKit, del GPS
 del iPhone y del destino que el usuario eligió en CFMoto Link.
+
+
+## Mapa guardado y diagnóstico (0.6.1)
+
+| Pieza | Archivo | Qué hace |
+| --- | --- | --- |
+| `RoutePath`, `CorridorPlanner`, `CorridorCoverage`, `MapChooser` | `App/Dashboard/MapCorridor.swift` | Sin MapKit: dónde guardar imágenes de la ruta (una cada ~42 % de la altura visible y otra después de cada giro), qué falta, qué se conserva al recalcular, cuánta ruta queda cubierta y qué imagen usar en cada fotograma. Se prueba en macOS. |
+| `TFTMap` | `App/Dashboard/TFTMap.swift` | Pide las imágenes: una en vivo y dos de la ruta a la vez, con límite de memoria, tema por hora de paso, cancelación de peticiones atascadas y estadísticas. |
+| `Diagnostics`, `NetworkWatch`, `MemoryInfo` | `App/Dashboard/Diagnostics.swift` | Estado de todo el sistema, línea `[DIAG]` cada 10 s e informe exportable sin credenciales. |
+| `DiagnosticsScreen` | `App/UI/DiagnosticsScreen.swift` | Pantalla Más > Diagnóstico. |
+| `PocketScreen`, `MapCoverageChip` | `App/Nav/PocketScreen.swift` | Pantalla negra y aviso de mapa guardado en Navegación. |

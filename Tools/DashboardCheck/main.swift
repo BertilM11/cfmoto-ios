@@ -594,7 +594,7 @@ func legs(_ start: GeoPoint, _ parts: [(Double, Double)]) -> [GeoPoint] {
     return pts
 }
 let corridorStart = GeoPoint(lat: 14.58, lon: -90.55)
-let corridorRoute = RouteLine(points: legs(corridorStart, [(6000, 35), (4000, 125), (5000, 35)]))
+let corridorRoute = RoutePath(points: legs(corridorStart, [(6000, 35), (4000, 125), (5000, 35)]))
 let corridorVisible = 0.62 * 680
 let corridorStep = CorridorPlanner.step(visible: corridorVisible)
 check("Ruta de prueba medida bien (15 km)", abs(corridorRoute.length - 15000) < 30, String(format: "%.0f m", corridorRoute.length))
@@ -627,7 +627,7 @@ func fakeShot(_ here: GeoPoint, heading h: Double, style: String, anchor: Double
 }
 
 // Simula lo que hace la app con el iPhone desbloqueado: pedir lo que falta hasta completar.
-func fillCorridor(_ route: RouteLine, from progress: Double, existing: [CorridorEntry], nightAfter: Double = .infinity, capacity: Int = 400) -> [CorridorEntry] {
+func fillCorridor(_ route: RoutePath, from progress: Double, existing: [CorridorEntry], nightAfter: Double = .infinity, capacity: Int = 400) -> [CorridorEntry] {
     var list = existing
     let turns = route.turns()
     let horizon = CorridorPlanner.horizon(remaining: route.length - progress, capacity: capacity, step: corridorStep)
@@ -663,9 +663,9 @@ let mb = Double(fullCorridor.reduce(0) { $0 + $1.bytes }) / 1_048_576
 check("La memoria del mapa guardado queda acotada (15 km en menos de 20 MB)", mb < 20, String(format: "%.1f MB", mb))
 
 // Memoria limitada: solo se guarda lo que cabe, lo más cercano primero.
-let small = fillCorridor(corridorRoute, from: 0, existing: [], capacity: 20)
+let smallCorridor = fillCorridor(corridorRoute, from: 0, existing: [], capacity: 20)
 check("Con memoria para 20 imágenes se guarda el tramo más cercano",
-      small.count <= 24 && small.allSatisfy { $0.anchor < 20 * corridorStep + 100 }, "\(small.count) imágenes")
+      smallCorridor.count <= 24 && smallCorridor.allSatisfy { $0.anchor < 20 * corridorStep + 100 }, "\(smallCorridor.count) imágenes")
 let trimmed = CorridorPlanner.trim(fullCorridor, progress: 5000, capacity: 30)
 check("Al pasar de largo y con poca memoria se sueltan las de atrás y las más lejanas",
       trimmed.count == 30 && trimmed.allSatisfy { $0.anchor >= 4600 && $0.anchor < 5000 + 31 * corridorStep })
@@ -677,7 +677,7 @@ check("Se detecta el tramo sin imagen", holedCoverage.gaps == 1 && holedCoverage
       String(format: "seguido %.1f km, %d huecos", holedCoverage.continuous / 1000, holedCoverage.gaps))
 
 // Recálculo: la ruta nueva comparte los primeros 6 km y luego va por otro lado.
-let rerouted = RouteLine(points: legs(corridorStart, [(6000, 35), (5000, 300)]))
+let rerouted = RoutePath(points: legs(corridorStart, [(6000, 35), (5000, 300)]))
 let kept = CorridorPlanner.retain(fullCorridor, on: rerouted, northUp: false)
 let keptFirstLeg = kept.filter { $0.anchor < 5900 }.count
 let firstLeg = fullCorridor.filter { $0.anchor < 5900 }.count
@@ -689,7 +689,7 @@ check("Tras recalcular, solo se pide el tramo nuevo", refilled.count - kept.coun
       "\(refilled.count - kept.count) nuevas")
 
 // Qué imagen usa cada fotograma.
-func poseAt(_ route: RouteLine, _ d: Double) -> MapPose {
+func poseAt(_ route: RoutePath, _ d: Double) -> MapPose {
     MapPose(here: route.point(at: d), heading: route.bearing(at: d, span: 18), speed: 12, progress: d, toTurn: nil)
 }
 let choice1 = MapChooser.choose(live: nil, entries: fullCorridor, pose: poseAt(corridorRoute, 2500), wantedStyle: "dia",
@@ -707,9 +707,9 @@ check("Con las dos versiones guardadas gana siempre el tema correcto", rightThem
 let onlyDay = MapChooser.choose(live: nil, entries: fullCorridor, pose: poseAt(corridorRoute, 3000), wantedStyle: "noche",
                                 now: 100, preview: false, northUp: false)
 check("Si solo hay del otro tema, se usa y se marca (mejor que un hueco)", onlyDay.source == .cachedOtherStyle)
-let empty = MapChooser.choose(live: nil, entries: [], pose: poseAt(corridorRoute, 3000), wantedStyle: "dia",
-                              now: 100, preview: false, northUp: false)
-check("Sin imagen que sirva: mapa simple, sin inventar calles", empty.base == nil && empty.source == .none)
+let noImage = MapChooser.choose(live: nil, entries: [], pose: poseAt(corridorRoute, 3000), wantedStyle: "dia",
+                                now: 100, preview: false, northUp: false)
+check("Sin imagen que sirva: mapa simple, sin inventar calles", noImage.base == nil && noImage.source == .none)
 if let liveShot = fakeShot(corridorRoute.point(at: 3000), heading: corridorRoute.bearing(at: 3040, span: 60), style: "dia", anchor: -1) {
     let fresh = MapChooser.choose(live: liveShot.base, entries: fullCorridor, pose: poseAt(corridorRoute, 3000), wantedStyle: "dia",
                                   now: 10, preview: false, northUp: false)

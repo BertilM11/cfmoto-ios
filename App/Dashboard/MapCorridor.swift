@@ -40,7 +40,7 @@ func headingGap(_ a: Double, _ b: Double) -> Double {
 }
 
 /// Ruta en coordenadas con sus distancias acumuladas.
-struct RouteLine {
+struct RoutePath {
     let points: [GeoPoint]
     let cumulative: [Double]
 
@@ -179,7 +179,7 @@ enum CorridorPlanner {
 
     /// Dónde debe haber imagen (metros de ruta), de la más cercana a la más lejana: una cada
     /// `step` metros y otra justo después de cada giro.
-    static func anchors(route: RouteLine, from progress: Double, to end: Double, step: Double, turns: [Double]) -> [Double] {
+    static func anchors(route: RoutePath, from progress: Double, to end: Double, step: Double, turns: [Double]) -> [Double] {
         guard !route.isEmpty, end > progress, step > 0 else { return [] }
         var all: [(at: Double, turn: Bool)] = []
         var d = max(0, progress - step * 0.25)
@@ -205,13 +205,13 @@ enum CorridorPlanner {
     }
 
     /// Rumbo de la imagen de un ancla: el de la ruta un poco por delante de la moto.
-    static func heading(route: RouteLine, at anchor: Double, northUp: Bool) -> Double {
+    static func heading(route: RoutePath, at anchor: Double, northUp: Bool) -> Double {
         northUp ? 0 : route.bearing(at: anchor + 40, span: 60)
     }
 
     /// Las imágenes que faltan (ni guardadas ni pedidas), de la más cercana a la más lejana.
     static func missing(
-        anchors: [Double], route: RouteLine, existing: [CorridorEntry], inFlight: [Double],
+        anchors: [Double], route: RoutePath, existing: [CorridorEntry], inFlight: [Double],
         night: (Double) -> Bool, styleKey: (Bool) -> String, northUp: Bool, step: Double, limit: Int
     ) -> [CorridorRequest] {
         guard limit > 0 else { return [] }
@@ -233,7 +233,7 @@ enum CorridorPlanner {
 
     /// Al cambiar de ruta (recálculo o ruta nueva) se conservan las imágenes que siguen
     /// sirviendo: la moto pasa por ese punto y en la misma dirección.
-    static func retain(_ entries: [CorridorEntry], on route: RouteLine, northUp: Bool, tolerance: Double = 60) -> [CorridorEntry] {
+    static func retain(_ entries: [CorridorEntry], on route: RoutePath, northUp: Bool, tolerance: Double = 60) -> [CorridorEntry] {
         guard !route.isEmpty else { return [] }
         var out: [CorridorEntry] = []
         for var e in entries {
@@ -272,7 +272,7 @@ enum CorridorCoverage {
     }
 
     /// ¿Hay alguna imagen en la que se vería bien la moto en `d`?
-    static func usable(_ entries: [CorridorEntry], route: RouteLine, at d: Double, northUp: Bool, style: String?) -> Bool {
+    static func usable(_ entries: [CorridorEntry], route: RoutePath, at d: Double, northUp: Bool, style: String?) -> Bool {
         let p = route.point(at: d)
         let h = route.bearing(at: d, span: 30)
         for e in entries where abs(e.anchor - d) < 1500 {
@@ -286,7 +286,7 @@ enum CorridorCoverage {
         return false
     }
 
-    static func scan(route: RouteLine, from progress: Double, to end: Double, entries: [CorridorEntry],
+    static func scan(route: RoutePath, from progress: Double, to end: Double, entries: [CorridorEntry],
                      northUp: Bool, style: String? = nil, sample: Double = 25) -> Result {
         guard !route.isEmpty, end > progress else { return Result(continuous: 0, covered: 0, checked: 0, gaps: 0) }
         let sorted = entries.sorted { $0.anchor < $1.anchor }

@@ -1,4 +1,4 @@
-# Estado real de cada función (0.6.0)
+# Estado real de cada función (0.6.1)
 
 "Verificado en la moto" significa que el propietario lo vio funcionar en su CFMOTO 450NK.
 "Verificado en pruebas" significa que pasa las pruebas automáticas o se vio en el simulador de
@@ -12,7 +12,13 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
-| Mapa de calles con el iPhone bloqueado (imágenes guardadas del recorrido) | Programado; **sin probar** (y depende de que el vídeo siga con el iPhone bloqueado) |
+| **0.6.1** Mapa de calles con el iPhone bloqueado: ruta entera guardada por delante (hasta el límite de memoria), imagen tras cada giro, tema según la hora de paso, conservado al recalcular | Verificado en pruebas (ruta de 15 km sin huecos) y en el simulador; **falta la moto** (pruebas A–J de `TESTING.md`) |
+| **0.6.1** Aviso "Mapa guardado: X de Y km" en Navegación | Programado; se verá en el simulador y en el iPhone |
+| **0.6.1** Pantalla negra (mapa en vivo sin bloquear el iPhone) | Programado; **falta probar** batería y temperatura en un viaje real |
+| **0.6.1** Diagnóstico con informe exportable | Programado y compilado; **falta verlo en el iPhone** |
+| **0.6.1** Reconexión con la moto sin límite de intentos | Programado; **falta la moto** (apagar y encender) |
+| **0.6.1** Spotify: portadas y datos siempre de la canción que suena | Verificado en pruebas (lógica de la portada); falta con Spotify real |
+| **0.6.1** Proveedores externos solo activos si iOS confirma que se abrieron | Programado; falta con Waze y Google Maps instalados |
 | **0.6** Proveedor de navegación: CFMoto Link, Mapas de Apple, Google Maps, Waze | Verificado en pruebas (enlaces oficiales) y simulador; **falta abrir Waze y Google Maps en tu iPhone** |
 | **0.6** Destino conservado al cambiar de proveedor (y recálculo al volver a CFMoto Link) | Programado; falta en uso real |
 | **0.6** Tarjeta "Guía en Waze / Google Maps / Mapas de Apple" con flecha y distancia al destino | Verificado en pruebas (lámina) |
@@ -52,7 +58,8 @@ iPhone, pero no en la moto.
 | --- | --- |
 | Giros de Waze o Google Maps en la moto | **No es posible.** No comparten su ruta ni sus giros con otras apps. El SDK de Waze que los daba era solo para empresas de transporte y terminó el 1 de noviembre de 2026; el de Google es de pago con tu propia clave (ver `INTEGRATIONS.md`). La moto muestra mapa, posición y destino, y la tarjeta lo dice. |
 | Ver la interfaz de Waze o Google Maps en la moto | Solo con Duplicar pantalla y el iPhone desbloqueado. |
-| Mapa de calles con el iPhone bloqueado | Apple solo genera imágenes del mapa con la app abierta. Se usan las guardadas al iniciar la ruta (hasta ~8 km por delante). Fuera de esa zona: dibujo simple de la ruta, con la etiqueta MAPA SIMPLE. |
+| Mapa de calles con el iPhone bloqueado | Apple no entrega imágenes nuevas con la app en segundo plano. Se usan las guardadas de la ruta (toda la que quepa en la memoria). Fuera de la ruta guardada (desvío o recálculo con el iPhone bloqueado): dibujo simple de la ruta, con la etiqueta MAPA SIMPLE. Para mapa en vivo todo el viaje: Pantalla negra. Calles nuevas con el iPhone bloqueado solo serían posibles con un sistema completo sin Apple (ver `INTEGRATIONS.md`). |
+| Recálculo con el iPhone bloqueado | Depende de que Apple responda en segundo plano; si no responde en 20 s se pide otra vez y la tarjeta dice a cuánto está la ruta. Se verá en el registro. |
 | Cambio de día a noche con el iPhone bloqueado | Se pide el estilo nuevo, pero Apple no lo entrega en segundo plano: se siguen usando las imágenes guardadas hasta abrir la app. |
 | Tráfico sobre la línea de la ruta | MapKit no da el tráfico por tramo de la ruta: se ve en las calles del mapa. |
 | Spotify | Exige que la cuenta dueña de la app de desarrollo tenga Premium y limita a 5 usuarios. El permiso dura una hora. Spotify puede cortar la conexión en segundo plano o tras un rato en pausa. La app no trae ninguna credencial ni el logotipo oficial (la atribución es el nombre en texto). |

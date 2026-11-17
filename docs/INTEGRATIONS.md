@@ -1,4 +1,4 @@
-# Integraciones, proveedores y licencias (0.6.0)
+# Integraciones, proveedores y licencias (0.6.1)
 
 Qué usa la app de cada proveedor, qué se puede y qué no se puede hacer con él, y por qué.
 Nada de lo que aparece aquí como "no disponible" se simula en la moto.
@@ -53,7 +53,8 @@ la del teléfono, no un diseño para la TFT.
 `RouteManager` (en `App/Nav/NavProviders.swift`) conserva el destino:
 
 - De CFMoto Link a Waze, Google Maps o Mapas de Apple: abre esa app con el mismo destino (esa
-  app calcula su propia ruta) y termina la guía de CFMoto Link.
+  app calcula su propia ruta) y termina la guía de CFMoto Link **solo si iOS confirma que la abrió**
+  (0.6.1). Si no se pudo abrir, aparece un aviso y la guía y el destino siguen en CFMoto Link.
 - De una app externa a CFMoto Link: vuelve a calcular la ruta aquí con el mismo destino y
   muestra "Ruta recalculada por CFMoto Link con el mismo destino. Toca Iniciar."
 - Desde los ajustes, si hay un destino en curso, la app pregunta antes: pasar el destino o
@@ -69,8 +70,10 @@ la del teléfono, no un diseño para la TFT.
 - **Siempre claro** y **Siempre oscuro**.
 - Es el estilo de día o de noche **de Apple Maps** (la instantánea se pide con apariencia clara
   u oscura), no un filtro encima. El cambio se hace con un fundido de 0,3 s sobre la imagen
-  anterior, sin pantalla negra ni pérdida de la ruta; con el iPhone bloqueado se siguen usando
-  las imágenes guardadas del otro estilo hasta que haya nuevas.
+  anterior, sin pantalla negra ni pérdida de la ruta. Desde la 0.6.1, los tramos de la ruta por
+  los que se pasará después del atardecer se guardan ya en oscuro (y al revés al amanecer), así
+  que con el iPhone bloqueado el mapa guardado cambia de tema a su hora. Una imagen del otro
+  tema solo se usa si no hay ninguna del correcto.
 - MapKit no ofrece una "recomendación de iluminación" como la del SDK de Google; por eso se usa
   el sol.
 
@@ -110,13 +113,48 @@ intensidad), fondo oscuro fijo, fondo claro fijo, y animaciones sí/no.
 
 ## iPhone bloqueado y uso real
 
+### Mapa de Apple con el iPhone bloqueado
+
+- **Lo que dice Apple:** si una instantánea de `MKMapSnapshotter` se pide con la app en
+  segundo plano (o la app pasa a segundo plano mientras se genera), la entrega se retrasa hasta
+  que la app vuelve al primer plano. Con el iPhone bloqueado la app está en segundo plano.
+- **Lo que hace la 0.6.1:** con la app abierta guarda la ruta entera por delante (lo que quepa en
+  16–64 MB de memoria, hasta 400 imágenes), en paralelo al mapa en vivo, y con el iPhone
+  bloqueado usa esas imágenes. Navegación muestra "Mapa guardado: X de Y km".
+- **Pantalla negra:** la app sigue al frente con la pantalla en negro y el brillo al mínimo; así
+  Apple sigue entregando el mapa en vivo todo el viaje. Se sale manteniendo pulsado.
+- **Términos de Apple Maps:** prohíben la descarga masiva de datos del mapa y mostrar datos de
+  Apple (por ejemplo, la ruta) sobre un mapa que no sea de Apple. Por eso solo se guarda la ruta
+  del viaje en curso, en memoria, y se borra al terminar; y por eso no se mezclan calles de otro
+  proveedor con la ruta de Apple.
+
+### Alternativa para tener calles nuevas con el iPhone bloqueado
+
+Solo es posible sin Apple: datos de calles de **OpenStreetMap** (licencia ODbL, con la
+atribución "© OpenStreetMap"), un **dibujo propio de calles por CPU** (el procesador sí se puede
+usar en segundo plano) y **rutas calculadas también con OpenStreetMap**, para no dibujar la ruta
+de Apple sobre otro mapa. Haría falta:
+
+1. Descargar las calles del recorrido (por ejemplo con la API Overpass; su uso público
+   recomendado es de pocas peticiones al día por aplicación y exige un User-Agent propio).
+2. Un servidor de rutas basado en OpenStreetMap con política de uso compatible (o uno propio).
+3. Un dibujo de calles, nombres y cruces hecho por la app.
+4. Mantener la guía por voz e indicaciones con esas rutas.
+
+Es un proyecto aparte (un "modo OpenStreetMap"), no un ajuste de la 0.6.1. Mapbox, HERE y el
+SDK de Google dibujan con la tarjeta gráfica, así que tampoco generan mapa con el iPhone
+bloqueado, además de requerir cuenta y clave propias.
+
+### Resto del viaje con el iPhone bloqueado
+
 | Tema | Qué hace la app | Qué no se puede garantizar |
 | --- | --- | --- |
-| Ubicación en segundo plano | Modo `location` con `allowsBackgroundLocationUpdates`, tipo navegación en coche y sin pausas automáticas | iOS puede cerrar una app en segundo plano por memoria o batería, o si el usuario la cierra |
-| Continuidad del GPS | La guía y la voz siguen con el iPhone bloqueado | Dentro de túneles o edificios el GPS pierde precisión |
-| Mapa en la moto | Imágenes guardadas del recorrido (hasta ~8 km) | Apple no genera imágenes nuevas en segundo plano: fuera de lo guardado, mapa simple |
-| Vídeo a la moto | Dibujo por CPU; el codificador se recrea si iOS lo invalida | **Sin comprobar en la moto** con el iPhone bloqueado |
-| Spotify | Sigue sonando (lo reproduce la app de Spotify) | La información en la moto puede dejar de actualizarse si Spotify corta la conexión |
+| Ubicación en segundo plano | Modo `location` con `allowsBackgroundLocationUpdates`, tipo navegación en coche y sin pausas automáticas. El diagnóstico cuenta los fijos recibidos en segundo plano | iOS puede cerrar una app en segundo plano por memoria o batería, o si el usuario la cierra |
+| Guía y voz | Siguen con el iPhone bloqueado (avance, giros y voz no dependen del mapa) | Dentro de túneles el GPS pierde precisión |
+| Recálculo | Se registra cuánto tarda; si no responde en 20 s se pide otra vez y la tarjeta dice a cuánto está la ruta | Apple puede no responder hasta abrir la app (se verá en el registro) |
+| Mapa en la moto | Imágenes guardadas de la ruta; mapa simple fuera de ellas | Sin imágenes nuevas de Apple con el iPhone bloqueado |
+| Vídeo a la moto | Dibujo por CPU; el codificador se recrea si iOS lo invalida; ritmo y edad del último fotograma en el diagnóstico | **Sin comprobar en la moto** con el iPhone bloqueado |
+| Spotify | Sigue sonando (lo reproduce la app de Spotify) | La información en la moto puede dejar de actualizarse si Spotify corta la conexión; la app reintenta dos veces y vuelve a conectar al abrirse |
 | Intercomunicador Bluetooth | La voz usa la sesión de audio `playback` con modo de indicaciones de voz: baja el volumen de la música mientras habla y sale por la salida activa (A2DP) | No probado con tu intercomunicador |
-| Reconexión con la moto | Reintenta sola si se pierde el enlace | Sin prueba sistemática; con la app suspendida no hay reconexión |
-| Energía | Pantalla de la moto a 10 imágenes por segundo, GPS continuo y Wi-Fi | El consumo no se ha medido; conviene llevar el iPhone cargando |
+| Reconexión con la moto | Diez avisos seguidos y después uno cada 10 s mientras el enlace esté activo; actualiza la IP si el Wi-Fi cambió | Sin prueba sistemática en la moto |
+| Energía y temperatura | Pantalla de la moto a 10 imágenes por segundo, GPS continuo y Wi-Fi; el diagnóstico muestra batería y temperatura | El consumo no se ha medido; conviene llevar el iPhone cargando |

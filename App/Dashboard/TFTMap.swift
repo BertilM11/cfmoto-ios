@@ -81,7 +81,7 @@ final class TFTMap {
     private weak var routeShape: HUDRouteShape?
     private var previewKey = ""
     private var routeGeneration = 0
-    private var route: RouteLine?
+    private var route: RoutePath?
     private var turns: [Double] = []
     private var routeProgress = 0.0
     private var routeTarget = 0.0
@@ -526,7 +526,7 @@ final class TFTMap {
         }
         routeMissingSince = nil
         if let pts = points {
-            let line = RouteLine(points: pts)
+            let line = RoutePath(points: pts)
             route = line
             routeGeneration += 1
             turns = line.turns()
