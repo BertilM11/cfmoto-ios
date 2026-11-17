@@ -51,7 +51,8 @@ firmar en *Releases*.
 2. En el iPhone conéctate al Wi-Fi `DIRECT-…-CFMOTO` (clave `12345678`). Deja los datos
    móviles activos: ese Wi-Fi no da internet y el mapa lo necesita.
 3. En **Inicio** pulsa **Conectar y enviar el panel**.
-4. Cambia de modo o edita el panel en **Mi pantalla**: la moto lo refleja sin reconectar.
+4. Cambia de modo o edita el panel en **Mi pantalla**: el cambio va en la siguiente imagen,
+   sin reconectar (falta confirmarlo en la moto).
 
 ## Documentación
 
