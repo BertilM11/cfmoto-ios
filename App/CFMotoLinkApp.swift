@@ -16,7 +16,7 @@ struct CFMotoLinkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavScreen()
+            RootTabs()
         }
     }
 }

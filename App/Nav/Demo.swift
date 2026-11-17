@@ -58,7 +58,7 @@ enum Demo {
         }())
         let image = renderer.image { context in
             // UIKit ya entrega el contexto con el origen arriba a la izquierda.
-            HUDRenderer(width: width, height: height).draw(HUDState.shared.get(), now: Date(), in: context.cgContext)
+            HUDRenderer(width: width, height: height).drawDashboard(DashState.shared.snapshot(), now: Date(), in: context.cgContext)
         }
         try? image.pngData()?.write(to: folder.appendingPathComponent("hud.png"))
     }

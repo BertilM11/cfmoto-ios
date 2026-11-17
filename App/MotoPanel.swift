@@ -7,6 +7,7 @@ import ReplayKit
 ///  - Navegación de CFMoto Link: la app dibuja su propia pantalla (flecha, distancia, minimapa).
 ///  - Duplicar pantalla: la extensión de transmisión copia lo que se ve en el iPhone.
 final class LinkModel: ObservableObject {
+    static let shared = LinkModel()
     @Published var running = false
     @Published var status = "Sin conectar"
     @Published var manualIp = ""
@@ -207,9 +208,9 @@ struct MotoPanel: View {
 
                 // Navegación propia
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Navegación de CFMoto Link")
+                    Text("Panel de CFMoto Link")
                         .font(.headline)
-                    Text("Envía una pantalla hecha para la moto: flecha, distancia, calle y minimapa. No depende de lo que muestre el iPhone.")
+                    Text("Envía el panel que armaste en Mi pantalla: navegación, música y avisos. No depende de lo que muestre el iPhone.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Button {
@@ -220,7 +221,7 @@ struct MotoPanel: View {
                         }
                     } label: {
                         Label(
-                            model.running ? "Detener" : "Enviar navegación a la moto",
+                            model.running ? "Detener" : "Enviar panel a la moto",
                             systemImage: model.running ? "stop.fill" : "location.north.line.fill"
                         )
                         .font(.body.bold())

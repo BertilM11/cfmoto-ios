@@ -61,7 +61,7 @@ final class NavHUDSource: FrameSource {
         t.setEventHandler { [weak self] in self?.tick() }
         timer = t
         t.resume()
-        logLine("[MOTO] dibujando la navegación a \(width)x\(height) @\(fps)fps")
+        logLine("[MOTO] dibujando el panel a \(width)x\(height) @\(fps)fps")
     }
 
     func stop() {
@@ -89,7 +89,7 @@ final class NavHUDSource: FrameSource {
             // Origen arriba a la izquierda, como espera el dibujo.
             ctx.translateBy(x: 0, y: CGFloat(height))
             ctx.scaleBy(x: 1, y: -1)
-            renderer.draw(HUDState.shared.get(), now: Date(), in: ctx)
+            renderer.drawDashboard(DashState.shared.snapshot(), now: Date(), in: ctx)
         }
         CVPixelBufferUnlockBaseAddress(buffer, [])
 

@@ -119,6 +119,16 @@ struct DashLayout: Codable, Equatable {
     var showsRoute: Bool { slots.contains { $0?.showsRoute == true } }
     var showsMusic: Bool { slots.contains { $0 == .music } }
 
+    /// Cambia de plantilla y rellena las zonas nuevas con módulos que aún no se muestran.
+    mutating func setTemplate(_ t: DashTemplate) {
+        template = t
+        normalize()
+        let order: [DashModule] = [.nav, .music, .notices, .trip, .turn, .map, .clock]
+        for i in slots.indices where slots[i] == nil {
+            if let m = order.first(where: { !slots.contains($0) }) { slots[i] = m }
+        }
+    }
+
     mutating func swapSlots(_ a: Int, _ b: Int) {
         normalize()
         guard a != b, slots.indices.contains(a), slots.indices.contains(b) else { return }

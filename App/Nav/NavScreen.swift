@@ -7,7 +7,7 @@ struct NavScreen: View {
     @ObservedObject private var engine = NavEngine.shared
     @ObservedObject private var location = LocationService.shared
     @StateObject private var search = PlaceSearch()
-    @StateObject private var moto = LinkModel()
+    @ObservedObject private var moto = LinkModel.shared
     @AppStorage("tema") private var themeRaw: String = AppTheme.system.rawValue
     @Environment(\.colorScheme) private var systemScheme
     @State private var following = true

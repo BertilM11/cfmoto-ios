@@ -20,14 +20,15 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: CFMoto Link
-        CFBundleShortVersionString: "0.3.0"
-        CFBundleVersion: "4"
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "5"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSLocalNetworkUsageDescription: CFMoto Link se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSLocationWhenInUseUsageDescription: CFMoto Link usa tu ubicación para mostrarte en el mapa, calcular la ruta y guiarte giro a giro.
+        NSAppleMusicUsageDescription: CFMoto Link muestra en la pantalla de la moto la canción que suena en la app Música y te deja pausar o cambiar de canción.
         CFBundleLocalizations:
           - es
         UIBackgroundModes:
@@ -56,8 +57,8 @@ targets:
       path: Broadcast/Info.plist
       properties:
         CFBundleDisplayName: CFMoto Link
-        CFBundleShortVersionString: "0.3.0"
-        CFBundleVersion: "4"
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "5"
         NSLocalNetworkUsageDescription: CFMoto Link se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.broadcast-services-upload
