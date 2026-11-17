@@ -186,6 +186,8 @@ final class Diagnostics {
         if let m = MemoryInfo.footprintMB() { parts.append(String(format: "mem=%.0fMB", m)) }
         parts.append("red=\(NetworkWatch.shared.description)")
         parts.append("temp=\(Diagnostics.thermal())")
+        let level = UIDevice.current.batteryLevel
+        if level >= 0 { parts.append(String(format: "bat=%.0f%%", level * 100)) }
         return parts.joined(separator: " ")
     }
 
