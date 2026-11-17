@@ -368,7 +368,6 @@ final class TFTMap {
 
     @available(iOS 17.0, *)
     static func configuration(_ s: MapSettings) -> MKMapConfiguration {
-        switch s.style {
         // La vista inclinada usa el relieve "realista" de Apple, que es el que admite inclinación.
         let elevation: MKMapConfiguration.ElevationStyle = s.threeD ? .realistic : .flat
         switch s.style {
