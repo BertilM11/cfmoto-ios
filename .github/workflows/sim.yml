@@ -42,7 +42,7 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl privacy "$UDID" grant location io.github.cfmotolink.app
           xcrun simctl location "$UDID" set 14.6419,-90.5133
-          for run in "light 0" "light 2" "night 1" "light 4"; do
+          for run in "light 0" "light 2" "night 1" "light 3" "light 4"; do
             set -- $run
             xcrun simctl terminate "$UDID" io.github.cfmotolink.app || true
             xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo $1 -tab $2
