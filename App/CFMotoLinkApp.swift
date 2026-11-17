@@ -12,6 +12,33 @@ struct CFMotoLinkApp: App {
             HUDRenderer.reservedBottom = 0
         }
         AppRuntime.install()
+        Self.styleBars()
+    }
+
+    /// Barras oscuras en toda la app, sin depender de si el iPhone está en modo claro u oscuro.
+    private static func styleBars() {
+        let bg = UIColor(red: 0.02, green: 0.03, blue: 0.05, alpha: 1)
+        let dim = UIColor(red: 0.6, green: 0.65, blue: 0.73, alpha: 1)
+        let nav = UINavigationBarAppearance()
+        nav.configureWithOpaqueBackground()
+        nav.backgroundColor = bg
+        nav.shadowColor = .clear
+        nav.titleTextAttributes = [.foregroundColor: UIColor.white]
+        nav.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        UINavigationBar.appearance().standardAppearance = nav
+        UINavigationBar.appearance().scrollEdgeAppearance = nav
+        UINavigationBar.appearance().compactAppearance = nav
+        let tabs = UITabBarAppearance()
+        tabs.configureWithOpaqueBackground()
+        tabs.backgroundColor = UIColor(red: 0.035, green: 0.05, blue: 0.08, alpha: 1)
+        tabs.shadowColor = .clear
+        for item in [tabs.stackedLayoutAppearance, tabs.inlineLayoutAppearance, tabs.compactInlineLayoutAppearance] {
+            item.normal.iconColor = dim
+            item.normal.titleTextAttributes = [.foregroundColor: dim]
+        }
+        UITabBar.appearance().standardAppearance = tabs
+        UITabBar.appearance().scrollEdgeAppearance = tabs
+        UITabBar.appearance().unselectedItemTintColor = dim
     }
 
     var body: some Scene {

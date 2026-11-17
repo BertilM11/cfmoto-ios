@@ -120,6 +120,7 @@ struct RootTabs: View {
                 .tabItem { Label("Más", systemImage: "ellipsis.circle.fill") }.tag(4)
         }
         .tint(Brand.blue)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .onAppear {
             DashStore.shared.start()
             MusicService.shared.start()
