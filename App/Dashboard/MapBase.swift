@@ -187,6 +187,9 @@ final class MapBase {
 
     var aspect: CGFloat { CGFloat(pixelWidth) / CGFloat(pixelHeight) }
 
+    /// Cuánto de perspectiva tiene la imagen (0 = mapa plano visto desde arriba).
+    var perspective: Double { abs(h.m[6]) + abs(h.m[7]) }
+
     /// La imagen lista para dibujar. Las guardadas para la ruta se descomprimen al usarlas.
     func cgImage() -> CGImage? {
         lock.lock()

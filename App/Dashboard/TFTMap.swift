@@ -16,7 +16,7 @@ final class TFTMap {
     static let shared = TFTMap()
 
     /// Dónde debe quedar la posición dentro de la imagen (fracción del alto, desde arriba).
-    static let puckY = 0.70
+    static let puckY = 0.72
 
     private let queue = DispatchQueue(label: "cfmoto.tftmap", qos: .userInitiated)
     private let lock = NSLock()
@@ -41,6 +41,9 @@ final class TFTMap {
     private var lookAhead: [Bool: Double] = [false: 0.2, true: 0.12]
     private var failures = 0
     private(set) var lastError = ""
+    /// Lo que tarda Apple en entregar una imagen (media), para pedirla ya adelantada.
+    private var latency = 0.8
+    private var told3D = false
 
     private struct Request {
         let here: GeoPoint
@@ -189,7 +192,12 @@ final class TFTMap {
         var heading = s.northUp ? 0 : pose.heading
         if heading < 0 { heading = lastLive?.heading ?? 0 }
         let pitch = s.threeD ? 50.0 : 0
-        let req = makeRequest(here: pose.here, heading: heading, distance: cameraDistance(pose, s), pitch: pitch,
+        // La imagen llega con retraso: se pide para donde estará la moto cuando llegue.
+        var here = pose.here
+        if pose.heading >= 0 && pose.speed > 1 {
+            here = here.moved(min(60, pose.speed * latency), bearing: pose.heading)
+        }
+        let req = makeRequest(here: here, heading: heading, distance: cameraDistance(pose, s), pitch: pitch,
                               night: night, pixels: pixels, s: s, now: now, anchor: -1)
         if let last = lastLive {
             let age = req.time - last.time
@@ -206,6 +214,14 @@ final class TFTMap {
             guard let self = self else { return }
             self.liveSnapshotter = nil
             guard let base = base else { return }
+            let took = Date().timeIntervalSinceReferenceDate - req.time
+            if took > 0 && took < 10 { self.latency = self.latency * 0.7 + took * 0.3 }
+            if req.pitch > 0 && !self.told3D {
+                self.told3D = true
+                logLine(base.perspective > 0.02
+                        ? "[MAPA] vista inclinada (3D) aplicada"
+                        : "[MAPA] Apple entregó el mapa plano aunque se pidió inclinado")
+            }
             self.calibrate(base, req)
             self.lock.lock()
             self.live = base
@@ -332,7 +348,12 @@ final class TFTMap {
                 } else if self.failures > 0 || !self.announced {
                     self.failures = 0
                     self.announced = true
-                    logLine("[MAPA] calles de Apple Maps en la moto")
+                    var detail = ""
+                    if let b = base, let a = b.project(req.center), let f = b.project(req.center.moved(50, bearing: req.heading)) {
+                        let fraction = Double(hypot(a.x - f.x, a.y - f.y))
+                        if fraction > 0.001 { detail = String(format: " (unos %.0f m de alto en la imagen)", 50 / fraction) }
+                    }
+                    logLine("[MAPA] calles de Apple Maps en la moto" + detail)
                 }
                 done(base)
             }
@@ -348,18 +369,21 @@ final class TFTMap {
     @available(iOS 17.0, *)
     static func configuration(_ s: MapSettings) -> MKMapConfiguration {
         switch s.style {
+        // La vista inclinada usa el relieve "realista" de Apple, que es el que admite inclinación.
+        let elevation: MKMapConfiguration.ElevationStyle = s.threeD ? .realistic : .flat
+        switch s.style {
         case .standard, .muted:
-            let c = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: s.style == .muted ? .muted : .default)
+            let c = MKStandardMapConfiguration(elevationStyle: elevation, emphasisStyle: s.style == .muted ? .muted : .default)
             c.showsTraffic = s.traffic
             c.pointOfInterestFilter = places
             return c
         case .hybrid:
-            let c = MKHybridMapConfiguration(elevationStyle: .flat)
+            let c = MKHybridMapConfiguration(elevationStyle: elevation)
             c.showsTraffic = s.traffic
             c.pointOfInterestFilter = places
             return c
         case .satellite:
-            return MKImageryMapConfiguration(elevationStyle: .flat)
+            return MKImageryMapConfiguration(elevationStyle: elevation)
         }
     }
 

@@ -110,19 +110,20 @@ extension HUDRenderer {
             }
             let from = max(0, progress - 200)
             let to = min(shape.length, progress + 6000)
-            if let whole = path(stretch(from, to)) {
-                ctx.addPath(whole)
+            // Lo ya recorrido, tenue y sin borde; lo que falta, grueso y con borde.
+            if progress - from > 2, let done = path(stretch(from, progress)) {
+                ctx.addPath(done)
+                ctx.setStrokeColor(alpha(p.route, 0.35))
+                ctx.setLineWidth(11 * u)
+                ctx.strokePath()
+            }
+            if let ahead = path(stretch(progress, to)) {
+                ctx.addPath(ahead)
                 ctx.setStrokeColor(p.routeCasing)
                 ctx.setLineWidth(23 * u)
                 ctx.strokePath()
-                ctx.addPath(whole)
+                ctx.addPath(ahead)
                 ctx.setStrokeColor(p.route)
-                ctx.setLineWidth(15 * u)
-                ctx.strokePath()
-            }
-            if progress - from > 2, let done = path(stretch(from, progress)) {
-                ctx.addPath(done)
-                ctx.setStrokeColor(p.routeDone)
                 ctx.setLineWidth(15 * u)
                 ctx.strokePath()
             }
