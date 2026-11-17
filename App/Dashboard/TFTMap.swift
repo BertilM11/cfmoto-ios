@@ -150,7 +150,18 @@ final class TFTMap {
         let pixels = CGSize(width: max(200, (rect.width / 2).rounded() * 2), height: max(120, (rect.height / 2).rounded() * 2))
 
         if liveSnapshotter == nil {
-            requestLive(pose, s, night: night, pixels: pixels, now: now)
+            // Con ruta, la imagen se pide para el punto de la ruta donde estará la moto cuando
+            // llegue (posición y rumbo de ese punto): así el mapa no gira tarde en las curvas.
+            var target = pose
+            if let shape = n.shape, let geo = n.geo, let progress = pose.progress, pose.speed > 1 {
+                let ahead = min(shape.length, progress + min(80, pose.speed * latency))
+                target.here = geo.geo(shape.point(at: ahead))
+                var h = shape.bearing(at: ahead, span: 25) * 180 / .pi
+                if h < 0 { h += 360 }
+                target.heading = h
+                target.progress = ahead
+            }
+            requestLive(target, s, night: night, pixels: pixels, now: now)
         }
         if liveSnapshotter == nil && cacheSnapshotter == nil {
             prefetch(n, pose, s, night: night, pixels: pixels, now: now)
@@ -194,7 +205,7 @@ final class TFTMap {
         let pitch = s.threeD ? 50.0 : 0
         // La imagen llega con retraso: se pide para donde estará la moto cuando llegue.
         var here = pose.here
-        if pose.heading >= 0 && pose.speed > 1 {
+        if pose.progress == nil && pose.heading >= 0 && pose.speed > 1 {
             here = here.moved(min(60, pose.speed * latency), bearing: pose.heading)
         }
         let req = makeRequest(here: here, heading: heading, distance: cameraDistance(pose, s), pitch: pitch,
