@@ -166,6 +166,15 @@ enum CorridorPlanner {
     /// por arriba; con esta separación cada tramo queda en al menos dos imágenes.
     static func step(visible: Double) -> Double { max(60, visible * 0.42) }
 
+    /// La separación se mantiene mientras la calibración de Apple no cambie de verdad (más
+    /// de un 15 %). Antes se recalculaba con cada imagen: la rejilla se movía un poco, lo ya
+    /// guardado dejaba de coincidir y se volvía a pedir cerca de la moto.
+    static func stableStep(current: Double, visible: Double) -> Double {
+        let fresh = step(visible: visible)
+        guard current > 0 else { return fresh }
+        return abs(fresh - current) / current > 0.15 ? fresh : current
+    }
+
     /// Cuántas imágenes caben en la memoria permitida.
     static func capacity(budgetBytes: Int, averageBytes: Int, maxImages: Int) -> Int {
         guard averageBytes > 0 else { return maxImages }
@@ -182,7 +191,11 @@ enum CorridorPlanner {
     static func anchors(route: RoutePath, from progress: Double, to end: Double, step: Double, turns: [Double]) -> [Double] {
         guard !route.isEmpty, end > progress, step > 0 else { return [] }
         var all: [(at: Double, turn: Bool)] = []
-        var d = max(0, progress - step * 0.25)
+        // Rejilla fija desde el inicio de la ruta: no se mueve con la moto. Antes empezaba en
+        // la posición actual, así que al avanzar unos metros nada de lo guardado coincidía y
+        // se volvía a pedir el tramo más cercano una y otra vez (en la prueba del simulador:
+        // 26 imágenes para menos de 1 km). La primera es la que todavía cubre la posición.
+        var d = (max(0, progress) / step).rounded(.down) * step
         let last = min(end, route.length)
         while d < last {
             all.append((d, false))
@@ -215,8 +228,9 @@ enum CorridorPlanner {
         night: (Double) -> Bool, styleKey: (Bool) -> String, northUp: Bool, step: Double, limit: Int
     ) -> [CorridorRequest] {
         guard limit > 0 else { return [] }
+        let sorted = existing.sorted { $0.anchor < $1.anchor }
         var out: [CorridorRequest] = []
-        for a in anchors {
+        for (i, a) in anchors.enumerated() {
             if out.count >= limit { break }
             if inFlight.contains(where: { abs($0 - a) < step * 0.25 }) { continue }
             let n = night(a)
@@ -226,6 +240,11 @@ enum CorridorPlanner {
                 abs(e.anchor - a) < step * 0.25 && e.base.styleKey == key && headingGap(e.base.heading, h) < 20
             }
             if saved { continue }
+            // Lo que le toca a esta imagen (hasta la siguiente) ya lo cubren otras, por ejemplo
+            // las conservadas al recalcular, que no caen en la rejilla de la ruta nueva: no se
+            // pide otra vez lo mismo.
+            let until = i + 1 < anchors.count ? anchors[i + 1] : a + step
+            if CorridorCoverage.covers(sorted, route: route, from: a, to: until, northUp: northUp, style: key) { continue }
             out.append(CorridorRequest(anchor: a, here: route.point(at: a), heading: h, night: n))
         }
         return out
@@ -284,6 +303,33 @@ enum CorridorCoverage {
             }
         }
         return false
+    }
+
+    /// ¿Todo el tramo de `from` a `to` tiene ya imagen del estilo pedido? `sorted`: ordenadas
+    /// por ancla.
+    static func covers(_ sorted: [CorridorEntry], route: RoutePath, from: Double, to: Double,
+                       northUp: Bool, style: String, sample: Double = 25) -> Bool {
+        guard to > from, !sorted.isEmpty else { return false }
+        // Solo las imágenes cercanas al tramo (búsqueda binaria del primer ancla útil).
+        var lo = 0
+        var hi = sorted.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if sorted[mid].anchor < from - 1500 { lo = mid + 1 } else { hi = mid }
+        }
+        var near: [CorridorEntry] = []
+        var i = lo
+        while i < sorted.count && sorted[i].anchor <= to + 1500 {
+            if sorted[i].base.styleKey == style { near.append(sorted[i]) }
+            i += 1
+        }
+        guard !near.isEmpty else { return false }
+        var d = from
+        while d < to {
+            if !usable(near, route: route, at: d, northUp: northUp, style: style) { return false }
+            d += sample
+        }
+        return true
     }
 
     static func scan(route: RoutePath, from progress: Double, to end: Double, entries: [CorridorEntry],

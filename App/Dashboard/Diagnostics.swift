@@ -255,7 +255,7 @@ final class Diagnostics {
         if map.routeActive {
             mapRows.append(Row(label: "Mapa seguido por delante", value: Diagnostics.km(continuous) + " de " + Diagnostics.km(map.routeRemaining), warn: !enough))
             mapRows.append(Row(label: "Con imagen en total", value: Diagnostics.km(map.coverage.covered) + " · tramos sin imagen: \(map.coverage.gaps)"))
-            mapRows.append(Row(label: "Objetivo de guardado", value: Diagnostics.km(map.target)))
+            mapRows.append(Row(label: "Objetivo de guardado", value: Diagnostics.km(map.target) + String(format: " · una imagen cada %.0f m y en cada giro", map.step)))
         }
         if !map.lastError.isEmpty { mapRows.append(Row(label: "Último error", value: map.lastError, warn: true)) }
         out.append(Section(title: "Mapa de calles", rows: mapRows))

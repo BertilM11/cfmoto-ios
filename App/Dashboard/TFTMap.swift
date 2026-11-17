@@ -49,6 +49,8 @@ final class TFTMap {
         var routeActive = false
         var routeRemaining: Double = 0
         var target: Double = 0
+        /// Metros entre imágenes guardadas.
+        var step: Double = 0
         var coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
         var wantedStyle = ""
     }
@@ -85,6 +87,8 @@ final class TFTMap {
     private var turns: [Double] = []
     private var routeProgress = 0.0
     private var routeTarget = 0.0
+    /// Separación entre imágenes guardadas: estable mientras la calibración no cambie mucho.
+    private var routeStep = 0.0
     private var routeMissingSince: TimeInterval?
     private var capacity = TFTMap.maxImages
     private var budget = 48 << 20
@@ -230,6 +234,7 @@ final class TFTMap {
         s.routeActive = route != nil
         s.routeRemaining = route.map { max(0, $0.length - routeProgress) } ?? 0
         s.target = routeTarget
+        s.step = routeStep
         s.coverage = coverage
         return s
     }
@@ -577,7 +582,13 @@ final class TFTMap {
         guard let route = route, !route.isEmpty else { return }
         let distance = 680 * s.zoom
         let visible = (heightPerDistance[false] ?? 0.62) * distance
-        let step = CorridorPlanner.step(visible: visible)
+        let step = CorridorPlanner.stableStep(current: routeStep, visible: visible)
+        if step != routeStep {
+            if routeStep > 0 {
+                logLine(String(format: "[MAPA] separación del mapa guardado: %.0f m (antes %.0f m)", step, routeStep))
+            }
+            routeStep = step
+        }
         budget = TFTMap.memoryBudget()
         capacity = CorridorPlanner.capacity(budgetBytes: budget, averageBytes: averageBytes, maxImages: TFTMap.maxImages)
         let progress = routeProgress

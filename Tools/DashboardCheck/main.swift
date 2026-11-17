@@ -688,6 +688,91 @@ let refilledCoverage = CorridorCoverage.scan(route: rerouted, from: 2000, to: re
 check("Tras recalcular, solo se pide el tramo nuevo", refilled.count - kept.count < 45 && refilledCoverage.gaps == 0,
       "\(refilled.count - kept.count) nuevas")
 
+// Recálculo desde donde está la moto (lo normal): la ruta nueva empieza ahí, así que su
+// rejilla no coincide con la de antes. Lo conservado tiene que contar igual.
+let cutAt = 2037.0
+let fromHere = RoutePath(points: legs(corridorRoute.point(at: cutAt), [(6000 - cutAt, 35), (4000, 125), (5000, 35)]))
+let keptHere = CorridorPlanner.retain(fullCorridor, on: fromHere, northUp: false)
+let fromHereAnchors = CorridorPlanner.anchors(route: fromHere, from: 0, to: fromHere.length, step: corridorStep, turns: fromHere.turns())
+let askedAgain = CorridorPlanner.missing(anchors: fromHereAnchors, route: fromHere, existing: keptHere, inFlight: [],
+                                         night: { _ in false }, styleKey: { _ in "dia" }, northUp: false, step: corridorStep, limit: 500)
+let fromHereCoverage = CorridorCoverage.scan(route: fromHere, from: 0, to: fromHere.length, entries: keptHere, northUp: false)
+check("Recalculando desde la posición actual no se vuelve a pedir lo que ya se tiene (antes: casi todo otra vez)",
+      keptHere.count > 60 && askedAgain.count <= 2 && fromHereCoverage.gaps == 0,
+      "\(keptHere.count) conservadas, \(askedAgain.count) pedidas de nuevo")
+let planStartMissing = Date()
+for _ in 0..<10 {
+    _ = CorridorPlanner.missing(anchors: fromHereAnchors, route: fromHere, existing: keptHere, inFlight: [],
+                                night: { _ in false }, styleKey: { _ in "dia" }, northUp: false, step: corridorStep, limit: 2)
+}
+let missingMs = Date().timeIntervalSince(planStartMissing) * 1000 / 10
+check("Decidir qué pedir (13 km ya guardados) tarda poco", missingMs < 40, String(format: "%.1f ms", missingMs))
+
+// Con la moto avanzando, como la app: cada 0,25 s se mira qué falta, dos imágenes a la vez,
+// y la calibración de Apple mueve un poco el alto visible con cada imagen.
+func driveCorridor(_ route: RoutePath, seconds: Double, speed: Double, imageSeconds: Double)
+    -> (entries: [CorridorEntry], requests: Int, repeated: Int, progress: Double) {
+    let routeTurns = route.turns()
+    var list: [CorridorEntry] = []
+    var flying: [(request: CorridorRequest, ready: Double)] = []
+    var asked: [Double] = []
+    var requests = 0
+    var repeated = 0
+    var step = 0.0
+    var progress = 0.0
+    var t = 0.0
+    var tick = 0
+    while t < seconds {
+        tick += 1
+        step = CorridorPlanner.stableStep(current: step, visible: corridorVisible * (1 + 0.08 * sin(Double(tick) * 0.7)))
+        for f in flying where f.ready <= t {
+            if let e = fakeShot(f.request.here, heading: f.request.heading, style: "dia", anchor: f.request.anchor) { list.append(e) }
+        }
+        flying.removeAll { $0.ready <= t }
+        list.sort { $0.anchor < $1.anchor }
+        list = CorridorPlanner.trim(list, progress: progress, capacity: 400)
+        let free = 2 - flying.count
+        if free > 0 {
+            let horizon = CorridorPlanner.horizon(remaining: route.length - progress, capacity: 400, step: step)
+            let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + horizon, step: step, turns: routeTurns)
+            let wanted = CorridorPlanner.missing(anchors: anchors, route: route, existing: list, inFlight: flying.map { $0.request.anchor },
+                                                 night: { _ in false }, styleKey: { _ in "dia" }, northUp: false, step: step, limit: free)
+            for r in wanted {
+                // Repetida: un punto de la rejilla que ya se había pedido (las de los giros
+                // son aparte y pueden caer cerca de uno de la rejilla).
+                if !routeTurns.contains(where: { abs($0 + 15 - r.anchor) < 1 }) {
+                    if asked.contains(where: { abs($0 - r.anchor) < step * 0.5 }) { repeated += 1 }
+                    asked.append(r.anchor)
+                }
+                flying.append((r, t + imageSeconds))
+                requests += 1
+            }
+        }
+        progress += speed * 0.25
+        t += 0.25
+    }
+    return (list, requests, repeated, progress)
+}
+// Como la prueba del simulador: 60 s con la app abierta, 12 m/s y unos 4,5 s por imagen.
+// Antes quedaban 0,8 km seguidos (registro de la prueba en segundo plano); ahora cada imagen
+// nueva amplía el mapa por delante.
+let simDrive = driveCorridor(corridorRoute, seconds: 60, speed: 12, imageSeconds: 4.5)
+let simCoverage = CorridorCoverage.scan(route: corridorRoute, from: simDrive.progress, to: corridorRoute.length, entries: simDrive.entries, northUp: false)
+check("Avanzando, cada imagen nueva amplía el mapa por delante (60 s como en el simulador)",
+      simCoverage.continuous > 3500 && simDrive.repeated == 0,
+      String(format: "%.1f km seguidos con %d peticiones, %d repetidas", simCoverage.continuous / 1000, simDrive.requests, simDrive.repeated))
+// Con imágenes más rápidas (iPhone real, unos 2 s), en 4 minutos queda guardada toda la ruta.
+let longDrive = driveCorridor(corridorRoute, seconds: 240, speed: 12, imageSeconds: 2)
+let longCoverage = CorridorCoverage.scan(route: corridorRoute, from: longDrive.progress, to: corridorRoute.length, entries: longDrive.entries, northUp: false)
+check("Avanzando 4 minutos se guarda toda la ruta que queda, sin huecos ni repetidas",
+      longCoverage.continuous >= corridorRoute.length - longDrive.progress - 30 && longCoverage.gaps == 0 && longDrive.repeated == 0
+      && longDrive.requests <= Int(corridorRoute.length / corridorStep) + 6,
+      String(format: "%.1f de %.1f km, %d peticiones, %d repetidas", longCoverage.continuous / 1000,
+             (corridorRoute.length - longDrive.progress) / 1000, longDrive.requests, longDrive.repeated))
+check("La separación no cambia por pequeñas variaciones de la calibración",
+      CorridorPlanner.stableStep(current: 177, visible: corridorVisible * 1.08) == 177
+      && CorridorPlanner.stableStep(current: 177, visible: corridorVisible * 1.4) > 230)
+
 // Qué imagen usa cada fotograma.
 func poseAt(_ route: RoutePath, _ d: Double) -> MapPose {
     MapPose(here: route.point(at: d), heading: route.bearing(at: d, span: 18), speed: 12, progress: d, toTurn: nil)
