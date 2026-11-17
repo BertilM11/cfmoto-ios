@@ -638,13 +638,12 @@ extension DashLayoutEngine {
         if o.music { wanted.append((.music, o.musicSpot)) }
         if o.notices && showNotices { wanted.append((.notices, o.noticesSpot)) }
         if o.clock { wanted.append((.clock, o.clockSpot)) }
-        let used = Set(wanted.map { $0.1 })
-        wanted.append((.compass, used.contains(.bottomRight) && !used.contains(.bottomLeft) ? .bottomLeft : .bottomRight))
 
         var placed: [OverlayCard] = []
         var stackTop: [CardSpot: CGFloat] = [:]
         var stackBottom: [CardSpot: CGFloat] = [:]
-        for (item, spot) in wanted {
+
+        func attempt(_ item: OverlayItem, _ spot: CardSpot) -> CGRect? {
             var size = cardSize(item, o)
             size = CGSize(width: min(size.width * k, inner.width), height: min(size.height * k, inner.height))
             var rect: CGRect
@@ -665,10 +664,9 @@ extension DashLayoutEngine {
             }
             // La barra del centro se estrecha entre las esquinas de abajo si hace falta.
             if spot == .bottomCenter {
-                let sides = placed.filter { ($0.rect.maxY > rect.minY && $0.rect.minY < rect.maxY) }
                 var left = inner.minX
                 var right = inner.maxX
-                for s in sides {
+                for s in placed where s.rect.maxY > rect.minY && s.rect.minY < rect.maxY {
                     if s.rect.midX < inner.midX { left = max(left, s.rect.maxX + gap) } else { right = min(right, s.rect.minX - gap) }
                 }
                 if rect.minX < left || rect.maxX > right {
@@ -680,7 +678,7 @@ extension DashLayoutEngine {
             }
             // Si choca con otra, se intenta justo debajo (arriba) o encima (abajo) de ella.
             var tries = 0
-            while let hit = placed.first(where: { $0.rect.intersects(rect.insetBy(dx: -gap / 2, dy: -gap / 2)) }), tries < 6 {
+            while let hit = placed.first(where: { $0.rect.intersects(rect.insetBy(dx: -gap / 2, dy: -gap / 2)) }), tries < 8 {
                 if spot.isTop {
                     rect.origin.y = hit.rect.maxY + gap
                 } else {
@@ -690,12 +688,31 @@ extension DashLayoutEngine {
             }
             let fits = rect.minX >= inner.minX - 0.5 && rect.maxX <= inner.maxX + 0.5
                 && rect.minY >= inner.minY - 0.5 && rect.maxY <= inner.maxY + 0.5
-            guard fits, !placed.contains(where: { $0.rect.intersects(rect) }) else { continue }
+            guard fits, !placed.contains(where: { $0.rect.intersects(rect) }) else { return nil }
+            return rect
+        }
+
+        func commit(_ item: OverlayItem, _ spot: CardSpot, _ rect: CGRect) {
             placed.append(OverlayCard(item: item, rect: rect))
             if spot.isTop {
                 stackTop[spot] = rect.maxY + gap
             } else {
                 stackBottom[spot] = rect.minY - gap
+            }
+        }
+
+        for (item, spot) in wanted {
+            if let rect = attempt(item, spot) { commit(item, spot, rect) }
+        }
+        // La brújula, pequeña, en la primera esquina que tenga sitio.
+        let used = Set(placed.map { o.spot($0.item) })
+        var candidates: [CardSpot] = used.contains(.bottomRight) && !used.contains(.bottomLeft)
+            ? [.bottomLeft, .bottomRight] : [.bottomRight, .bottomLeft]
+        candidates += [.topRight, .topLeft, .bottomCenter]
+        for spot in candidates {
+            if let rect = attempt(.compass, spot) {
+                commit(.compass, spot, rect)
+                break
             }
         }
         return placed

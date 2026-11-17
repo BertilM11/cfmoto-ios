@@ -2,8 +2,8 @@
 
 La app habla el protocolo EasyConn / Carbit PXC que usa la app oficial de CFMOTO. La
 implementación de iOS (`Shared/BikeLink.swift`) se escribió a partir de la documentación y el
-comportamiento de [OpenCfMoto](https://github.com/zanderp/open-cfmoto). **La versión 0.4.0 no
-cambia nada de este protocolo**: solo cambia la imagen que se le entrega.
+comportamiento de [OpenCfMoto](https://github.com/zanderp/open-cfmoto). **Las versiones 0.4 y
+0.5 no cambian nada de este protocolo**: solo cambia la imagen que se le entrega.
 
 ## Cómo funciona (verificado en una CFMOTO 450NK)
 
@@ -25,8 +25,9 @@ la moto reconoce.
 | --- | --- | --- |
 | Saludo, negociación y vídeo H.264 800×400 | Verificado | Registro y foto del propietario (0.1 y 0.2) |
 | Imagen dibujada por la app en la TFT | Verificado | Foto del propietario con la navegación de la 0.3 |
-| La moto tapa la franja inferior con sus indicadores | Verificado | Misma foto: velocidad, marcha y rpm sobre el 22 % inferior |
-| Panel modular de la 0.4.0 en la TFT | **Pendiente** | Usa la misma vía de vídeo; falta probarlo en la moto |
+| La moto muestra la imagen entera y pone sus indicadores **debajo**, en su propia franja | Verificado | Misma foto: la fila inferior de la 0.3 y el hueco vacío de la app se ven completos; velocidad, marcha y rpm están fuera de la imagen (corrige lo que decía la 0.4) |
+| Panel modular de la 0.4 en la TFT | **Pendiente** | Usa la misma vía de vídeo; falta probarlo en la moto |
+| Mapa de calles de la 0.5 en la TFT | **Pendiente** | Misma vía de vídeo; la imagen se compone en el iPhone |
 | Cambiar de modo sin reconectar | **Pendiente** | El cambio solo altera el dibujo del siguiente fotograma |
 | Reconexión tras perder el enlace | Parcial | Programada (`Enlace perdido; reintentando…`); sin prueba sistemática |
 | Vídeo con el iPhone bloqueado | **Pendiente** | Ver más abajo |
@@ -40,6 +41,10 @@ la moto reconoce.
   app lo vuelve a crear, prueba el codificador por software y, si no hay imagen nueva, repite la
   última. Si eso basta está **sin comprobar**: el registro anota cada cinco segundos el estado
   de la app, las imágenes enviadas y el codificador usado.
+
+Desde la 0.5, con el iPhone bloqueado el mapa de calles sale de las imágenes que la app
+guardó al iniciar la ruta (Apple no genera imágenes nuevas en segundo plano). El registro
+anota `[MAPA]` cuando llegan o fallan las imágenes.
 
 ## Lo que la app no hace
 

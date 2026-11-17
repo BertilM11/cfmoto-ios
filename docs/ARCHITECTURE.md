@@ -34,7 +34,8 @@ Mi pantalla ─► DashStore ─────┘        │
   un módulo o queda vacía; una zona vacía cede su espacio a la vecina.
 - **Modos** (`DashMode`): seis combinaciones predefinidas y el modo personalizado. Un modo no
   es una pantalla aparte: es una plantilla con módulos, dibujada por el mismo código.
-- **Área útil**: `DashLayoutEngine.usableArea` descuenta la franja inferior (22 % por defecto)
+- **Área útil**: `DashLayoutEngine.usableArea` usa la imagen entera desde la 0.5 (solo descuenta
+  una franja inferior si el usuario lo pide en Ajustes)
   donde la moto dibuja velocidad, marcha y testigos. Ahí la app no dibuja nada.
 
 Las zonas salen de dividir el área útil, así que por construcción no se solapan ni se salen.
@@ -57,3 +58,17 @@ para las pruebas (`Tools/DashboardCheck`).
 - `CFMotoLinkBroadcast`: extensión de transmisión de pantalla (`Broadcast/` + `Shared/`).
 
 No hay dependencias externas.
+
+
+## Mapa de calles (0.5)
+
+| Pieza | Archivo | Qué hace |
+| --- | --- | --- |
+| `MapBase` | `App/Dashboard/MapBase.swift` | Una imagen de Apple Maps y su proyección (homografía de 4 puntos): sitúa cualquier coordenada en la imagen, igual en 2D que en 3D. Sin MapKit, se prueba en macOS. |
+| `TFTMap` | `App/Dashboard/TFTMap.swift` | Pide instantáneas a `MKMapSnapshotter` siguiendo la posición (rumbo, zoom según velocidad y giros, 3D, tráfico, noche) y guarda imágenes del recorrido para el iPhone bloqueado. Elige la que mejor encaja en cada fotograma. Se autocalibra con lo que devuelve Apple. |
+| `drawStreetMap` | `App/Dashboard/DashMapRenderer.swift` | Dibuja la imagen y, encima, alternativas, ruta con borde, tramo recorrido, maniobra, destino, posición y brújula. |
+| `overlayCards` | `App/Dashboard/DashModel.swift` | Coloca las tarjetas flotantes por esquinas, las apila y garantiza que no se monten ni se salgan. |
+| `SpotifyService` | `App/Dashboard/SpotifyService.swift` | SDK oficial de Spotify (App Remote): permiso, canción, portada y controles. |
+
+El dibujo sigue siendo solo CPU (CoreGraphics). Lo único que necesita la app al frente es la
+generación de las imágenes de Apple; el dibujo de cada fotograma no.

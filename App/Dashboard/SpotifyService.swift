@@ -82,8 +82,12 @@ final class SpotifyService: NSObject, ObservableObject {
             return
         }
         phase = .authorizing
-        if !r.authorizeAndPlayURI("") {
-            phase = .failed("No se encontró la app de Spotify en este iPhone")
+        // Cadena vacía: Spotify sigue con lo último que sonaba (no elige música por su cuenta).
+        r.authorizeAndPlayURI("") { [weak self] installed in
+            guard !installed else { return }
+            DispatchQueue.main.async {
+                self?.phase = .failed("No se encontró la app de Spotify en este iPhone")
+            }
         }
         logLine("[SPOTIFY] pidiendo permiso a la app de Spotify")
         #else

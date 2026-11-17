@@ -1,4 +1,4 @@
-# CFMoto Link 0.4.0 — Smart Dashboard
+# CFMoto Link 0.5.0 — Mapa premium
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,16 +9,24 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
-- **Panel para la moto** con siete modos: Solo GPS, Solo música, GPS + Música, GPS + Avisos,
-  Música + Avisos, Panel completo y Personalizado.
-- **Mi pantalla**: editor con vista previa real (el mismo dibujo que recibe la moto), zonas que
-  se arrastran para intercambiarlas, tamaños ajustables, temas y perfiles guardados.
-- **Navegación** con los mapas de Apple: búsqueda, rutas reales con alternativas, guía giro a
-  giro con voz en español y recálculo.
-- **Música**: lee y controla la app Música (Apple Music).
+- **Imagen completa**: la app usa los 800×400 que pide la moto; los indicadores de la moto
+  (velocidad, rpm, marcha, testigos) siguen en su propia franja, debajo, sin taparse.
+- **Mapa de calles de Apple Maps** en la moto, con nombres de calles, la ruta resaltada con
+  borde, la flecha de posición, la brújula, vista 3D opcional, tráfico (iOS 17+), modo noche,
+  zoom según la velocidad y antes de cada giro, y rutas alternativas al empezar.
+- **Tarjetas flotantes** semitransparentes sobre el mapa: próxima maniobra (con la siguiente),
+  música, llegada/tiempo/distancia, avisos y reloj. Se mueven de esquina y cambian de tamaño.
+- **Modos**: A · Navegación completa, B · Navegación + Música, C · Música, D · Personalizado,
+  y los de la 0.4 (Panel completo, Navegación + Avisos, Música + Avisos).
+- **Mi pantalla**: editor con vista previa real (el mismo dibujo que recibe la moto), perfiles,
+  temas y ajustes del mapa.
+- **Navegación** con los mapas de Apple: búsqueda, rutas reales, guía giro a giro con voz en
+  español y recálculo.
+- **Música**: Apple Music (app Música) o **Spotify** con su SDK oficial (con tu propio Client ID).
 - **Avisos**: navegación, conexión con la moto y batería baja del iPhone.
 - **Duplicar pantalla** (extensión ReplayKit) para ver Waze o Google Maps en la moto.
 
+Por qué había una franja negra y cómo se eligió el proveedor de mapas: [docs/PANTALLA.md](docs/PANTALLA.md).
 Lo que es real, lo que está limitado por iOS y lo que falta está en [docs/FEATURES.md](docs/FEATURES.md).
 
 ## Abrir y compilar
@@ -53,12 +61,17 @@ firmar en *Releases*.
 3. En **Inicio** pulsa **Conectar y enviar el panel**.
 4. Cambia de modo o edita el panel en **Mi pantalla**: el cambio va en la siguiente imagen,
    sin reconectar (falta confirmarlo en la moto).
+5. Al iniciar una ruta, deja CFMoto Link abierta unos segundos: así guarda las calles del
+   recorrido para cuando bloquees el iPhone. Con la app abierta, el mapa se actualiza en vivo.
+6. Spotify: Música > Spotify y sigue los cuatro pasos (necesitas una app registrada en
+   developer.spotify.com; desde 2026 Spotify pide Premium a la cuenta dueña).
 
 ## Documentación
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): estructura y componentes.
 - [docs/CONNECTION.md](docs/CONNECTION.md): comunicación con la moto.
 - [docs/FEATURES.md](docs/FEATURES.md): estado real de cada función.
+- [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): pruebas y resultados.
 
 ## Créditos y licencia
