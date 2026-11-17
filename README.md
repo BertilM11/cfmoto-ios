@@ -88,14 +88,16 @@ firmar en *Releases*.
 ## Documentación
 
 - [CHANGELOG.md](CHANGELOG.md): cambios de cada versión.
-- [docs/ERROR_REPORT.md](docs/ERROR_REPORT.md): errores encontrados en la 0.6.0 y su corrección.
+- [docs/ERROR_REPORT.md](docs/ERROR_REPORT.md): errores encontrados (en la 0.6.0 y durante la 0.6.1) y su corrección.
 - [docs/INSTALL.md](docs/INSTALL.md) y [docs/ROLLBACK.md](docs/ROLLBACK.md): instalar y volver atrás.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): estructura y componentes.
 - [docs/CONNECTION.md](docs/CONNECTION.md): comunicación con la moto.
 - [docs/FEATURES.md](docs/FEATURES.md): estado real de cada función.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
-- [docs/TESTING.md](docs/TESTING.md): pruebas y resultados.
+- [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas de la 0.6.1.
+- [docs/LIMITATIONS.md](docs/LIMITATIONS.md): limitaciones pendientes y qué haría falta.
 
 ## Créditos y licencia
 

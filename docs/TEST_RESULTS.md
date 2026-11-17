@@ -53,7 +53,7 @@ genera la compilación de la versión). Las de la 0.6.1:
 | Portadas de Spotify: solo vale la de la canción que suena | Pasa | |
 | Revisar la cobertura de 15 km tarda poco | Pasa | 1,1 ms |
 | Recta larga sin puntos intermedios: la ruta se ve por delante de la moto | Pasa | |
-| Dibujar un fotograma con mapa y tarjetas | Pasa | 3,0 ms de media (equipo de GitHub, no el iPhone) |
+| Dibujar un fotograma con mapa y tarjetas | Pasa | 3,8 ms de media (equipo de GitHub, no el iPhone) |
 
 Las pruebas usan imágenes de mapa de prueba con la misma geometría que pide la app; no
 descargan mapas de Apple.
@@ -91,6 +91,11 @@ al pasar a segundo plano (34 imágenes en 80 s, 2,3 MB); en segundo plano la cob
 actualizando mientras avanzaba la ruta simulada (5,5 → 5,0 km) y se usó la imagen guardada; al
 volver, 4,9 de 8,8 km. En su captura en segundo plano faltaba la línea de la ruta por delante de
 la moto en una recta larga (error 9 del informe): corregido después.
+
+**Prueba 25** (con esa corrección; es la del código que se publica): 132 pruebas automáticas,
+todas pasan. Con la app al frente, 4,6 km seguidos al pasar a segundo plano (30 imágenes,
+2,1 MB); en segundo plano, imagen guardada y cobertura al día (4,2 → 4,1 km); en la captura en
+segundo plano la línea de la ruta ya se ve por delante de la moto en la avenida recta.
 
 ## 3. Lo que falta: pruebas en la moto
 

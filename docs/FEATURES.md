@@ -12,8 +12,8 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
-| **0.6.1** Mapa de calles con el iPhone bloqueado: ruta entera guardada por delante (hasta el límite de memoria), imagen tras cada giro, tema según la hora de paso, conservado al recalcular | Verificado en pruebas (ruta de 15 km sin huecos) y en el simulador; **falta la moto** (pruebas A–J de `TESTING.md`) |
-| **0.6.1** Aviso "Mapa guardado: X de Y km" en Navegación | Programado; se verá en el simulador y en el iPhone |
+| **0.6.1** Mapa de calles con el iPhone bloqueado: ruta entera guardada por delante (hasta el límite de memoria), imagen tras cada giro, tema según la hora de paso, conservado al recalcular | Verificado en pruebas (ruta de 15 km sin huecos; avanzando, sin repetir) y en el simulador (unos 5 km guardados en 80 s; en segundo plano se usa lo guardado); **falta la moto** (pruebas A–K de `TESTING.md`) |
+| **0.6.1** Aviso "Guardando el mapa / Mapa guardado: X de Y km" en Navegación | Visto en el simulador; falta en el iPhone |
 | **0.6.1** Pantalla negra (mapa en vivo sin bloquear el iPhone) | Programado; **falta probar** batería y temperatura en un viaje real |
 | **0.6.1** Diagnóstico con informe exportable | Programado y compilado; **falta verlo en el iPhone** |
 | **0.6.1** Reconexión con la moto sin límite de intentos | Programado; **falta la moto** (apagar y encender) |
@@ -60,7 +60,7 @@ iPhone, pero no en la moto.
 | Ver la interfaz de Waze o Google Maps en la moto | Solo con Duplicar pantalla y el iPhone desbloqueado. |
 | Mapa de calles con el iPhone bloqueado | Apple no entrega imágenes nuevas con la app en segundo plano. Se usan las guardadas de la ruta (toda la que quepa en la memoria). Fuera de la ruta guardada (desvío o recálculo con el iPhone bloqueado): dibujo simple de la ruta, con la etiqueta MAPA SIMPLE. Para mapa en vivo todo el viaje: Pantalla negra. Calles nuevas con el iPhone bloqueado solo serían posibles con un sistema completo sin Apple (ver `INTEGRATIONS.md`). |
 | Recálculo con el iPhone bloqueado | Depende de que Apple responda en segundo plano; si no responde en 20 s se pide otra vez y la tarjeta dice a cuánto está la ruta. Se verá en el registro. |
-| Cambio de día a noche con el iPhone bloqueado | Se pide el estilo nuevo, pero Apple no lo entrega en segundo plano: se siguen usando las imágenes guardadas hasta abrir la app. |
+| Cambio de día a noche con el iPhone bloqueado | Apple no entrega imágenes nuevas en segundo plano. Los tramos que se recorrerán de noche ya se guardan en oscuro (por la hora prevista de paso) y al anochecer se eligen esas. Si un tramo solo tiene imagen clara (por ejemplo, si el viaje se retrasa mucho), se usa la clara hasta abrir la app. Falta verlo en la moto. |
 | Tráfico sobre la línea de la ruta | MapKit no da el tráfico por tramo de la ruta: se ve en las calles del mapa. |
 | Spotify | Exige que la cuenta dueña de la app de desarrollo tenga Premium y limita a 5 usuarios. El permiso dura una hora. Spotify puede cortar la conexión en segundo plano o tras un rato en pausa. La app no trae ninguna credencial ni el logotipo oficial (la atribución es el nombre en texto). |
 | Notificaciones de WhatsApp, Telegram, llamadas | **No es posible.** iOS no deja que una app lea las notificaciones de otras apps. |
