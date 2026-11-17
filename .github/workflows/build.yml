@@ -43,11 +43,25 @@ jobs:
           zip -qry CFMotoLink.ipa Payload
           ls -la CFMotoLink.ipa
 
+      # Paquete con el proyecto de Xcode ya generado, el código, la documentación, las
+      # pruebas del panel con su resultado y el .ipa recién compilado.
+      - name: Probar el panel y armar el paquete
+        run: |
+          mkdir -p paquete/CFMotoLink_SmartDashboard/docs/laminas
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift -o dashcheck
+          ./dashcheck paquete/CFMotoLink_SmartDashboard/docs/laminas | tee resultados.txt
+          D=paquete/CFMotoLink_SmartDashboard
+          cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md LICENSE .github "$D"/ 2>/dev/null || true
+          mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
+          cp CFMotoLink.ipa "$D"/
+          (cd paquete && zip -qry ../CFMotoLink_0.4.0_SmartDashboard.zip CFMotoLink_SmartDashboard)
+          ls -la CFMotoLink_0.4.0_SmartDashboard.zip
+
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa \
+          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.4.0_SmartDashboard.zip \
             --title "CFMoto Link · compilación ${{ github.run_number }}" \
             --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
 
