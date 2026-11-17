@@ -176,7 +176,7 @@ struct MotoPanel: View {
         return logBus.lines
     }
 
-    @AppStorage("franjaMoto") private var reserveStrip = true
+    @AppStorage("franjaLibre") private var reserveStrip = false
 
     private var statusText: String {
         if model.broadcasting && !model.running { return "Duplicando la pantalla" }
@@ -232,7 +232,7 @@ struct MotoPanel: View {
                     .tint(model.running ? .red : .blue)
                     .disabled(model.broadcasting && !model.running)
                     Toggle(isOn: $reserveStrip) {
-                        Text("Dejar libre la franja de abajo, donde la moto pone velocidad y marcha")
+                        Text("Dejar vacía la parte de abajo de la imagen (no hace falta: la moto pone sus indicadores aparte)")
                             .font(.footnote)
                     }
                     .onChange(of: reserveStrip) { on in

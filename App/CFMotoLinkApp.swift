@@ -8,9 +8,9 @@ struct CFMotoLinkApp: App {
         // La app está en español: así Apple Maps entrega las indicaciones en español aunque
         // el iPhone esté en otro idioma (la voz también es en español).
         UserDefaults.standard.set(["es-MX", "es"], forKey: "AppleLanguages")
-        if UserDefaults.standard.object(forKey: "franjaMoto") as? Bool == false {
-            HUDRenderer.reservedBottom = 0
-        }
+        // La moto muestra la imagen entera y pone sus indicadores en su propia franja, debajo
+        // (comprobado con foto de la TFT). Solo se deja una franja libre si el usuario lo pide.
+        HUDRenderer.reservedBottom = UserDefaults.standard.bool(forKey: "franjaLibre") ? 0.22 : 0
         AppRuntime.install()
         Self.styleBars()
     }
@@ -44,6 +44,7 @@ struct CFMotoLinkApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabs()
+                .onOpenURL { url in SpotifyService.shared.handle(url) }
         }
     }
 }

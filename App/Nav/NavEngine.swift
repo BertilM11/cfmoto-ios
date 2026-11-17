@@ -475,6 +475,21 @@ final class NavEngine: ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = active
     }
 
+    /// Rutas alternativas en metros locales de la ruta elegida (se recalculan si cambian).
+    private var alternateCache: (version: Int, routes: [[CGPoint]]) = (-1, [])
+
+    private func alternates(for g: GuidedRoute) -> [[CGPoint]] {
+        if alternateCache.version == routesVersion { return alternateCache.routes }
+        var out: [[CGPoint]] = []
+        for (i, r) in routes.enumerated() where i != selectedIndex && r !== g.route {
+            let c = GuidedRoute.coordinates(of: r.polyline)
+            let step = max(1, c.count / 400)
+            out.append(stride(from: 0, to: c.count, by: step).map { g.local(c[$0]) })
+        }
+        alternateCache = (routesVersion, out)
+        return out
+    }
+
     private func pushHUD() {
         var s = HUDSnapshot()
         s.style = hudStyle
@@ -483,6 +498,11 @@ final class NavEngine: ObservableObject {
             s.gpsOk = true
         } else if let last = LocationService.shared.last {
             s.gpsOk = abs(last.timestamp.timeIntervalSinceNow) < 6
+        }
+        if let last = LocationService.shared.last {
+            s.here = GeoPoint(lat: last.coordinate.latitude, lon: last.coordinate.longitude)
+            s.course = last.course
+            s.speed = max(0, last.speed)
         }
         if phase == .arrived {
             s.arrived = true
@@ -504,6 +524,13 @@ final class NavEngine: ObservableObject {
             s.maneuverAt = progress + current.distance
             s.speed = current.offRoute ? 0 : current.speed
             s.fixTime = fixTime
+            s.geo = g.geoFrame
+            s.course = current.bearing
+            if let snapped = current.snapped {
+                s.here = GeoPoint(lat: snapped.latitude, lon: snapped.longitude)
+            }
+            // Las alternativas solo al empezar, como referencia; después distraen.
+            if progress < 600 { s.alternates = alternates(for: g) }
         }
         HUDState.shared.set(s)
     }

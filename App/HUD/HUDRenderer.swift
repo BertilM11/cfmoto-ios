@@ -230,9 +230,13 @@ final class HUDRenderer {
 
     /// Parte baja de la imagen que la moto tapa con sus propios indicadores (velocidad, marcha).
     /// Ahí no se dibuja nada importante. 0 = usar toda la altura.
-    static var reservedBottom: CGFloat = 0.22
+    static var reservedBottom: CGFloat = 0
     /// Desplazamiento de la brújula del mapa cuando hay etiquetas en esa esquina.
     var compassDrop: CGFloat = 0
+    /// El mapa simple dibuja su propia brújula salvo que el panel la ponga en otro sitio.
+    var miniCompass = true
+    /// Rumbo de la ruta en el último dibujo simple (radianes), para la brújula del panel.
+    var lastBearing: Double = 0
     let fullHeight: CGFloat
 
     init(width: Int, height: Int) {
@@ -424,6 +428,7 @@ final class HUDRenderer {
             }
 
             // Indicador del norte.
+            if miniCompass {
             let compass = CGPoint(x: rect.maxX - 36 * u, y: rect.minY + 36 * u + compassDrop)
             ctx.setFillColor(p.background)
             ctx.fillEllipse(in: CGRect(x: compass.x - 22 * u, y: compass.y - 22 * u, width: 44 * u, height: 44 * u))
@@ -438,6 +443,8 @@ final class HUDRenderer {
             ctx.fillPath()
             ctx.setFillColor(p.dim)
             ctx.fillEllipse(in: CGRect(x: compass.x - 4 * u, y: compass.y - 4 * u, width: 8 * u, height: 8 * u))
+            }
+            lastBearing = bearing
         }
 
         cursor(at: anchor, size: u / k, p, ctx)

@@ -9,24 +9,36 @@ import CoreText
 extension HUDRenderer {
     func alpha(_ c: CGColor, _ a: CGFloat) -> CGColor { c.copy(alpha: a) ?? c }
 
-    /// Dibuja el panel completo. La franja inferior reservada a la moto queda vacía.
+    /// Dibuja el panel completo en toda la imagen (o en la parte que el usuario deje libre).
     func drawDashboard(_ s: DashSnapshot, now: Date, in ctx: CGContext) {
         let style: HUDStyle = s.theme == .light ? .day : (s.theme == .dark ? .night : s.nav.style)
         let p = style == .day ? HUDPalette.day : HUDPalette.night
         ctx.setFillColor(p.background)
         ctx.fill(CGRect(x: 0, y: 0, width: width, height: fullHeight))
 
+        var tags: [String] = []
+        if s.demo { tags.append("DEMO") }
+        if s.nav.navigating && s.nav.simulated { tags.append("SIMULACIÓN") }
+        if s.nav.navigating && !s.nav.simulated && !s.nav.gpsOk { tags.append("SIN SEÑAL GPS") }
+
+        if s.layout.template == .overlay {
+            let area = CGRect(x: 0, y: 0, width: width, height: height)
+            let streets = drawOverlay(s, p, now, area, ctx)
+            if s.mapSettings.streets && !streets && !s.demo { tags.append("MAPA SIMPLE") }
+            drawTags(tags, p, top: area.minY + 12 * k, ctx)
+            return
+        }
+
         let gap = (6 * k).rounded()
-        let area = CGRect(x: 0, y: 0, width: width, height: height).insetBy(dx: gap, dy: gap)
+        var area = CGRect(x: 0, y: 0, width: width, height: height).insetBy(dx: gap, dy: gap)
+        // Si el diseño no muestra la ruta y hay una en curso, el próximo giro va en una franja.
+        let strip = !s.layout.showsRoute && s.nav.navigating && !s.nav.arrived
+        if strip { area.size.height -= 62 * k + gap }
         let frames = DashLayoutEngine.frames(s.layout, in: area, gap: gap)
         if frames.isEmpty {
             let m = measure("Panel vacío: activa un módulo en Mi pantalla", size: 22 * k, bold: true, color: p.dim)
             put(m, x: area.midX - m.width / 2, baseline: area.midY, ctx)
         }
-        var tags: [String] = []
-        if s.demo { tags.append("DEMO") }
-        if s.nav.navigating && s.nav.simulated { tags.append("SIMULACIÓN") }
-        if s.nav.navigating && !s.nav.simulated && !s.nav.gpsOk { tags.append("SIN SEÑAL GPS") }
         for f in frames {
             ctx.saveGState()
             // Si hay etiquetas arriba a la derecha, la brújula del mapa baja para no quedar tapada.
@@ -40,7 +52,7 @@ extension HUDRenderer {
             switch f.module {
             case .nav: dashNav(s, p, now, f.rect, ctx)
             case .turn: dashTurn(s.nav, p, f.rect, ctx)
-            case .map: dashMap(s.nav, p, now, f.rect, ctx)
+            case .map: dashMap(s, p, now, f.rect, ctx)
             case .trip: dashTrip(s.nav, p, now, f.rect, ctx)
             case .music: dashMusic(s, p, now, f.rect, ctx)
             case .notices: dashNotices(s, p, now, f.rect, ctx)
@@ -49,6 +61,10 @@ extension HUDRenderer {
             ctx.restoreGState()
         }
         compassDrop = 0
+        if strip {
+            let r = CGRect(x: area.minX, y: area.maxY + gap, width: area.width, height: 62 * k)
+            dashTurnStrip(s.nav, p, r, ctx)
+        }
 
         var right = area.maxX - 6 * k
         for tag in tags {
@@ -60,18 +76,208 @@ extension HUDRenderer {
         }
     }
 
+    /// Etiquetas de estado (DEMO, SIMULACIÓN…) centradas arriba.
+    func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, _ ctx: CGContext) {
+        guard !tags.isEmpty else { return }
+        let ms = tags.map { measure($0, size: 13 * k, bold: true, color: p.background) }
+        let total = ms.reduce(0) { $0 + $1.width + 14 * k } + CGFloat(ms.count - 1) * 6 * k
+        var x = width / 2 - total / 2
+        for m in ms {
+            let pill = CGRect(x: x, y: top, width: m.width + 14 * k, height: 22 * k)
+            fillRounded(pill, radius: 11 * k, color: p.warn, ctx)
+            put(m, x: pill.minX + 7 * k, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
+            x = pill.maxX + 6 * k
+        }
+    }
+
+    // MARK: - Mapa completo con tarjetas
+
+    /// Fondo de las tarjetas flotantes: semitransparente, con borde suave.
+    func cardBackground(_ r: CGRect, _ p: HUDPalette, _ ctx: CGContext, radius: CGFloat? = nil) {
+        let rad = radius ?? 18 * k
+        fillRounded(r, radius: rad, color: alpha(p.background, 0.86), ctx)
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), cornerWidth: rad, cornerHeight: rad, transform: nil))
+        ctx.setStrokeColor(alpha(p.text, 0.1))
+        ctx.setLineWidth(1)
+        ctx.strokePath()
+        ctx.restoreGState()
+    }
+
+    /// Mapa en toda el área y las tarjetas encima. Devuelve true si se dibujó el mapa de calles.
+    @discardableResult
+    func drawOverlay(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ area: CGRect, _ ctx: CGContext) -> Bool {
+        let n = s.nav
+        let o = s.layout.overlay
+        let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty)
+        let compass = cards.first { $0.item == .compass }?.rect
+        var streets = drawStreetMap(s, p, now, area, ctx, compass: compass)
+        if !streets {
+            streets = false
+            miniCompass = false
+            let anchor = CGPoint(x: area.midX, y: area.minY + area.height * 0.7)
+            drawMiniMap(n, p, now, area, ctx, anchor: anchor, unit: k, divider: false)
+            miniCompass = true
+            if let c = compass, n.navigating {
+                drawCompass(in: c, angle: CGFloat(-lastBearing), p, ctx)
+            }
+        }
+        for card in cards {
+            let r = card.rect
+            switch card.item {
+            case .maneuver:
+                if n.navigating || n.arrived {
+                    cardBackground(r, p, ctx)
+                    dashTurnContent(n, p, r, ctx)
+                } else {
+                    let small = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(r.height, 92 * k))
+                    cardBackground(small, p, ctx)
+                    dashTurnContent(n, p, small, ctx)
+                }
+            case .music:
+                cardBackground(r, p, ctx)
+                if o.musicSize == .large {
+                    dashMusic(s, p, now, r, ctx)
+                } else {
+                    dashMusicCompact(s, p, now, r, ctx)
+                }
+            case .trip:
+                dashTripPill(n, p, now, r, ctx)
+            case .notices:
+                if let note = s.notices.max(by: { $0.time < $1.time }) {
+                    cardBackground(r, p, ctx, radius: 16 * k)
+                    dashNoticeCard(note, s.privacy, p, now, r, ctx)
+                }
+            case .clock:
+                dashClockPill(p, now, r, ctx)
+            case .compass:
+                break
+            }
+        }
+        return streets
+    }
+
+    /// Música en una tarjeta pequeña: portada, estado, canción, artista y progreso.
+    func dashMusicCompact(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        let m = s.music
+        let pad = 10 * k
+        let has = m.available && !m.title.isEmpty
+        var tx = r.minX + pad
+        if s.showArtwork {
+            let a = r.height - 2 * pad
+            let art = CGRect(x: r.minX + pad, y: r.minY + pad, width: a, height: a)
+            dashArtwork(has ? m.artwork : nil, art, p, ctx)
+            tx = art.maxX + 12 * k
+        }
+        let tw = r.maxX - pad - tx
+        guard tw > 30 else { return }
+        if !has {
+            wrapped("Sin música", sizes: [19 * k], color: p.dim, x: tx, top: r.minY + pad + 4 * k, width: tw, maxLines: 1, ctx)
+            wrapped("Reproduce algo en el iPhone", sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 32 * k, width: tw, maxLines: 2, ctx)
+            return
+        }
+        let brand = m.source == "Spotify" ? CGColor(srgbRed: 0.12, green: 0.84, blue: 0.38, alpha: 1) : p.accent
+        let state = (m.source.isEmpty ? "MÚSICA" : m.source.uppercased()) + (m.playing ? "  ▶" : "  ❚❚")
+        let sm = measure(state, size: 12 * k, bold: true, color: brand)
+        put(sm, x: tx, baseline: r.minY + pad + sm.ascent, ctx)
+        wrapped(m.title, sizes: [19 * k, 17 * k], color: p.text, x: tx, top: r.minY + pad + 16 * k, width: tw, maxLines: 1, ctx)
+        wrapped(m.artist, sizes: [15 * k, 13 * k], color: p.dim, x: tx, top: r.minY + pad + 40 * k, width: tw, maxLines: 1, ctx)
+        if s.showProgress && m.duration > 1 {
+            let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
+            let pos = max(0, min(m.duration, m.position + elapsed))
+            let bar = CGRect(x: tx, y: r.maxY - pad - 3 * k, width: tw, height: 3 * k)
+            fillRounded(bar, radius: 1.5 * k, color: p.line, ctx)
+            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: bar.height), radius: 1.5 * k, color: p.text, ctx)
+        }
+    }
+
+    /// Barra de viaje: hora de llegada, tiempo y distancia restantes, y el avance.
+    func dashTripPill(_ n: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        guard n.navigating && !n.arrived else {
+            dashClockPill(p, now, r, ctx)
+            return
+        }
+        let clock = n.eta.map { HUDFormat.clock($0) }
+        let text = "\(clock?.time ?? "--:--") \(clock?.suffix ?? "")  ·  \(HUDFormat.durationCompact(n.remainingTime))  ·  \(HUDFormat.distance(n.remainingDistance))"
+        var size = 24 * k
+        var m = measure(text, size: size, bold: true, color: p.text)
+        let maxW = r.width - 36 * k
+        if m.width > maxW {
+            size *= max(0.6, maxW / m.width)
+            m = measure(text, size: size, bold: true, color: p.text)
+        }
+        let w = min(r.width, m.width + 36 * k)
+        let pill = CGRect(x: r.midX - w / 2, y: r.minY, width: w, height: r.height)
+        cardBackground(pill, p, ctx, radius: r.height / 2)
+        put(m, x: pill.midX - m.width / 2, baseline: pill.midY + (m.ascent - m.descent) / 2 - 1 * k, ctx)
+        let f = CGFloat(max(0, min(1, n.fraction)))
+        let track = CGRect(x: pill.minX + r.height * 0.45, y: pill.maxY - 6 * k, width: pill.width - r.height * 0.9, height: 3 * k)
+        fillRounded(track, radius: 1.5 * k, color: alpha(p.line, 0.9), ctx)
+        if f > 0.01 {
+            fillRounded(CGRect(x: track.minX, y: track.minY, width: track.width * f, height: track.height), radius: 1.5 * k, color: p.accent, ctx)
+        }
+    }
+
+    func dashClockPill(_ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        let c = HUDFormat.clock(now)
+        let t = measure(c.time, size: 24 * k, bold: true, color: p.text)
+        let sfx = measure(c.suffix, size: 13 * k, bold: true, color: p.dim)
+        let w = min(r.width, t.width + sfx.width + 40 * k)
+        let pill = CGRect(x: r.midX - w / 2, y: r.minY, width: w, height: r.height)
+        cardBackground(pill, p, ctx, radius: r.height / 2)
+        let x = pill.midX - (t.width + 5 * k + sfx.width) / 2
+        let base = pill.midY + (t.ascent - t.descent) / 2
+        put(t, x: x, baseline: base, ctx)
+        put(sfx, x: x + t.width + 5 * k, baseline: base, ctx)
+    }
+
+    /// El aviso más reciente como tarjeta flotante.
+    func dashNoticeCard(_ note: NoticeSnapshot, _ privacy: Bool, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        let pad = 10 * k
+        let side = r.height - 2 * pad
+        let ic = CGRect(x: r.minX + pad, y: r.minY + pad, width: side, height: side)
+        dashNoticeIcon(note.kind, ic, p, ctx)
+        let tx = ic.maxX + 10 * k
+        let tw = r.maxX - pad - tx
+        wrapped(note.title, sizes: [17 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad - 1 * k, width: tw, maxLines: 1, ctx)
+        wrapped(privacy ? "Contenido oculto" : note.text, sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 20 * k, width: tw, maxLines: 1, ctx)
+    }
+
+    /// Franja con el próximo giro para los diseños sin mapa (por ejemplo, el de música).
+    func dashTurnStrip(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
+        fillRounded(r, radius: 14 * k, color: p.panel, ctx)
+        let t = r.height - 14 * k
+        let tile = CGRect(x: r.minX + 7 * k, y: r.minY + 7 * k, width: t, height: t)
+        let color = n.rerouting ? p.warn : p.accent
+        fillRounded(tile, radius: t * 0.22, color: color, ctx)
+        HUDIcons.draw(n.kind, in: tile.insetBy(dx: t * 0.14, dy: t * 0.14), color: p.onAccent, hole: color, ctx: ctx)
+        let parts = HUDFormat.distanceParts(n.distanceToManeuver)
+        let big = measure(parts.value, size: 32 * k, bold: true, color: p.text)
+        let unit = measure(parts.unit, size: 16 * k, bold: true, color: p.dim)
+        let x = tile.maxX + 12 * k
+        let base = r.midY + (big.ascent - big.descent) / 2
+        put(big, x: x, baseline: base, ctx)
+        put(unit, x: x + big.width + 4 * k, baseline: base, ctx)
+        let lx = x + big.width + unit.width + 18 * k
+        let line = n.rerouting ? "Recalculando la ruta…" : n.instruction
+        wrapped(line, sizes: [20 * k, 17 * k, 15 * k], color: n.rerouting ? p.warn : p.text, x: lx, top: r.midY - 12 * k, width: r.maxX - 12 * k - lx, maxLines: 1, ctx)
+    }
+
     // MARK: - Navegación
 
-    func dashMap(_ n: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5) {
+    func dashMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5) {
+        let size = 40 * k
+        let compass = CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size)
+        if drawStreetMap(s, p, now, r, ctx, compass: compass) { return }
         let u = max(0.5, min(r.width, r.height) / 400)
         let anchor = CGPoint(x: r.minX + r.width * anchorX, y: r.maxY - r.height * 0.24)
-        drawMiniMap(n, p, now, r, ctx, anchor: anchor, unit: u, divider: false)
+        drawMiniMap(s.nav, p, now, r, ctx, anchor: anchor, unit: u, divider: false)
     }
 
     func dashNav(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let n = s.nav
         let wide = r.width > r.height * 1.25
-        dashMap(n, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5)
+        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5)
         let pad = (r.height * 0.03).rounded() + 2
         let card: CGRect
         if wide {

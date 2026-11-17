@@ -17,8 +17,27 @@ final class DashState {
         base.privacy = c.noticePrivacy
         base.showArtwork = c.showArtwork
         base.showProgress = c.showProgress
+        base.mapSettings = c.map
         noticeSeconds = c.noticeSeconds
         lock.unlock()
+        TFTMap.shared.configure(c.map)
+    }
+
+    func currentLayout() -> DashLayout {
+        lock.lock()
+        defer { lock.unlock() }
+        return base.layout
+    }
+
+    /// El panel va en modo noche (lo decide el tema del panel o, en automático, el de la app).
+    func isNight(_ navStyle: HUDStyle) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        switch base.theme {
+        case .dark: return true
+        case .light: return false
+        case .auto: return navStyle == .night
+        }
     }
 
     func setMusic(_ m: MusicSnapshot) {
@@ -45,6 +64,9 @@ final class DashState {
         lock.unlock()
         s.nav = nav
         s.notices = s.notices.filter { t - $0.time <= keep }
+        if s.layout.showsMap {
+            s.map = TFTMap.shared.base(for: nav, now: now)
+        }
         return s
     }
 }

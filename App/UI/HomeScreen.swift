@@ -6,6 +6,11 @@ struct HomeScreen: View {
     @ObservedObject private var store = DashStore.shared
     @ObservedObject private var link = LinkModel.shared
     @ObservedObject private var music = MusicService.shared
+    @ObservedObject private var spotify = SpotifyService.shared
+
+    private var nowTitle: String { store.config.musicProvider == .spotify ? spotify.title : music.title }
+    private var nowArtist: String { store.config.musicProvider == .spotify ? spotify.artist : music.artist }
+    private var nowPlaying: Bool { store.config.musicProvider == .spotify ? spotify.playing : music.playing }
 
     var body: some View {
         NavigationStack {
@@ -39,7 +44,7 @@ struct HomeScreen: View {
                     HStack {
                         Text("Lo que recibe la moto").font(.headline)
                         Spacer()
-                        Text(store.config.mode.title).font(.subheadline.weight(.semibold)).foregroundColor(Brand.blue)
+                        Text(store.config.mode.label).font(.subheadline.weight(.semibold)).foregroundColor(Brand.blue).lineLimit(1)
                     }
                     TFTPreview(demo: false)
                     ModeChips()
@@ -56,13 +61,13 @@ struct HomeScreen: View {
                 .buttonStyle(.bordered)
                 .tint(Brand.blue)
 
-                if !music.title.isEmpty {
+                if !nowTitle.isEmpty {
                     Card {
                         HStack(spacing: 12) {
-                            Image(systemName: music.playing ? "play.fill" : "pause.fill").foregroundColor(Brand.blue)
+                            Image(systemName: nowPlaying ? "play.fill" : "pause.fill").foregroundColor(Brand.blue)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(music.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                                Text(music.artist).font(.footnote).foregroundColor(Brand.dim).lineLimit(1)
+                                Text(nowTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Text(nowArtist).font(.footnote).foregroundColor(Brand.dim).lineLimit(1)
                             }
                             Spacer()
                         }

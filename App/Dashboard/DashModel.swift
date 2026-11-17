@@ -34,32 +34,258 @@ enum DashModule: String, Codable, CaseIterable, Identifiable {
 }
 
 enum DashTemplate: String, Codable, CaseIterable, Identifiable {
+    /// Mapa en toda la imagen con tarjetas flotantes encima.
+    case overlay
     case full, columns, mainSide
     var id: String { rawValue }
-    var slotCount: Int { self == .full ? 1 : (self == .columns ? 2 : 3) }
+    var slotCount: Int {
+        switch self {
+        case .overlay: return 0
+        case .full: return 1
+        case .columns: return 2
+        case .mainSide: return 3
+        }
+    }
     var title: String {
         switch self {
+        case .overlay: return "Mapa completo"
         case .full: return "1 zona"
         case .columns: return "2 columnas"
         case .mainSide: return "Principal + 2"
         }
     }
+    var shortTitle: String {
+        switch self {
+        case .overlay: return "Mapa"
+        case .full: return "1 zona"
+        case .columns: return "2 col."
+        case .mainSide: return "1 + 2"
+        }
+    }
 }
 
-enum DashMode: String, Codable, CaseIterable, Identifiable {
-    case gps, music, gpsMusic, gpsNotices, musicNotices, full, custom
+/// Esquina o borde donde va una tarjeta flotante sobre el mapa.
+enum CardSpot: String, Codable, CaseIterable, Identifiable {
+    case topLeft, topRight, bottomLeft, bottomCenter, bottomRight
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .gps: return "Solo GPS"
-        case .music: return "Solo música"
-        case .gpsMusic: return "GPS + Música"
-        case .gpsNotices: return "GPS + Avisos"
-        case .musicNotices: return "Música + Avisos"
-        case .full: return "Panel completo"
-        case .custom: return "Personalizado"
+        case .topLeft: return "Arriba izq."
+        case .topRight: return "Arriba der."
+        case .bottomLeft: return "Abajo izq."
+        case .bottomCenter: return "Abajo centro"
+        case .bottomRight: return "Abajo der."
         }
     }
+    var isTop: Bool { self == .topLeft || self == .topRight }
+    /// Parte de la imagen (0…1) donde se puede soltar una tarjeta para mandarla aquí.
+    var region: CGRect {
+        switch self {
+        case .topLeft: return CGRect(x: 0, y: 0, width: 0.5, height: 0.5)
+        case .topRight: return CGRect(x: 0.5, y: 0, width: 0.5, height: 0.5)
+        case .bottomLeft: return CGRect(x: 0, y: 0.5, width: 1 / 3.0, height: 0.5)
+        case .bottomCenter: return CGRect(x: 1 / 3.0, y: 0.5, width: 1 / 3.0, height: 0.5)
+        case .bottomRight: return CGRect(x: 2 / 3.0, y: 0.5, width: 1 / 3.0, height: 0.5)
+        }
+    }
+}
+
+enum CardSize: String, Codable, CaseIterable, Identifiable {
+    case compact, large
+    var id: String { rawValue }
+    var title: String { self == .compact ? "Compacta" : "Grande" }
+}
+
+/// Qué tarjetas van sobre el mapa y dónde (plantilla "Mapa completo").
+struct OverlaySettings: Codable, Equatable {
+    var maneuver = true
+    var maneuverSpot: CardSpot = .topLeft
+    var maneuverSize: CardSize = .compact
+    var music = true
+    var musicSpot: CardSpot = .topRight
+    var musicSize: CardSize = .compact
+    var trip = true
+    var tripSpot: CardSpot = .bottomCenter
+    var notices = true
+    var noticesSpot: CardSpot = .topRight
+    var clock = false
+    var clockSpot: CardSpot = .bottomLeft
+
+    init() {}
+
+    init(maneuver: Bool = true, music: Bool, notices: Bool, trip: Bool = true, clock: Bool = false) {
+        self.maneuver = maneuver
+        self.music = music
+        self.notices = notices
+        self.trip = trip
+        self.clock = clock
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = OverlaySettings()
+        maneuver = (try? c.decode(Bool.self, forKey: .maneuver)) ?? d.maneuver
+        maneuverSpot = (try? c.decode(CardSpot.self, forKey: .maneuverSpot)) ?? d.maneuverSpot
+        maneuverSize = (try? c.decode(CardSize.self, forKey: .maneuverSize)) ?? d.maneuverSize
+        music = (try? c.decode(Bool.self, forKey: .music)) ?? d.music
+        musicSpot = (try? c.decode(CardSpot.self, forKey: .musicSpot)) ?? d.musicSpot
+        musicSize = (try? c.decode(CardSize.self, forKey: .musicSize)) ?? d.musicSize
+        trip = (try? c.decode(Bool.self, forKey: .trip)) ?? d.trip
+        tripSpot = (try? c.decode(CardSpot.self, forKey: .tripSpot)) ?? d.tripSpot
+        notices = (try? c.decode(Bool.self, forKey: .notices)) ?? d.notices
+        noticesSpot = (try? c.decode(CardSpot.self, forKey: .noticesSpot)) ?? d.noticesSpot
+        clock = (try? c.decode(Bool.self, forKey: .clock)) ?? d.clock
+        clockSpot = (try? c.decode(CardSpot.self, forKey: .clockSpot)) ?? d.clockSpot
+    }
+}
+
+enum OverlayItem: String, CaseIterable {
+    case maneuver, music, trip, notices, clock, compass
+
+    static let editable: [OverlayItem] = [.maneuver, .music, .trip, .notices, .clock]
+
+    var title: String {
+        switch self {
+        case .maneuver: return "Próxima maniobra"
+        case .music: return "Música"
+        case .trip: return "Llegada y distancia"
+        case .notices: return "Avisos"
+        case .clock: return "Reloj"
+        case .compass: return "Brújula"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .maneuver: return "arrow.turn.up.right"
+        case .music: return "music.note"
+        case .trip: return "flag.checkered"
+        case .notices: return "bell.fill"
+        case .clock: return "clock.fill"
+        case .compass: return "location.north.fill"
+        }
+    }
+    var resizable: Bool { self == .maneuver || self == .music }
+}
+
+extension OverlaySettings {
+    func isOn(_ item: OverlayItem) -> Bool {
+        switch item {
+        case .maneuver: return maneuver
+        case .music: return music
+        case .trip: return trip
+        case .notices: return notices
+        case .clock: return clock
+        case .compass: return true
+        }
+    }
+
+    mutating func set(_ item: OverlayItem, on: Bool) {
+        switch item {
+        case .maneuver: maneuver = on
+        case .music: music = on
+        case .trip: trip = on
+        case .notices: notices = on
+        case .clock: clock = on
+        case .compass: break
+        }
+    }
+
+    func spot(_ item: OverlayItem) -> CardSpot {
+        switch item {
+        case .maneuver: return maneuverSpot
+        case .music: return musicSpot
+        case .trip: return tripSpot
+        case .notices: return noticesSpot
+        case .clock: return clockSpot
+        case .compass: return .bottomRight
+        }
+    }
+
+    mutating func move(_ item: OverlayItem, to spot: CardSpot) {
+        switch item {
+        case .maneuver: maneuverSpot = spot
+        case .music: musicSpot = spot
+        case .trip: tripSpot = spot
+        case .notices: noticesSpot = spot
+        case .clock: clockSpot = spot
+        case .compass: break
+        }
+        set(item, on: true)
+    }
+
+    mutating func swap(_ a: OverlayItem, _ b: OverlayItem) {
+        let sa = spot(a)
+        let sb = spot(b)
+        move(a, to: sb)
+        move(b, to: sa)
+    }
+
+    func size(_ item: OverlayItem) -> CardSize {
+        switch item {
+        case .maneuver: return maneuverSize
+        case .music: return musicSize
+        default: return .compact
+        }
+    }
+
+    mutating func resize(_ item: OverlayItem, to size: CardSize) {
+        switch item {
+        case .maneuver: maneuverSize = size
+        case .music: musicSize = size
+        default: break
+        }
+    }
+}
+
+struct OverlayCard: Equatable {
+    let item: OverlayItem
+    let rect: CGRect
+}
+
+enum MusicProvider: String, Codable, CaseIterable, Identifiable {
+    case appleMusic, spotify
+    var id: String { rawValue }
+    var title: String { self == .appleMusic ? "Apple Music" : "Spotify" }
+}
+
+enum DashMode: String, Codable, CaseIterable, Identifiable {
+    case gps, gpsMusic, music, custom, full, gpsNotices, musicNotices
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .gps: return "Navegación completa"
+        case .gpsMusic: return "Navegación + Música"
+        case .music: return "Música"
+        case .custom: return "Personalizado"
+        case .full: return "Panel completo"
+        case .gpsNotices: return "Navegación + Avisos"
+        case .musicNotices: return "Música + Avisos"
+        }
+    }
+    /// Letra de los cuatro modos principales (A–D).
+    var letter: String? {
+        switch self {
+        case .gps: return "A"
+        case .gpsMusic: return "B"
+        case .music: return "C"
+        case .custom: return "D"
+        default: return nil
+        }
+    }
+    var label: String { letter.map { "\($0) · \(title)" } ?? title }
+    var short: String {
+        switch self {
+        case .gps: return "A · Navegación"
+        case .gpsMusic: return "B · Nav + Música"
+        case .music: return "C · Música"
+        case .custom: return "D · Personal"
+        case .full: return "Completo"
+        case .gpsNotices: return "Nav + Avisos"
+        case .musicNotices: return "Música + Avisos"
+        }
+    }
+    static let primary: [DashMode] = [.gps, .gpsMusic, .music, .custom]
+    static let others: [DashMode] = [.full, .gpsNotices, .musicNotices]
 }
 
 enum DashTheme: String, Codable, CaseIterable, Identifiable {
@@ -69,27 +295,37 @@ enum DashTheme: String, Codable, CaseIterable, Identifiable {
 }
 
 struct DashLayout: Codable, Equatable {
-    var template: DashTemplate = .mainSide
-    var slots: [DashModule?] = [.nav, .music, .notices]
+    var template: DashTemplate = .overlay
+    var slots: [DashModule?] = []
     /// Parte del ancho para la zona principal.
     var split: Double = 0.6
     /// Parte del alto para la zona lateral de arriba (solo en "Principal + 2").
     var sideSplit: Double = 0.46
     /// Zona principal a la derecha.
     var mirrored = false
+    /// Tarjetas sobre el mapa (solo en "Mapa completo").
+    var overlay = OverlaySettings()
 
     static let splitRange = 0.4...0.75
     static let sideRange = 0.3...0.7
 
     static func preset(_ mode: DashMode) -> DashLayout {
         switch mode {
-        case .gps: return DashLayout(template: .full, slots: [.nav])
+        case .gps: return .overlay(OverlaySettings(music: false, notices: false))
+        case .gpsMusic: return .overlay(OverlaySettings(music: true, notices: false))
         case .music: return DashLayout(template: .full, slots: [.music])
-        case .gpsMusic: return DashLayout(template: .columns, slots: [.nav, .music], split: 0.64)
-        case .gpsNotices: return DashLayout(template: .columns, slots: [.nav, .notices], split: 0.64)
+        case .full, .custom: return .overlay(OverlaySettings(music: true, notices: true))
+        case .gpsNotices: return .overlay(OverlaySettings(music: false, notices: true))
         case .musicNotices: return DashLayout(template: .columns, slots: [.music, .notices], split: 0.58)
-        case .full, .custom: return DashLayout()
         }
+    }
+
+    static func overlay(_ o: OverlaySettings) -> DashLayout {
+        var l = DashLayout()
+        l.template = .overlay
+        l.slots = []
+        l.overlay = o
+        return l
     }
 
     /// Deja el diseño en un estado válido: zonas justas, sin módulos repetidos y tamaños dentro de rango.
@@ -116,8 +352,10 @@ struct DashLayout: Codable, Equatable {
         return c
     }
 
-    var showsRoute: Bool { slots.contains { $0?.showsRoute == true } }
-    var showsMusic: Bool { slots.contains { $0 == .music } }
+    var showsRoute: Bool { template == .overlay || slots.contains { $0?.showsRoute == true } }
+    var showsMusic: Bool { template == .overlay ? overlay.music : slots.contains { $0 == .music } }
+    /// Hay un mapa en la imagen (para pedir el de calles solo cuando hace falta).
+    var showsMap: Bool { template == .overlay || slots.contains { $0 == .nav || $0 == .map } }
 
     /// Cambia de plantilla y rellena las zonas nuevas con módulos que aún no se muestran.
     mutating func setTemplate(_ t: DashTemplate) {
@@ -146,6 +384,19 @@ struct DashLayout: Codable, Equatable {
     }
 }
 
+extension DashLayout {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = DashLayout()
+        template = (try? c.decode(DashTemplate.self, forKey: .template)) ?? d.template
+        slots = (try? c.decode([DashModule?].self, forKey: .slots)) ?? d.slots
+        split = (try? c.decode(Double.self, forKey: .split)) ?? d.split
+        sideSplit = (try? c.decode(Double.self, forKey: .sideSplit)) ?? d.sideSplit
+        mirrored = (try? c.decode(Bool.self, forKey: .mirrored)) ?? d.mirrored
+        overlay = (try? c.decode(OverlaySettings.self, forKey: .overlay)) ?? d.overlay
+    }
+}
+
 struct DashProfile: Codable, Identifiable, Equatable {
     var id = UUID()
     var name: String
@@ -161,8 +412,10 @@ struct DashRules: Codable, Equatable {
 }
 
 struct DashConfig: Codable, Equatable {
-    var mode: DashMode = .full
-    var custom = DashLayout()
+    /// 2: versión 0.5 (mapa completo). Las configuraciones sin número son de la 0.4.
+    var version = 2
+    var mode: DashMode = .gpsMusic
+    var custom = DashLayout.preset(.custom)
     var theme: DashTheme = .dark
     var rules = DashRules()
     var profiles: [DashProfile] = DashConfig.defaultProfiles
@@ -174,22 +427,88 @@ struct DashConfig: Codable, Equatable {
     var noticeBattery = true
     var showArtwork = true
     var showProgress = true
+    var map = MapSettings()
+    var musicProvider: MusicProvider = .appleMusic
+    /// Client ID de la app que el usuario registra en developer.spotify.com (no es secreto).
+    var spotifyClientID = ""
 
     var layout: DashLayout { (mode == .custom ? custom : DashLayout.preset(mode)).normalized }
 
+    init() {}
+
     static var defaultProfiles: [DashProfile] {
-        [
+        var trip = OverlaySettings(music: false, notices: false, clock: true)
+        trip.maneuverSize = .large
+        var city = OverlaySettings(music: true, notices: true)
+        city.maneuverSize = .large
+        var big = OverlaySettings(music: true, notices: false)
+        big.musicSize = .large
+        return [
             DashProfile(name: "Navegación diaria", layout: .preset(.gpsMusic)),
-            DashProfile(name: "Viaje largo", layout: DashLayout(template: .mainSide, slots: [.nav, .trip, .music], split: 0.62, sideSplit: 0.42)),
-            DashProfile(name: "Música", layout: .preset(.musicNotices)),
-            DashProfile(name: "Ciudad", layout: .preset(.full)),
-            DashProfile(name: "Personalizado 1", layout: DashLayout(template: .columns, slots: [.turn, .map], split: 0.55)),
+            DashProfile(name: "Viaje largo", layout: .overlay(trip)),
+            DashProfile(name: "Música", layout: .overlay(big)),
+            DashProfile(name: "Ciudad", layout: .overlay(city)),
+            DashProfile(name: "Personalizado 1", layout: DashLayout(template: .columns, slots: [.nav, .music], split: 0.64)),
             DashProfile(name: "Personalizado 2", layout: DashLayout(template: .mainSide, slots: [.map, .turn, .trip], split: 0.5, sideSplit: 0.55, mirrored: true)),
         ]
     }
 
+    /// Diseños de los perfiles que traía la 0.4, para reconocerlos al actualizar.
+    static let legacyProfileLayouts: [DashLayout] = [
+        DashLayout(template: .columns, slots: [.nav, .music], split: 0.64),
+        DashLayout(template: .mainSide, slots: [.nav, .trip, .music], split: 0.62, sideSplit: 0.42),
+        DashLayout(template: .columns, slots: [.music, .notices], split: 0.58),
+        DashLayout(template: .mainSide, slots: [.nav, .music, .notices]),
+        DashLayout(template: .columns, slots: [.turn, .map], split: 0.55),
+        DashLayout(template: .mainSide, slots: [.map, .turn, .trip], split: 0.5, sideSplit: 0.55, mirrored: true),
+    ]
+
     func encoded() -> Data? { try? JSONEncoder().encode(self) }
-    static func decoded(_ data: Data) -> DashConfig? { try? JSONDecoder().decode(DashConfig.self, from: data) }
+
+    static func decoded(_ data: Data) -> DashConfig? {
+        guard var c = try? JSONDecoder().decode(DashConfig.self, from: data) else { return nil }
+        c.migrate()
+        return c
+    }
+
+    /// Pasa una configuración de la 0.4 al panel nuevo sin perder lo que el usuario creó.
+    mutating func migrate() {
+        guard version < 2 else { return }
+        version = 2
+        // Los perfiles de fábrica que siguen igual se cambian por los nuevos; los creados o
+        // editados por el usuario se conservan.
+        let fresh = DashConfig.defaultProfiles
+        for i in profiles.indices {
+            if let j = DashConfig.legacyProfileLayouts.firstIndex(of: profiles[i].layout.normalized), j < fresh.count,
+               profiles[i].name == fresh[j].name {
+                profiles[i].layout = fresh[j].layout
+            }
+        }
+    }
+}
+
+extension DashConfig {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = DashConfig()
+        version = (try? c.decode(Int.self, forKey: .version)) ?? 1
+        mode = (try? c.decode(DashMode.self, forKey: .mode)) ?? d.mode
+        custom = (try? c.decode(DashLayout.self, forKey: .custom)) ?? d.custom
+        theme = (try? c.decode(DashTheme.self, forKey: .theme)) ?? d.theme
+        rules = (try? c.decode(DashRules.self, forKey: .rules)) ?? d.rules
+        profiles = (try? c.decode([DashProfile].self, forKey: .profiles)) ?? d.profiles
+        activeProfile = try? c.decode(UUID.self, forKey: .activeProfile)
+        noticeSeconds = (try? c.decode(Double.self, forKey: .noticeSeconds)) ?? d.noticeSeconds
+        noticePrivacy = (try? c.decode(Bool.self, forKey: .noticePrivacy)) ?? d.noticePrivacy
+        noticeNav = (try? c.decode(Bool.self, forKey: .noticeNav)) ?? d.noticeNav
+        noticeLink = (try? c.decode(Bool.self, forKey: .noticeLink)) ?? d.noticeLink
+        noticeBattery = (try? c.decode(Bool.self, forKey: .noticeBattery)) ?? d.noticeBattery
+        showArtwork = (try? c.decode(Bool.self, forKey: .showArtwork)) ?? d.showArtwork
+        showProgress = (try? c.decode(Bool.self, forKey: .showProgress)) ?? d.showProgress
+        map = (try? c.decode(MapSettings.self, forKey: .map)) ?? d.map
+        musicProvider = (try? c.decode(MusicProvider.self, forKey: .musicProvider)) ?? d.musicProvider
+        spotifyClientID = (try? c.decode(String.self, forKey: .spotifyClientID)) ?? d.spotifyClientID
+    }
 }
 
 // MARK: - Distribución
@@ -213,6 +532,8 @@ enum DashLayoutEngine {
     static func slotRects(_ layout: DashLayout, in area: CGRect, gap: CGFloat) -> [CGRect] {
         let l = layout.normalized
         switch l.template {
+        case .overlay:
+            return []
         case .full:
             return [area]
         case .columns, .mainSide:
@@ -242,6 +563,8 @@ enum DashLayoutEngine {
             if let m = l.slots[slot] { out.append(DashFrame(slot: slot, module: m, rect: rect)) }
         }
         switch l.template {
+        case .overlay:
+            return []
         case .full:
             add(0, rects[0])
         case .columns:
@@ -273,6 +596,109 @@ enum DashLayoutEngine {
             }
         }
         return out
+    }
+}
+
+extension DashLayoutEngine {
+    /// Dónde se dibuja el mapa (para pedir la imagen de calles del tamaño justo).
+    static func mapRect(_ layout: DashLayout, width: CGFloat, height: CGFloat, reservedBottom: CGFloat) -> CGRect? {
+        let l = layout.normalized
+        let full = CGRect(x: 0, y: 0, width: width, height: height)
+        if l.template == .overlay { return usableArea(width: width, height: height, reservedBottom: reservedBottom) }
+        guard l.showsMap else { return nil }
+        let k = width / 800
+        let gap = (6 * k).rounded()
+        let area = usableArea(width: width, height: height, reservedBottom: reservedBottom).insetBy(dx: gap, dy: gap)
+        let fs = frames(l, in: area, gap: gap)
+        return (fs.first { $0.module == .nav } ?? fs.first { $0.module == .map })?.rect ?? full
+    }
+
+    /// Tamaño base de cada tarjeta (en la escala de una imagen de 800 de ancho).
+    static func cardSize(_ item: OverlayItem, _ o: OverlaySettings) -> CGSize {
+        switch item {
+        case .maneuver: return o.maneuverSize == .large ? CGSize(width: 340, height: 176) : CGSize(width: 300, height: 150)
+        case .music: return o.musicSize == .large ? CGSize(width: 300, height: 124) : CGSize(width: 262, height: 84)
+        case .trip: return CGSize(width: 420, height: 50)
+        case .notices: return CGSize(width: 262, height: 58)
+        case .clock: return CGSize(width: 136, height: 46)
+        case .compass: return CGSize(width: 44, height: 44)
+        }
+    }
+
+    /// Tarjetas flotantes sobre el mapa. Las que comparten esquina se apilan; ninguna se sale
+    /// del área ni se monta sobre otra (si no caben, se descartan las menos importantes).
+    static func overlayCards(_ o: OverlaySettings, in area: CGRect, k: CGFloat, showNotices: Bool = true) -> [OverlayCard] {
+        let margin = 12 * k
+        let gap = 8 * k
+        let inner = area.insetBy(dx: margin, dy: margin)
+        // Orden de prioridad: lo que más importa para conducir va primero.
+        var wanted: [(OverlayItem, CardSpot)] = []
+        if o.maneuver { wanted.append((.maneuver, o.maneuverSpot)) }
+        if o.trip { wanted.append((.trip, o.tripSpot)) }
+        if o.music { wanted.append((.music, o.musicSpot)) }
+        if o.notices && showNotices { wanted.append((.notices, o.noticesSpot)) }
+        if o.clock { wanted.append((.clock, o.clockSpot)) }
+        let used = Set(wanted.map { $0.1 })
+        wanted.append((.compass, used.contains(.bottomRight) && !used.contains(.bottomLeft) ? .bottomLeft : .bottomRight))
+
+        var placed: [OverlayCard] = []
+        var stackTop: [CardSpot: CGFloat] = [:]
+        var stackBottom: [CardSpot: CGFloat] = [:]
+        for (item, spot) in wanted {
+            var size = cardSize(item, o)
+            size = CGSize(width: min(size.width * k, inner.width), height: min(size.height * k, inner.height))
+            var rect: CGRect
+            switch spot {
+            case .topLeft, .topRight:
+                let y = stackTop[spot] ?? inner.minY
+                let x = spot == .topLeft ? inner.minX : inner.maxX - size.width
+                rect = CGRect(x: x, y: y, width: size.width, height: size.height)
+            case .bottomLeft, .bottomRight, .bottomCenter:
+                let bottom = stackBottom[spot] ?? inner.maxY
+                let x: CGFloat
+                switch spot {
+                case .bottomLeft: x = inner.minX
+                case .bottomRight: x = inner.maxX - size.width
+                default: x = inner.midX - size.width / 2
+                }
+                rect = CGRect(x: x, y: bottom - size.height, width: size.width, height: size.height)
+            }
+            // La barra del centro se estrecha entre las esquinas de abajo si hace falta.
+            if spot == .bottomCenter {
+                let sides = placed.filter { ($0.rect.maxY > rect.minY && $0.rect.minY < rect.maxY) }
+                var left = inner.minX
+                var right = inner.maxX
+                for s in sides {
+                    if s.rect.midX < inner.midX { left = max(left, s.rect.maxX + gap) } else { right = min(right, s.rect.minX - gap) }
+                }
+                if rect.minX < left || rect.maxX > right {
+                    let w = min(size.width, right - left)
+                    if w >= 240 * k {
+                        rect = CGRect(x: max(left, min(inner.midX - w / 2, right - w)), y: rect.minY, width: w, height: rect.height)
+                    }
+                }
+            }
+            // Si choca con otra, se intenta justo debajo (arriba) o encima (abajo) de ella.
+            var tries = 0
+            while let hit = placed.first(where: { $0.rect.intersects(rect.insetBy(dx: -gap / 2, dy: -gap / 2)) }), tries < 6 {
+                if spot.isTop {
+                    rect.origin.y = hit.rect.maxY + gap
+                } else {
+                    rect.origin.y = hit.rect.minY - gap - rect.height
+                }
+                tries += 1
+            }
+            let fits = rect.minX >= inner.minX - 0.5 && rect.maxX <= inner.maxX + 0.5
+                && rect.minY >= inner.minY - 0.5 && rect.maxY <= inner.maxY + 0.5
+            guard fits, !placed.contains(where: { $0.rect.intersects(rect) }) else { continue }
+            placed.append(OverlayCard(item: item, rect: rect))
+            if spot.isTop {
+                stackTop[spot] = rect.maxY + gap
+            } else {
+                stackBottom[spot] = rect.minY - gap
+            }
+        }
+        return placed
     }
 }
 
@@ -314,6 +740,9 @@ struct DashSnapshot {
     var showProgress = true
     /// Datos de demostración: se marca en la imagen. Nunca se envía a la moto.
     var demo = false
+    /// Mapa de calles de Apple (si hay uno que sirva para la posición actual).
+    var map: MapBase?
+    var mapSettings = MapSettings()
 }
 
 // MARK: - Reglas automáticas

@@ -117,6 +117,14 @@ struct HUDSnapshot {
     var fixTime: TimeInterval = 0
     var style: HUDStyle = .night
     var destinationName: String = ""
+    /// Para pasar los metros de la ruta a coordenadas (y situarlos en el mapa de calles).
+    var geo: GeoFrame?
+    /// Última posición del GPS, también sin ruta (para mostrar el mapa alrededor).
+    var here: GeoPoint?
+    /// Rumbo del GPS en grados (negativo si no se conoce).
+    var course: Double = -1
+    /// Rutas alternativas, en los mismos metros locales que la ruta.
+    var alternates: [[CGPoint]] = []
 }
 
 /// Textos de distancia, duración y hora. Los usan el iPhone y la moto para decir lo mismo.

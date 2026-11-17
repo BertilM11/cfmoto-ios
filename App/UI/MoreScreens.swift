@@ -8,32 +8,18 @@ struct ModesScreen: View {
 
     var body: some View {
         DarkPage(title: "Modos") {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                ForEach(DashMode.allCases) { mode in
-                    Button {
-                        store.setMode(mode)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            TFTImage(image: thumbs[mode])
-                            Text(mode.title).font(.subheadline.weight(.semibold))
-                        }
-                        .padding(8)
-                        .background(Brand.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(store.config.mode == mode ? Brand.blue : Color.clear, lineWidth: 2)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            Text("Las miniaturas usan datos de demostración.").font(.caption).foregroundColor(Brand.dim)
+            Text("Modos principales").font(.headline)
+            grid(DashMode.primary)
+            Text("Otros modos").font(.headline)
+            grid(DashMode.others)
+            Text("Las miniaturas usan datos de demostración y el mapa simplificado. El modo D es el que editas en Mi pantalla.")
+                .font(.caption).foregroundColor(Brand.dim)
 
             Card {
                 Text("Cambios automáticos").font(.headline)
-                Toggle("Al iniciar una ruta, pasar a GPS + Música si el modo no muestra el GPS", isOn: $store.config.rules.navStartsGpsMusic)
+                Toggle("Al iniciar una ruta, pasar a Navegación + Música si el modo no muestra el mapa", isOn: $store.config.rules.navStartsGpsMusic)
                 Toggle("Al terminar la ruta, volver al modo anterior", isOn: $store.config.rules.navEndRestores)
-                Toggle("Si empieza la música sin ruta activa, pasar a Solo música", isOn: $store.config.rules.musicOnlyWithoutRoute)
+                Toggle("Si empieza la música sin ruta activa, pasar a Música", isOn: $store.config.rules.musicOnlyWithoutRoute)
                 Toggle("Cerca de un giro, dar prioridad a las indicaciones", isOn: $store.config.rules.turnPriority)
                 Text("Si se pierde la conexión, la app lo avisa y al reconectar la moto recibe el mismo modo: el modo activo no depende del enlace.")
                     .font(.caption).foregroundColor(Brand.dim)
@@ -46,11 +32,35 @@ struct ModesScreen: View {
         .onChange(of: store.config.theme) { _ in makeThumbs() }
     }
 
+    private func grid(_ modes: [DashMode]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+            ForEach(modes) { mode in
+                Button {
+                    store.setMode(mode)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        TFTImage(image: thumbs[mode], showBikeBand: false)
+                        Text(mode.label).font(.subheadline.weight(.semibold)).lineLimit(2)
+                    }
+                    .padding(8)
+                    .background(Brand.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(store.config.mode == mode ? Brand.blue : Color.clear, lineWidth: 2)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private func makeThumbs() {
         let now = Date()
         for mode in DashMode.allCases {
             let layout = mode == .custom ? store.config.custom.normalized : DashLayout.preset(mode)
-            thumbs[mode] = DashPreview.image(DashDemo.snapshot(layout: layout, theme: store.config.theme, now: now), width: 400, height: 200, now: now)
+            var demo = DashDemo.snapshot(layout: layout, theme: store.config.theme, now: now)
+            demo.mapSettings = store.config.map
+            thumbs[mode] = DashPreview.image(demo, width: 400, height: 200, now: now)
         }
     }
 }
@@ -58,69 +68,131 @@ struct ModesScreen: View {
 struct MusicScreen: View {
     @ObservedObject private var store = DashStore.shared
     @ObservedObject private var music = MusicService.shared
+    @ObservedObject private var spotify = SpotifyService.shared
+
+    private var useSpotify: Bool { store.config.musicProvider == .spotify }
 
     var body: some View {
         DarkPage(title: "Música") {
             Card {
-                Text("Apple Music (app Música)").font(.headline)
-                if !MusicService.supported {
-                    Text("No disponible en el simulador.").font(.footnote).foregroundColor(Brand.dim)
-                } else if music.authorized {
-                    Label("Conectado", systemImage: "checkmark.circle.fill").foregroundColor(.green).font(.subheadline)
-                } else if music.denied {
-                    Text("El acceso está denegado. Actívalo en Ajustes > CFMoto Link > Contenido multimedia y Apple Music.")
-                        .font(.footnote).foregroundColor(Brand.dim)
-                } else {
-                    Button("Permitir acceso a la música") { music.requestAccess() }
-                        .buttonStyle(.borderedProminent).tint(Brand.blue)
+                Text("Qué música muestra la moto").font(.headline)
+                Picker("Proveedor", selection: $store.config.musicProvider) {
+                    ForEach(MusicProvider.allCases) { Text($0.title).tag($0) }
                 }
+                .pickerStyle(.segmented)
+                Text("La música no interfiere con el GPS ni con la conexión con la moto: solo se lee la canción y se dibuja en el panel.")
+                    .font(.caption).foregroundColor(Brand.dim)
             }
+            .tint(Brand.blue)
+
+            if useSpotify { spotifyCard } else { appleCard }
 
             Card {
                 Text("Reproducción").font(.headline)
-                if music.title.isEmpty {
-                    Text("No hay nada sonando en la app Música.").font(.footnote).foregroundColor(Brand.dim)
+                let title = useSpotify ? spotify.title : music.title
+                let artist = useSpotify ? spotify.artist : music.artist
+                if title.isEmpty {
+                    Text(useSpotify ? "No hay nada sonando en Spotify (o no está conectado)." : "No hay nada sonando en la app Música.")
+                        .font(.footnote).foregroundColor(Brand.dim)
                 } else {
                     HStack(spacing: 12) {
-                        if let art = music.artwork {
+                        if !useSpotify, let art = music.artwork {
                             Image(uiImage: art).resizable().frame(width: 64, height: 64).cornerRadius(10)
                         } else {
                             RoundedRectangle(cornerRadius: 10).fill(Brand.bg).frame(width: 64, height: 64)
                                 .overlay(Image(systemName: "music.note").foregroundColor(Brand.dim))
                         }
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(music.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-                            Text(music.artist).font(.footnote).foregroundColor(Brand.dim).lineLimit(1)
+                            Text(title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                            Text(artist).font(.footnote).foregroundColor(Brand.dim).lineLimit(1)
                         }
                     }
                 }
                 HStack(spacing: 28) {
                     Spacer()
-                    Button { music.previous() } label: { Image(systemName: "backward.fill") }
-                    Button { music.toggle() } label: { Image(systemName: music.playing ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 44)) }
-                    Button { music.next() } label: { Image(systemName: "forward.fill") }
+                    Button { useSpotify ? spotify.previous() : music.previous() } label: { Image(systemName: "backward.fill") }
+                    Button { useSpotify ? spotify.toggle() : music.toggle() } label: {
+                        Image(systemName: (useSpotify ? spotify.playing : music.playing) ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 44))
+                    }
+                    Button { useSpotify ? spotify.next() : music.next() } label: { Image(systemName: "forward.fill") }
                     Spacer()
                 }
                 .font(.title2)
                 .tint(Brand.blue)
-                .disabled(!music.authorized || !MusicService.supported)
+                .disabled(useSpotify ? !spotify.connected : (!music.authorized || !MusicService.supported))
+                Text("La pantalla de la moto no es táctil y el protocolo no envía botones: los controles están aquí, en el iPhone.")
+                    .font(.caption).foregroundColor(Brand.dim)
             }
 
             Card {
                 Text("En la pantalla de la moto").font(.headline)
                 Toggle("Mostrar la portada", isOn: $store.config.showArtwork)
                 Toggle("Mostrar la barra de progreso", isOn: $store.config.showProgress)
+                Text("El tamaño de la tarjeta de música se elige en Mi pantalla (compacta o grande).")
+                    .font(.caption).foregroundColor(Brand.dim)
             }
             .font(.subheadline)
             .tint(Brand.blue)
 
             Card {
-                Text("Otros servicios").font(.headline)
-                Text("Spotify: no incluido en esta versión. Su SDK oficial exige registrar la app con una cuenta Premium y un identificador propio; sin ese registro no se puede activar.")
+                Text("Otras apps").font(.headline)
                 Text("YouTube Music y otras apps: iOS no permite que una app lea lo que suena en otra, y no ofrecen un SDK para ello.")
             }
             .font(.footnote)
             .foregroundColor(Brand.dim)
+        }
+    }
+
+    private var appleCard: some View {
+        Card {
+            Text("Apple Music (app Música)").font(.headline)
+            if !MusicService.supported {
+                Text("No disponible en el simulador.").font(.footnote).foregroundColor(Brand.dim)
+            } else if music.authorized {
+                Label("Conectado", systemImage: "checkmark.circle.fill").foregroundColor(.green).font(.subheadline)
+            } else if music.denied {
+                Text("El acceso está denegado. Actívalo en Ajustes > CFMoto Link > Contenido multimedia y Apple Music.")
+                    .font(.footnote).foregroundColor(Brand.dim)
+            } else {
+                Button("Permitir acceso a la música") { music.requestAccess() }
+                    .buttonStyle(.borderedProminent).tint(Brand.blue)
+            }
+        }
+    }
+
+    private var spotifyCard: some View {
+        Card {
+            Text("Spotify").font(.headline)
+            Text("Con el SDK oficial de Spotify. Necesitas registrar tu propia app (gratis) en developer.spotify.com; desde 2026 Spotify exige que la cuenta dueña tenga Premium.")
+                .font(.footnote).foregroundColor(Brand.dim)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("1. Crea una app en developer.spotify.com > Dashboard, con «iOS» como plataforma.")
+                Text("2. Dirección de vuelta (Redirect URI): cfmotolink://spotify-login")
+                Text("3. Identificador del paquete (Bundle ID): io.github.cfmotolink.app")
+                Text("4. Copia su Client ID aquí y toca Conectar. Ten Spotify instalado.")
+            }
+            .font(.caption).foregroundColor(Brand.dim)
+            TextField("Client ID de tu app de Spotify", text: $store.config.spotifyClientID)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.footnote, design: .monospaced))
+                .padding(8)
+                .background(Brand.bg, in: RoundedRectangle(cornerRadius: 8))
+            HStack {
+                Circle().fill(spotify.connected ? Color.green : Color.gray).frame(width: 10, height: 10)
+                Text(spotify.statusText).font(.footnote)
+                Spacer()
+            }
+            if spotify.connected {
+                Button("Desconectar") { spotify.disconnect() }
+                    .buttonStyle(.bordered).tint(.red)
+            } else {
+                Button("Conectar con Spotify") { spotify.connect(clientID: store.config.spotifyClientID) }
+                    .buttonStyle(.borderedProminent).tint(Color(red: 0.12, green: 0.84, blue: 0.38))
+                    .disabled(store.config.spotifyClientID.trimmingCharacters(in: .whitespaces).isEmpty || !SpotifyService.available)
+            }
+            Text("El permiso de Spotify dura una hora; si caduca, toca Conectar otra vez. Conecta antes de salir: con el iPhone bloqueado no siempre se puede reconectar.")
+                .font(.caption).foregroundColor(Brand.dim)
         }
     }
 }
@@ -180,16 +252,16 @@ struct NoticesScreen: View {
 
 struct SettingsScreen: View {
     @ObservedObject private var store = DashStore.shared
-    @AppStorage("franjaMoto") private var reserve = true
+    @AppStorage("franjaLibre") private var reserve = false
     @State private var confirming = false
 
     var body: some View {
         DarkPage(title: "Ajustes") {
             Card {
                 Text("Pantalla de la moto").font(.headline)
-                Toggle("Dejar libre la franja de abajo (velocidad, marcha y testigos)", isOn: $reserve)
+                Toggle("Dejar vacía la parte de abajo de la imagen", isOn: $reserve)
                     .onChange(of: reserve) { on in HUDRenderer.reservedBottom = on ? 0.22 : 0 }
-                Text("Recomendado. El cambio se aplica al volver a conectar con la moto.")
+                Text("Apagado: la app usa toda la imagen. La moto muestra velocidad, marcha y testigos en su propia franja, debajo de la imagen, y no se tapan. Se aplica al volver a conectar.")
                     .font(.caption).foregroundColor(Brand.dim)
                 Text("Tema del panel").font(.footnote).foregroundColor(Brand.dim)
                 Picker("Tema", selection: $store.config.theme) {

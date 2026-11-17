@@ -4,7 +4,7 @@ import UIKit
 import MediaPlayer
 
 /// Música del iPhone. iOS solo deja leer y controlar desde otra app lo que suena en la app
-/// Música (Apple Music); lo de Spotify u otras apps no es accesible sin su propio SDK.
+/// Música (Apple Music). Spotify va aparte, con su SDK oficial (SpotifyService).
 final class MusicService: ObservableObject {
     static let shared = MusicService()
 
@@ -82,12 +82,13 @@ final class MusicService: ObservableObject {
         } else {
             artwork = nil
         }
-        DashState.shared.setMusic(m)
+        let active = DashStore.shared.config.musicProvider == .appleMusic
+        if active { DashState.shared.setMusic(m) }
         if title != m.title { title = m.title }
         if artist != m.artist { artist = m.artist }
         if playing != isPlaying {
             playing = isPlaying
-            if isPlaying { DashStore.shared.musicStarted() }
+            if isPlaying && active { DashStore.shared.musicStarted() }
         }
     }
 

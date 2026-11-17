@@ -62,28 +62,40 @@ struct DarkPage<Content: View>: View {
     }
 }
 
-/// Imagen del panel tal como la recibe la moto, con la franja de la moto señalada.
+/// Imagen del panel tal como la recibe la moto. Debajo se señala la franja donde la moto pone
+/// sus propios indicadores (la app no la controla).
 struct TFTImage: View {
     let image: CGImage?
-    @AppStorage("franjaMoto") private var reserve = true
+    var showBikeBand = true
+    @AppStorage("franjaLibre") private var reserve = false
     var body: some View {
-        Group {
-            if let image = image {
-                Image(decorative: image, scale: 1).resizable().interpolation(.high)
-            } else {
-                Color.black
-            }
-        }
-        .aspectRatio(2, contentMode: .fit)
-        .overlay {
-            GeometryReader { g in
-                if reserve {
-                    Text("Zona de la moto: velocidad, marcha y testigos")
-                        .font(.system(size: max(8, g.size.height * 0.055), weight: .semibold))
-                        .foregroundColor(.white.opacity(0.45))
-                        .frame(width: g.size.width, height: g.size.height * 0.22)
-                        .position(x: g.size.width / 2, y: g.size.height * 0.89)
+        VStack(spacing: 0) {
+            Group {
+                if let image = image {
+                    Image(decorative: image, scale: 1).resizable().interpolation(.high)
+                } else {
+                    Color.black
                 }
+            }
+            .aspectRatio(2, contentMode: .fit)
+            .overlay {
+                GeometryReader { g in
+                    if reserve {
+                        Text("Parte vacía a petición (Ajustes)")
+                            .font(.system(size: max(8, g.size.height * 0.055), weight: .semibold))
+                            .foregroundColor(.white.opacity(0.45))
+                            .frame(width: g.size.width, height: g.size.height * 0.22)
+                            .position(x: g.size.width / 2, y: g.size.height * 0.89)
+                    }
+                }
+            }
+            if showBikeBand {
+                Text("Franja de la moto: velocidad, rpm, marcha y testigos")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background(Color.black)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -107,8 +119,8 @@ struct ModeChips: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(DashMode.allCases) { mode in
-                    Button(mode.title) { store.setMode(mode) }
+                ForEach(DashMode.primary + DashMode.others) { mode in
+                    Button(mode.short) { store.setMode(mode) }
                         .buttonStyle(Chip(selected: store.config.mode == mode))
                 }
             }

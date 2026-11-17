@@ -33,6 +33,9 @@ final class GuidedRoute {
     private let metersPerLat: Double
     private let metersPerLon: Double
 
+    /// Lo mismo que `local`/`coordinate`, en el formato que usa el dibujo de la moto.
+    var geoFrame: GeoFrame { GeoFrame(origin: GeoPoint(lat: origin.latitude, lon: origin.longitude)) }
+
     init(route: MKRoute) {
         self.route = route
         let coordinates = GuidedRoute.coordinates(of: route.polyline)
@@ -64,7 +67,7 @@ final class GuidedRoute {
         )
     }
 
-    private static func coordinates(of polyline: MKPolyline) -> [CLLocationCoordinate2D] {
+    static func coordinates(of polyline: MKPolyline) -> [CLLocationCoordinate2D] {
         let n = polyline.pointCount
         guard n > 0 else { return [] }
         var c = [CLLocationCoordinate2D](repeating: CLLocationCoordinate2D(latitude: 0, longitude: 0), count: n)

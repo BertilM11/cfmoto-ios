@@ -13,6 +13,11 @@ final class DashStore: ObservableObject {
         didSet {
             guard config != oldValue else { return }
             persist()
+            if config.musicProvider != oldValue.musicProvider {
+                // Al cambiar de proveedor, la moto deja de mostrar la canción del anterior.
+                DashState.shared.setMusic(MusicSnapshot())
+                logLine("[MÚSICA] proveedor: \(config.musicProvider.title)")
+            }
         }
     }
     @Published private(set) var history: [NoticeSnapshot] = []
@@ -63,6 +68,8 @@ final class DashStore: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] status in self?.linkStatus(status) }
             .store(in: &bag)
+
+        TFTMap.shared.start()
     }
 
     // MARK: - Modos y edición
@@ -135,6 +142,7 @@ final class DashStore: ObservableObject {
             s.privacy = config.noticePrivacy
             s.showArtwork = config.showArtwork
             s.showProgress = config.showProgress
+            s.mapSettings = config.map
         }
         if let layout = layout { s.layout = layout }
         if previewReserve != HUDRenderer.reservedBottom {
