@@ -25,8 +25,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: CFMoto Link
-        CFBundleShortVersionString: "0.5.0"
-        CFBundleVersion: "6"
+        CFBundleShortVersionString: "0.6.0"
+        CFBundleVersion: "7"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
@@ -36,6 +36,8 @@ targets:
         NSAppleMusicUsageDescription: CFMoto Link muestra en la pantalla de la moto la canción que suena en la app Música y te deja pausar o cambiar de canción.
         LSApplicationQueriesSchemes:
           - spotify
+          - comgooglemaps
+          - waze
         CFBundleURLTypes:
           - CFBundleURLName: io.github.cfmotolink.app
             CFBundleURLSchemes:
@@ -68,8 +70,8 @@ targets:
       path: Broadcast/Info.plist
       properties:
         CFBundleDisplayName: CFMoto Link
-        CFBundleShortVersionString: "0.5.0"
-        CFBundleVersion: "6"
+        CFBundleShortVersionString: "0.6.0"
+        CFBundleVersion: "7"
         NSLocalNetworkUsageDescription: CFMoto Link se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.broadcast-services-upload

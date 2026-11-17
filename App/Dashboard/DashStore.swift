@@ -129,9 +129,16 @@ final class DashStore: ObservableObject {
         if config.activeProfile == id { config.activeProfile = nil }
     }
 
+    /// Vuelve al diseño de fábrica. Se conservan la conexión de música (Client ID de Spotify y
+    /// servicio elegido), el proveedor de navegación y los perfiles guardados.
     func restoreDefaults() {
         auto = DashAutoState()
-        config = DashConfig()
+        var c = DashConfig()
+        c.spotifyClientID = config.spotifyClientID
+        c.musicProvider = config.musicProvider
+        c.navProvider = config.navProvider
+        c.profiles = config.profiles
+        config = c
     }
 
     // MARK: - Vista previa (el mismo dibujo que recibe la moto)
@@ -143,6 +150,11 @@ final class DashStore: ObservableObject {
             s.showArtwork = config.showArtwork
             s.showProgress = config.showProgress
             s.mapSettings = config.map
+            s.musicStyle = config.musicStyle
+            s.musicIntensity = config.musicIntensity
+            s.artworkSize = config.artworkSize
+            s.showArtist = config.showArtist
+            s.showSource = config.showSource
         }
         if let layout = layout { s.layout = layout }
         if previewReserve != HUDRenderer.reservedBottom {

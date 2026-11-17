@@ -17,6 +17,7 @@ final class MusicService: ObservableObject {
     @Published private(set) var artist = ""
     @Published private(set) var playing = false
     @Published private(set) var artwork: UIImage?
+    private var palette: ArtPalette?
 
     private var timer: Timer?
     private var running = false
@@ -77,10 +78,14 @@ final class MusicService: ObservableObject {
             if item.persistentID != lastItemId || artwork == nil {
                 lastItemId = item.persistentID
                 artwork = item.artwork?.image(at: CGSize(width: 256, height: 256))
+                // Colores de la portada para la tarjeta de la moto (la portada no se modifica).
+                palette = artwork?.cgImage.flatMap { ArtPalette.extract($0) }
             }
             m.artwork = artwork?.cgImage
+            m.palette = palette
         } else {
             artwork = nil
+            palette = nil
         }
         let active = DashStore.shared.config.musicProvider == .appleMusic
         if active { DashState.shared.setMusic(m) }

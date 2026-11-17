@@ -153,14 +153,19 @@ struct RootTabs: View {
 }
 
 struct MoreScreen: View {
+    /// Solo para la prueba automática ("-more personalizacion"): abre esa pantalla al empezar.
+    @State private var openPersonalization = UserDefaults.standard.string(forKey: "more") == "personalizacion"
+
     var body: some View {
         NavigationStack {
             DarkPage(title: "Más") {
+                link("Personalización del tablero", "slider.horizontal.3", "Navegación, día y noche, música y pantalla") { PersonalizationScreen() }
                 link("Modos", "square.grid.2x2.fill", "Modos predeterminados y cambios automáticos") { ModesScreen() }
                 link("Notificaciones", "bell.fill", "Fuentes, privacidad y duración de los avisos") { NoticesScreen() }
                 link("Conexión", "antenna.radiowaves.left.and.right", "Estado de la moto, diagnóstico y registro") { ConnectionScreen() }
                 link("Ajustes", "gearshape.fill", "Tema, franja de la moto y restauración") { SettingsScreen() }
             }
+            .navigationDestination(isPresented: $openPersonalization) { PersonalizationScreen() }
         }
     }
 

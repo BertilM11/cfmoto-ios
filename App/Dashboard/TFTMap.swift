@@ -26,6 +26,13 @@ final class TFTMap {
     private var cache: [MapBase] = []
     private var inUse: MapBase?
     private var settings = MapSettings()
+    /// Estilo que se quiere ahora (día/noche, tipo de mapa), para preferir esas imágenes.
+    private var wantedStyle = ""
+    /// Fundido al cambiar de estilo: imagen anterior, nueva y momento del cambio.
+    private var fadeFrom: MapBase?
+    private weak var fadeTo: MapBase?
+    private var fadeStart: TimeInterval = 0
+    private var cacheStyle = ""
 
     // Lo demás solo se toca desde el hilo principal.
     private var timer: Timer?
@@ -95,6 +102,10 @@ final class TFTMap {
         guard settings.streets else { return nil }
         let t = now.timeIntervalSinceReferenceDate
         func spot(_ b: MapBase) -> CGPoint? { b.project(pose.here) }
+        // Vista general de las rutas propuestas: la última imagen en vivo, sea cual sea.
+        if !n.navigating && !n.previewRoutes.isEmpty, let l = live {
+            return use(l)
+        }
         if let l = live, t - l.created < 30, let q = spot(l), q.x > 0.06, q.x < 0.94, q.y > 0.22, q.y < 0.96 {
             return use(l)
         }
@@ -107,7 +118,7 @@ final class TFTMap {
                 var turn = abs(c.heading - pose.heading).truncatingRemainder(dividingBy: 360)
                 if turn > 180 { turn = 360 - turn }
                 guard pose.heading < 0 || turn < 55 else { continue }
-                let value = abs(Double(q.y) - TFTMap.puckY) + turn / 90
+                let value = abs(Double(q.y) - TFTMap.puckY) + turn / 90 + (c.styleKey == wantedStyle ? 0 : 0.6)
                 if value < score {
                     score = value
                     best = c
@@ -120,6 +131,19 @@ final class TFTMap {
             return use(l)
         }
         return nil
+    }
+
+    /// Fundido en curso al cambiar de estilo (día/noche): imagen anterior, nueva y avance 0…1.
+    func styleFade(now: Date) -> (from: MapBase, to: MapBase, t: Double)? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let from = fadeFrom, let to = fadeTo else { return nil }
+        let t = (now.timeIntervalSinceReferenceDate - fadeStart) / 0.3
+        guard t < 1 else {
+            fadeFrom = nil
+            return nil
+        }
+        return (from, to, max(0, t))
     }
 
     /// Solo una imagen guardada queda descomprimida a la vez (memoria en segundo plano).
@@ -145,10 +169,18 @@ final class TFTMap {
         let now = Date()
         guard let pose = MapPose.of(n, now: now) else { return }
         let night = DashState.shared.isNight(n.style)
+        lock.lock()
+        wantedStyle = s.styleKey(night: night)
+        lock.unlock()
         let rect = DashLayoutEngine.mapRect(layout, width: 800, height: 400, reservedBottom: HUDRenderer.reservedBottom)
             ?? CGRect(x: 0, y: 0, width: 800, height: 400)
         let pixels = CGSize(width: max(200, (rect.width / 2).rounded() * 2), height: max(120, (rect.height / 2).rounded() * 2))
 
+        // Antes de empezar: vista general con todas las rutas propuestas.
+        if !n.navigating && !n.previewRoutes.isEmpty {
+            if liveSnapshotter == nil { requestOverview(n, pose, s, night: night, pixels: pixels, now: now) }
+            return
+        }
         if liveSnapshotter == nil {
             // Con ruta, la imagen se pide para el punto de la ruta donde estará la moto cuando
             // llegue (posición y rumbo de ese punto): así el mapa no gira tarde en las curvas.
@@ -170,6 +202,7 @@ final class TFTMap {
 
     /// Distancia de la cámara: más lejos cuanto más rápido, más cerca antes de un giro.
     private func cameraDistance(_ pose: MapPose, _ s: MapSettings) -> Double {
+        guard s.autoZoom else { return 700 * s.zoom }
         let kmh = pose.speed * 3.6
         let table: [(Double, Double)] = [(0, 520), (25, 600), (50, 800), (80, 1100), (110, 1450)]
         var d = table.last!.1
@@ -234,9 +267,51 @@ final class TFTMap {
                         : "[MAPA] Apple entregó el mapa plano aunque se pidió inclinado")
             }
             self.calibrate(base, req)
-            self.lock.lock()
-            self.live = base
-            self.lock.unlock()
+            self.setLive(base)
+        }
+    }
+
+    /// Nueva imagen en vivo; si cambió el estilo, se prepara el fundido desde la anterior.
+    private func setLive(_ base: MapBase) {
+        lock.lock()
+        if let old = live, old.styleKey != base.styleKey {
+            fadeFrom = old
+            fadeTo = base
+            fadeStart = Date().timeIntervalSinceReferenceDate
+        }
+        live = base
+        lock.unlock()
+    }
+
+    /// Vista general (norte arriba) que abarca la posición y todas las rutas propuestas.
+    private func requestOverview(_ n: HUDSnapshot, _ pose: MapPose, _ s: MapSettings, night: Bool, pixels: CGSize, now: Date) {
+        var minLat = pose.here.lat, maxLat = pose.here.lat, minLon = pose.here.lon, maxLon = pose.here.lon
+        for route in n.previewRoutes {
+            for g in route {
+                minLat = min(minLat, g.lat); maxLat = max(maxLat, g.lat)
+                minLon = min(minLon, g.lon); maxLon = max(maxLon, g.lon)
+            }
+        }
+        let center = GeoPoint(lat: (minLat + maxLat) / 2, lon: (minLon + maxLon) / 2)
+        let tall = (maxLat - minLat) * 110_574.0
+        let wide = (maxLon - minLon) * 111_320.0 * cos(center.lat * .pi / 180)
+        let aspect = Double(pixels.width / max(1, pixels.height))
+        let needed = max(tall, wide / aspect, 300) * 1.3
+        let distance = needed / (heightPerDistance[false] ?? 0.62)
+        let key = s.styleKey(night: night)
+        if let last = lastLive, last.pitch == 0, last.heading == 0, last.styleKey == key, last.pixels == pixels,
+           last.center.distance(to: center) < needed * 0.05, abs(last.distance - distance) / distance < 0.05 {
+            return
+        }
+        let req = Request(
+            here: pose.here, center: center, heading: 0, pitch: 0, distance: distance, night: night, pixels: pixels,
+            styleKey: key, time: now.timeIntervalSinceReferenceDate, anchor: -1, visibleHeight: needed
+        )
+        lastLive = req
+        liveSnapshotter = snap(req) { [weak self] base in
+            guard let self = self else { return }
+            self.liveSnapshotter = nil
+            if let base = base { self.setLive(base) }
         }
     }
 
@@ -280,15 +355,23 @@ final class TFTMap {
             return
         }
         let key = ObjectIdentifier(shape)
+        let style = s.styleKey(night: night)
         lock.lock()
         if key != routeKey {
             cache.removeAll()
         }
-        cache.removeAll { $0.anchor < progress - 500 || $0.styleKey != s.styleKey(night: night) }
-        let count = cache.count
+        // Las de otro estilo (por ejemplo, de día al hacerse de noche) se quedan como reserva
+        // hasta que haya nuevas: con el iPhone bloqueado no se pueden pedir otras.
+        cache.removeAll { $0.anchor < progress - 500 }
+        while cache.count > 60, let i = cache.firstIndex(where: { $0.styleKey != style }) { cache.remove(at: i) }
+        let count = cache.filter { $0.styleKey == style }.count
         lock.unlock()
         if key != routeKey {
             routeKey = key
+            cachedUpTo = progress
+        }
+        if style != cacheStyle {
+            cacheStyle = style
             cachedUpTo = progress
         }
         cachedUpTo = max(cachedUpTo, progress - 50)

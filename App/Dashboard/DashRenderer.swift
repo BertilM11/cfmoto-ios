@@ -11,8 +11,7 @@ extension HUDRenderer {
 
     /// Dibuja el panel completo en toda la imagen (o en la parte que el usuario deje libre).
     func drawDashboard(_ s: DashSnapshot, now: Date, in ctx: CGContext) {
-        let style: HUDStyle = s.theme == .light ? .day : (s.theme == .dark ? .night : s.nav.style)
-        let p = style == .day ? HUDPalette.day : HUDPalette.night
+        let p = s.night ? HUDPalette.night : HUDPalette.day
         ctx.setFillColor(p.background)
         ctx.fill(CGRect(x: 0, y: 0, width: width, height: fullHeight))
 
@@ -126,7 +125,11 @@ extension HUDRenderer {
             let r = card.rect
             switch card.item {
             case .maneuver:
-                if n.navigating || n.arrived {
+                if let ext = s.external, !n.navigating {
+                    let small = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(r.height, 112 * k))
+                    cardBackground(small, p, ctx)
+                    dashExternalCard(ext, s, p, now, small, ctx)
+                } else if n.navigating || n.arrived {
                     cardBackground(r, p, ctx)
                     dashTurnContent(n, p, r, ctx)
                 } else {
@@ -135,9 +138,8 @@ extension HUDRenderer {
                     dashTurnContent(n, p, small, ctx)
                 }
             case .music:
-                cardBackground(r, p, ctx)
                 if o.musicSize == .large {
-                    dashMusic(s, p, now, r, ctx)
+                    dashMusic(s, p, now, r, ctx, cardRadius: 18 * k, alpha: 0.94)
                 } else {
                     dashMusicCompact(s, p, now, r, ctx)
                 }
@@ -157,11 +159,52 @@ extension HUDRenderer {
         return streets
     }
 
+    /// Colores de la tarjeta de música en este instante (con la transición entre canciones).
+    func musicColors(_ s: DashSnapshot) -> MusicCardColors {
+        let spotify = s.music.source == "Spotify"
+        let to = MusicCardColors.make(style: s.musicStyle, palette: s.music.palette, night: s.night, intensity: s.musicIntensity, spotify: spotify)
+        guard s.paletteFade < 1 else { return to }
+        let from = MusicCardColors.make(style: s.musicStyle, palette: s.paletteFrom, night: s.night, intensity: s.musicIntensity, spotify: spotify)
+        return from.mixed(with: to, max(0, s.paletteFade))
+    }
+
+    /// Fondo degradado de la tarjeta de música.
+    func drawMusicBackground(_ r: CGRect, _ c: MusicCardColors, radius: CGFloat, alpha: CGFloat, _ ctx: CGContext) {
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        ctx.clip()
+        let colors = [c.top.cg.copy(alpha: alpha) ?? c.top.cg, c.bottom.cg.copy(alpha: alpha) ?? c.bottom.cg] as CFArray
+        if let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) {
+            ctx.drawLinearGradient(g, start: CGPoint(x: r.minX, y: r.minY), end: CGPoint(x: r.maxX, y: r.maxY), options: [])
+        }
+        ctx.restoreGState()
+        if radius > 0 {
+            ctx.saveGState()
+            ctx.addPath(CGPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), cornerWidth: radius, cornerHeight: radius, transform: nil))
+            ctx.setStrokeColor(c.text.cg.copy(alpha: 0.1) ?? c.text.cg)
+            ctx.setLineWidth(1)
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
+    }
+
+    /// Color del nombre del servicio. Spotify, según sus reglas de marca: verde solo sobre
+    /// negro; sobre cualquier otro fondo, en blanco o negro (monocromo).
+    func sourceColor(_ m: MusicSnapshot, _ c: MusicCardColors) -> CGColor {
+        guard m.source == "Spotify" else { return c.accent.cg }
+        let mid = c.top.mixed(with: c.bottom, 0.5)
+        let black = c.top.chroma < 0.05 && c.bottom.chroma < 0.05 && mid.luminance < 0.03
+        if black { return RGB(hex: 0x1ED760).cg }
+        return mid.luminance < 0.4 ? RGB(1, 1, 1).cg : RGB(0, 0, 0).cg
+    }
+
     /// Música en una tarjeta pequeña: portada, estado, canción, artista y progreso.
     func dashMusicCompact(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let m = s.music
         let pad = 10 * k
         let has = m.available && !m.title.isEmpty
+        let c = musicColors(s)
+        drawMusicBackground(r, c, radius: 18 * k, alpha: 0.94, ctx)
         var tx = r.minX + pad
         if s.showArtwork {
             let a = r.height - 2 * pad
@@ -172,22 +215,68 @@ extension HUDRenderer {
         let tw = r.maxX - pad - tx
         guard tw > 30 else { return }
         if !has {
-            wrapped("Sin música", sizes: [19 * k], color: p.dim, x: tx, top: r.minY + pad + 4 * k, width: tw, maxLines: 1, ctx)
-            wrapped("Reproduce algo en el iPhone", sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 32 * k, width: tw, maxLines: 2, ctx)
+            wrapped("Sin música", sizes: [19 * k], color: c.secondary.cg, x: tx, top: r.minY + pad + 4 * k, width: tw, maxLines: 1, ctx)
+            wrapped("Reproduce algo en el iPhone", sizes: [14 * k, 12 * k], color: c.secondary.cg, x: tx, top: r.minY + pad + 32 * k, width: tw, maxLines: 2, ctx)
             return
         }
-        let brand = m.source == "Spotify" ? CGColor(srgbRed: 0.12, green: 0.84, blue: 0.38, alpha: 1) : p.accent
-        let state = (m.source.isEmpty ? "MÚSICA" : m.source.uppercased()) + (m.playing ? "  ▶" : "  ❚❚")
-        let sm = measure(state, size: 12 * k, bold: true, color: brand)
-        put(sm, x: tx, baseline: r.minY + pad + sm.ascent, ctx)
-        wrapped(m.title, sizes: [19 * k, 17 * k], color: p.text, x: tx, top: r.minY + pad + 16 * k, width: tw, maxLines: 1, ctx)
-        wrapped(m.artist, sizes: [15 * k, 13 * k], color: p.dim, x: tx, top: r.minY + pad + 40 * k, width: tw, maxLines: 1, ctx)
+        var line = r.minY + pad
+        if s.showSource {
+            let state = (m.source.isEmpty ? "MÚSICA" : m.source.uppercased()) + (m.playing ? "  ▶" : "  ❚❚")
+            let sm = measure(state, size: 12 * k, bold: true, color: sourceColor(m, c))
+            put(sm, x: tx, baseline: line + sm.ascent, ctx)
+            line += 16 * k
+        } else {
+            line += 4 * k
+        }
+        wrapped(m.title, sizes: [19 * k, 17 * k], color: c.text.cg, x: tx, top: line, width: tw, maxLines: 1, ctx)
+        if s.showArtist {
+            wrapped(m.artist, sizes: [15 * k, 13 * k], color: c.secondary.cg, x: tx, top: line + 24 * k, width: tw, maxLines: 1, ctx)
+        }
         if s.showProgress && m.duration > 1 {
             let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
             let pos = max(0, min(m.duration, m.position + elapsed))
             let bar = CGRect(x: tx, y: r.maxY - pad - 3 * k, width: tw, height: 3 * k)
-            fillRounded(bar, radius: 1.5 * k, color: p.line, ctx)
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: bar.height), radius: 1.5 * k, color: p.text, ctx)
+            fillRounded(bar, radius: 1.5 * k, color: c.track.cg, ctx)
+            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: bar.height), radius: 1.5 * k, color: c.accent.cg, ctx)
+        }
+    }
+
+    /// Guía en otra app: la tarjeta dice cuál, el destino y la distancia en línea recta.
+    func dashExternalCard(_ ext: ExternalGuide, _ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        let pad = 10 * k
+        let t = r.height - 2 * pad
+        let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: min(t, 64 * k), height: min(t, 64 * k))
+        fillRounded(tile, radius: tile.width * 0.22, color: p.accent, ctx)
+        // Flecha hacia el destino, en el sentido del mapa (arriba = hacia donde vas).
+        if let here = s.nav.here {
+            let dy = (ext.destination.lat - here.lat) * 110_574.0
+            let dx = (ext.destination.lon - here.lon) * 111_320.0 * cos(here.lat * .pi / 180)
+            var bearing = atan2(dx, dy)
+            if !s.mapSettings.northUp && s.nav.course >= 0 { bearing -= s.nav.course * .pi / 180 }
+            ctx.saveGState()
+            ctx.translateBy(x: tile.midX, y: tile.midY)
+            ctx.rotate(by: CGFloat(bearing))
+            let a = tile.width * 0.3
+            ctx.beginPath()
+            ctx.move(to: CGPoint(x: 0, y: -a))
+            ctx.addLine(to: CGPoint(x: a * 0.7, y: a * 0.75))
+            ctx.addLine(to: CGPoint(x: 0, y: a * 0.35))
+            ctx.addLine(to: CGPoint(x: -a * 0.7, y: a * 0.75))
+            ctx.closePath()
+            ctx.setFillColor(p.onAccent)
+            ctx.fillPath()
+            ctx.restoreGState()
+            let km = hypot(dx, dy)
+            let tx = tile.maxX + 12 * k
+            let tw = r.maxX - pad - tx
+            let head = measure("Guía en \(ext.provider.title)", size: 13 * k, bold: true, color: p.accent)
+            put(head, x: tx, baseline: r.minY + pad + head.ascent, ctx)
+            wrapped(ext.name, sizes: [20 * k, 17 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad + 18 * k, width: tw, maxLines: 1, ctx)
+            wrapped("A \(HUDFormat.distance(km)) en línea recta", sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 46 * k, width: tw, maxLines: 1, ctx)
+        } else {
+            let tx = tile.maxX + 12 * k
+            wrapped("Guía en \(ext.provider.title)", sizes: [18 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad, width: r.maxX - pad - tx, maxLines: 1, ctx)
+            wrapped(ext.name, sizes: [15 * k, 13 * k], color: p.dim, x: tx, top: r.minY + pad + 26 * k, width: r.maxX - pad - tx, maxLines: 1, ctx)
         }
     }
 
@@ -284,6 +373,12 @@ extension HUDRenderer {
             card = CGRect(x: r.minX + pad, y: r.minY + pad, width: min(r.width * 0.5, r.height * 1.25), height: r.height * 0.62)
         } else {
             card = CGRect(x: r.minX + pad, y: r.minY + pad, width: r.width - 2 * pad, height: r.height * 0.46)
+        }
+        if let ext = s.external, !n.navigating {
+            let small = CGRect(x: card.minX, y: card.minY, width: card.width, height: min(card.height, 112 * k))
+            fillRounded(small, radius: small.height * 0.14, color: alpha(p.background, 0.93), ctx)
+            dashExternalCard(ext, s, p, now, small, ctx)
+            return
         }
         fillRounded(card, radius: card.height * 0.1, color: alpha(p.background, 0.93), ctx)
         dashTurnContent(n, p, card, ctx)
@@ -443,18 +538,22 @@ extension HUDRenderer {
 
     // MARK: - Música
 
-    func dashMusic(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+    func dashMusic(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext,
+                   cardRadius: CGFloat = 0, alpha: CGFloat = 1) {
         let m = s.music
+        let c = musicColors(s)
+        drawMusicBackground(r, c, radius: cardRadius, alpha: alpha, ctx)
         let pad = max(8, min(r.width, r.height) * 0.08)
         let has = m.available && !m.title.isEmpty
         let vertical = r.height >= 190 && r.height > r.width * 0.9
+        let fraction = s.artworkSize.fraction
         var art = CGRect.zero
         if s.showArtwork {
             if vertical {
-                let a = min(r.width - 2 * pad, r.height * 0.48)
+                let a = min(r.width - 2 * pad, r.height * 0.48 * fraction)
                 art = CGRect(x: r.midX - a / 2, y: r.minY + pad, width: a, height: a)
             } else {
-                let a = min(r.height - 2 * pad, r.width * 0.4)
+                let a = min((r.height - 2 * pad) * fraction, r.width * 0.4)
                 art = CGRect(x: r.minX + pad, y: r.midY - a / 2, width: a, height: a)
             }
             dashArtwork(has ? m.artwork : nil, art, p, ctx)
@@ -467,14 +566,14 @@ extension HUDRenderer {
         let base = max(11, min(th * 0.2, tw * 0.12, 34 * k))
 
         if !has {
-            wrapped("Sin música", sizes: [base], color: p.dim, x: tx, top: top + th * 0.2, width: tw, maxLines: 1, ctx)
-            wrapped("Reproduce algo en el iPhone", sizes: [base * 0.7, base * 0.6], color: p.dim, x: tx, top: top + th * 0.2 + base * 1.4, width: tw, maxLines: 2, ctx)
+            wrapped("Sin música", sizes: [base], color: c.secondary.cg, x: tx, top: top + th * 0.2, width: tw, maxLines: 1, ctx)
+            wrapped("Reproduce algo en el iPhone", sizes: [base * 0.7, base * 0.6], color: c.secondary.cg, x: tx, top: top + th * 0.2 + base * 1.4, width: tw, maxLines: 2, ctx)
             return
         }
 
         // Estado (reproduciendo o en pausa) y origen.
         let icon = base * 0.62
-        ctx.setFillColor(p.accent)
+        ctx.setFillColor(sourceColor(m, c))
         if m.playing {
             ctx.beginPath()
             ctx.move(to: CGPoint(x: tx, y: top))
@@ -486,24 +585,28 @@ extension HUDRenderer {
             ctx.fill(CGRect(x: tx, y: top, width: icon * 0.3, height: icon))
             ctx.fill(CGRect(x: tx + icon * 0.5, y: top, width: icon * 0.3, height: icon))
         }
-        let src = measure(m.source.uppercased(), size: icon * 0.95, bold: true, color: p.accent)
-        put(src, x: tx + icon * 1.3, baseline: top + icon * 0.5 + (src.ascent - src.descent) / 2, ctx)
+        if s.showSource {
+            let src = measure(m.source.uppercased(), size: icon * 0.95, bold: true, color: sourceColor(m, c))
+            put(src, x: tx + icon * 1.3, baseline: top + icon * 0.5 + (src.ascent - src.descent) / 2, ctx)
+        }
 
         let titleTop = top + icon * 1.7
-        wrapped(m.title, sizes: [base, base * 0.88], color: p.text, x: tx, top: titleTop, width: tw, maxLines: 1, ctx)
-        wrapped(m.artist, sizes: [base * 0.78], color: p.dim, x: tx, top: titleTop + base * 1.3, width: tw, maxLines: 1, ctx)
+        wrapped(m.title, sizes: [base, base * 0.88], color: c.text.cg, x: tx, top: titleTop, width: tw, maxLines: 1, ctx)
+        if s.showArtist {
+            wrapped(m.artist, sizes: [base * 0.78], color: c.secondary.cg, x: tx, top: titleTop + base * 1.3, width: tw, maxLines: 1, ctx)
+        }
 
         if s.showProgress && m.duration > 1 {
             let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
             let pos = max(0, min(m.duration, m.position + elapsed))
             let barH = max(3, base * 0.2)
             let bar = CGRect(x: tx, y: r.maxY - pad - barH, width: tw, height: barH)
-            fillRounded(bar, radius: barH / 2, color: p.line, ctx)
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: barH), radius: barH / 2, color: p.accent, ctx)
+            fillRounded(bar, radius: barH / 2, color: c.track.cg, ctx)
+            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: barH), radius: barH / 2, color: c.accent.cg, ctx)
             let ts = base * 0.58
             if bar.minY - ts * 1.5 > titleTop + base * 2.3 {
-                let a = measure(dashTime(pos), size: ts, bold: false, color: p.dim)
-                let b = measure(dashTime(m.duration), size: ts, bold: false, color: p.dim)
+                let a = measure(dashTime(pos), size: ts, bold: false, color: c.secondary.cg)
+                let b = measure(dashTime(m.duration), size: ts, bold: false, color: c.secondary.cg)
                 put(a, x: bar.minX, baseline: bar.minY - ts * 0.45, ctx)
                 put(b, x: bar.maxX - b.width, baseline: bar.minY - ts * 0.45, ctx)
             }
@@ -517,7 +620,9 @@ extension HUDRenderer {
 
     func dashArtwork(_ image: CGImage?, _ rect: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
         guard rect.width > 4 else { return }
-        let radius = rect.width * 0.14
+        // Reglas de Spotify para portadas: sin recortes ni nada encima y esquinas de 4 px
+        // (pequeñas) u 8 px (grandes). Se aplica igual a Apple Music.
+        let radius = (rect.width < 110 ? 4 : 8) * k
         ctx.saveGState()
         ctx.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
         ctx.clip()

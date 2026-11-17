@@ -35,6 +35,7 @@ final class SpotifyService: NSObject, ObservableObject {
     private var remote: SPTAppRemote?
     private var lastTrack = ""
     private var artwork: CGImage?
+    private var palette: ArtPalette?
     #else
     static let available = false
     #endif
@@ -210,19 +211,24 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
             if newTrack {
                 self.lastTrack = track.uri
                 self.artwork = nil
+                self.palette = nil
                 self.remote?.imageAPI?.fetchImage(forItem: track, with: CGSize(width: 256, height: 256), callback: { [weak self] result, _ in
                     guard let self = self, let image = (result as? UIImage)?.cgImage else { return }
+                    let colors = ArtPalette.extract(image)
                     DispatchQueue.main.async {
                         self.artwork = image
+                        self.palette = colors
                         if DashStore.shared.config.musicProvider == .spotify {
                             var withArt = m
                             withArt.artwork = image
+                            withArt.palette = colors
                             DashState.shared.setMusic(withArt)
                         }
                     }
                 })
             }
             m.artwork = self.artwork
+            m.palette = self.palette
             let started = m.playing && !self.playing
             self.title = m.title
             self.artist = m.artist

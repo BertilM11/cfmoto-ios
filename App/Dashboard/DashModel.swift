@@ -249,49 +249,133 @@ enum MusicProvider: String, Codable, CaseIterable, Identifiable {
 }
 
 enum DashMode: String, Codable, CaseIterable, Identifiable {
-    case gps, gpsMusic, music, custom, full, gpsNotices, musicNotices
+    case gps, gpsMusic, split, music, custom, full, gpsNotices, musicNotices
     var id: String { rawValue }
     var title: String {
         switch self {
         case .gps: return "Navegación completa"
-        case .gpsMusic: return "Navegación + Música"
-        case .music: return "Música"
+        case .gpsMusic: return "Navegación + música compacta"
+        case .split: return "Pantalla dividida"
+        case .music: return "Música completa"
         case .custom: return "Personalizado"
         case .full: return "Panel completo"
         case .gpsNotices: return "Navegación + Avisos"
         case .musicNotices: return "Música + Avisos"
         }
     }
-    /// Letra de los cuatro modos principales (A–D).
-    var letter: String? {
+    /// Número de los cinco modos principales.
+    var number: Int? {
         switch self {
-        case .gps: return "A"
-        case .gpsMusic: return "B"
-        case .music: return "C"
-        case .custom: return "D"
+        case .gps: return 1
+        case .gpsMusic: return 2
+        case .split: return 3
+        case .music: return 4
+        case .custom: return 5
         default: return nil
         }
     }
-    var label: String { letter.map { "\($0) · \(title)" } ?? title }
+    var label: String { number.map { "\($0) · \(title)" } ?? title }
     var short: String {
         switch self {
-        case .gps: return "A · Navegación"
-        case .gpsMusic: return "B · Nav + Música"
-        case .music: return "C · Música"
-        case .custom: return "D · Personal"
+        case .gps: return "1 · Navegación"
+        case .gpsMusic: return "2 · Nav + Música"
+        case .split: return "3 · Dividida"
+        case .music: return "4 · Música"
+        case .custom: return "5 · Personal"
         case .full: return "Completo"
         case .gpsNotices: return "Nav + Avisos"
         case .musicNotices: return "Música + Avisos"
         }
     }
-    static let primary: [DashMode] = [.gps, .gpsMusic, .music, .custom]
+    static let primary: [DashMode] = [.gps, .gpsMusic, .split, .music, .custom]
     static let others: [DashMode] = [.full, .gpsNotices, .musicNotices]
 }
 
+/// Quién da la guía giro a giro.
+enum NavProviderID: String, Codable, CaseIterable, Identifiable {
+    case cfmoto, appleMaps, googleMaps, waze
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .cfmoto: return "CFMoto Link"
+        case .appleMaps: return "Mapas de Apple"
+        case .googleMaps: return "Google Maps"
+        case .waze: return "Waze"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .cfmoto: return "location.north.circle.fill"
+        case .appleMaps: return "map.fill"
+        case .googleMaps: return "mappin.circle.fill"
+        case .waze: return "car.circle.fill"
+        }
+    }
+    var external: Bool { self != .cfmoto }
+    /// Esquema para saber si la app está instalada (nil: siempre disponible).
+    var scheme: String? {
+        switch self {
+        case .cfmoto, .appleMaps: return nil
+        case .googleMaps: return "comgooglemaps"
+        case .waze: return "waze"
+        }
+    }
+
+    /// Lo que de verdad puede hacer cada proveedor con esta app (sin suponer acceso a datos
+    /// de otras apps).
+    var capabilities: [(String, Bool)] {
+        switch self {
+        case .cfmoto:
+            return [("Mapa de calles en la moto", true), ("Giros en la moto", true), ("Voz en español", true),
+                    ("Funciona con el iPhone bloqueado", true), ("Tráfico en el mapa (Apple)", true)]
+        case .appleMaps, .googleMaps, .waze:
+            return [("Mapa de calles en la moto", true), ("Giros en la moto", false), ("Guía y voz en su app", true),
+                    ("Destino en la moto", true), ("Ver su app en la moto (Duplicar pantalla, iPhone desbloqueado)", true)]
+        }
+    }
+
+    /// Enlace oficial para abrir la ruta en la app de ese proveedor.
+    func link(lat: Double, lon: Double, name: String, app: Bool) -> URL? {
+        let ll = String(format: "%.6f,%.6f", lat, lon)
+        var c: URLComponents
+        switch self {
+        case .cfmoto:
+            return nil
+        case .appleMaps:
+            c = URLComponents(string: "https://maps.apple.com/")!
+            c.queryItems = [URLQueryItem(name: "daddr", value: ll), URLQueryItem(name: "dirflg", value: "d"),
+                            URLQueryItem(name: "q", value: name)]
+        case .googleMaps:
+            if app {
+                c = URLComponents(string: "comgooglemaps://")!
+                c.queryItems = [URLQueryItem(name: "daddr", value: ll), URLQueryItem(name: "directionsmode", value: "driving")]
+            } else {
+                c = URLComponents(string: "https://www.google.com/maps/dir/")!
+                c.queryItems = [URLQueryItem(name: "api", value: "1"), URLQueryItem(name: "destination", value: ll),
+                                URLQueryItem(name: "travelmode", value: "driving")]
+            }
+        case .waze:
+            c = URLComponents(string: app ? "waze://ul" : "https://waze.com/ul")!
+            c.queryItems = [URLQueryItem(name: "ll", value: ll), URLQueryItem(name: "navigate", value: "yes"),
+                            URLQueryItem(name: "utm_source", value: "io.github.cfmotolink.app")]
+        }
+        return c.url
+    }
+}
+
+/// Guía activa en otra app: la moto muestra el mapa, la posición y el destino, sin giros.
+struct ExternalGuide: Equatable {
+    var provider: NavProviderID
+    var destination: GeoPoint
+    var name: String
+}
+
 enum DashTheme: String, Codable, CaseIterable, Identifiable {
+    /// Claro de día y oscuro de noche, según el amanecer y el atardecer donde estás.
     case auto, dark, light
     var id: String { rawValue }
-    var title: String { self == .auto ? "Automático" : (self == .dark ? "Oscuro" : "Claro") }
+    var title: String { self == .auto ? "Automático" : (self == .dark ? "Siempre oscuro" : "Siempre claro") }
+    var short: String { self == .auto ? "Automático" : (self == .dark ? "Oscuro" : "Claro") }
 }
 
 struct DashLayout: Codable, Equatable {
@@ -313,6 +397,7 @@ struct DashLayout: Codable, Equatable {
         switch mode {
         case .gps: return .overlay(OverlaySettings(music: false, notices: false))
         case .gpsMusic: return .overlay(OverlaySettings(music: true, notices: false))
+        case .split: return DashLayout(template: .columns, slots: [.nav, .music], split: 0.58)
         case .music: return DashLayout(template: .full, slots: [.music])
         case .full, .custom: return .overlay(OverlaySettings(music: true, notices: true))
         case .gpsNotices: return .overlay(OverlaySettings(music: false, notices: true))
@@ -401,7 +486,7 @@ struct DashProfile: Codable, Identifiable, Equatable {
     var id = UUID()
     var name: String
     var layout: DashLayout
-    var theme: DashTheme = .dark
+    var theme: DashTheme = .auto
 }
 
 struct DashRules: Codable, Equatable {
@@ -412,11 +497,11 @@ struct DashRules: Codable, Equatable {
 }
 
 struct DashConfig: Codable, Equatable {
-    /// 2: versión 0.5 (mapa completo). Las configuraciones sin número son de la 0.4.
-    var version = 2
+    /// 3: versión 0.6 (día y noche automáticos). 2: 0.5. Sin número: 0.4.
+    var version = 3
     var mode: DashMode = .gpsMusic
     var custom = DashLayout.preset(.custom)
-    var theme: DashTheme = .dark
+    var theme: DashTheme = .auto
     var rules = DashRules()
     var profiles: [DashProfile] = DashConfig.defaultProfiles
     var activeProfile: UUID?
@@ -431,6 +516,15 @@ struct DashConfig: Codable, Equatable {
     var musicProvider: MusicProvider = .appleMusic
     /// Client ID de la app que el usuario registra en developer.spotify.com (no es secreto).
     var spotifyClientID = ""
+    var navProvider: NavProviderID = .cfmoto
+    var musicStyle: MusicCardStyle = .dynamic
+    /// Fuerza de los colores de la portada (0…1).
+    var musicIntensity: Double = 0.75
+    var artworkSize: ArtworkSize = .normal
+    var showArtist = true
+    var showSource = true
+    /// Transiciones suaves (colores, mapa, ruta nueva).
+    var animations = true
 
     var layout: DashLayout { (mode == .custom ? custom : DashLayout.preset(mode)).normalized }
 
@@ -471,10 +565,19 @@ struct DashConfig: Codable, Equatable {
         return c
     }
 
-    /// Pasa una configuración de la 0.4 al panel nuevo sin perder lo que el usuario creó.
+    /// Pasa una configuración vieja al formato actual sin perder lo que el usuario creó.
     mutating func migrate() {
-        guard version < 2 else { return }
-        version = 2
+        if version < 3 {
+            // Hasta la 0.5 el tema venía fijo en oscuro (por eso el mapa nunca era claro). Si
+            // seguía así, pasa a automático; si el usuario eligió claro, se respeta.
+            if theme == .dark { theme = .auto }
+            for i in profiles.indices where profiles[i].theme == .dark { profiles[i].theme = .auto }
+        }
+        guard version < 2 else {
+            version = 3
+            return
+        }
+        version = 3
         // Los perfiles de fábrica que siguen igual se cambian por los nuevos; los creados o
         // editados por el usuario se conservan.
         let fresh = DashConfig.defaultProfiles
@@ -508,6 +611,13 @@ extension DashConfig {
         map = (try? c.decode(MapSettings.self, forKey: .map)) ?? d.map
         musicProvider = (try? c.decode(MusicProvider.self, forKey: .musicProvider)) ?? d.musicProvider
         spotifyClientID = (try? c.decode(String.self, forKey: .spotifyClientID)) ?? d.spotifyClientID
+        navProvider = (try? c.decode(NavProviderID.self, forKey: .navProvider)) ?? d.navProvider
+        musicStyle = (try? c.decode(MusicCardStyle.self, forKey: .musicStyle)) ?? d.musicStyle
+        musicIntensity = min(1, max(0, (try? c.decode(Double.self, forKey: .musicIntensity)) ?? d.musicIntensity))
+        artworkSize = (try? c.decode(ArtworkSize.self, forKey: .artworkSize)) ?? d.artworkSize
+        showArtist = (try? c.decode(Bool.self, forKey: .showArtist)) ?? d.showArtist
+        showSource = (try? c.decode(Bool.self, forKey: .showSource)) ?? d.showSource
+        animations = (try? c.decode(Bool.self, forKey: .animations)) ?? d.animations
     }
 }
 
@@ -732,6 +842,8 @@ struct MusicSnapshot {
     /// Momento en que se leyó `position` (segundos desde la fecha de referencia).
     var positionTime: TimeInterval = 0
     var artwork: CGImage?
+    /// Colores dominantes de la portada (si hay portada).
+    var palette: ArtPalette?
 }
 
 enum NoticeKind: String, Codable {
@@ -760,6 +872,23 @@ struct DashSnapshot {
     /// Mapa de calles de Apple (si hay uno que sirva para la posición actual).
     var map: MapBase?
     var mapSettings = MapSettings()
+    /// Mapa anterior mientras dura el fundido al cambiar de día a noche o de estilo.
+    var mapFrom: MapBase?
+    var mapFade: Double = 1
+    /// Noche o día ya decidido (tema y sol); lo comparten el panel y el mapa.
+    var night = true
+    var musicStyle: MusicCardStyle = .dynamic
+    var musicIntensity: Double = 0.75
+    var artworkSize: ArtworkSize = .normal
+    var showArtist = true
+    var showSource = true
+    /// Colores de la canción anterior y avance de la transición (0…1).
+    var paletteFrom: ArtPalette?
+    var paletteFade: Double = 1
+    /// Ruta recién recalculada: avance del fundido de entrada (0…1).
+    var routeFade: Double = 1
+    /// Ruta guiada por otra app (la moto muestra solo el destino).
+    var external: ExternalGuide?
 }
 
 // MARK: - Reglas automáticas
@@ -828,6 +957,26 @@ enum DashDemo {
 
     private static let route = shape()
 
+    /// Portada de demostración dibujada aquí (degradado rojo y negro con un círculo claro), para
+    /// ver los colores de la tarjeta de música sin depender de Spotify ni de Apple Music.
+    static let artwork: CGImage? = {
+        let side = 256
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
+        let space = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: space, bitmapInfo: info) else { return nil }
+        let colors = [CGColor(srgbRed: 0.78, green: 0.08, blue: 0.12, alpha: 1),
+                      CGColor(srgbRed: 0.05, green: 0.02, blue: 0.03, alpha: 1)] as CFArray
+        if let g = CGGradient(colorsSpace: space, colors: colors, locations: [0, 1]) {
+            ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: side), end: CGPoint(x: side, y: 0), options: [])
+        }
+        ctx.setFillColor(CGColor(srgbRed: 0.92, green: 0.92, blue: 0.92, alpha: 0.9))
+        ctx.fillEllipse(in: CGRect(x: 150, y: 146, width: 70, height: 70))
+        return ctx.makeImage()
+    }()
+
+    static let palette: ArtPalette? = artwork.flatMap { ArtPalette.extract($0) }
+
     static func nav(now: Date) -> HUDSnapshot {
         var s = HUDSnapshot()
         s.navigating = true
@@ -853,7 +1002,8 @@ enum DashDemo {
         s.nav = nav(now: now)
         s.music = MusicSnapshot(
             available: true, source: "Música", title: "Canción de demostración", artist: "Artista de ejemplo",
-            playing: true, duration: 214, position: 73, positionTime: now.timeIntervalSinceReferenceDate, artwork: nil
+            playing: true, duration: 214, position: 73, positionTime: now.timeIntervalSinceReferenceDate,
+            artwork: artwork, palette: palette
         )
         let t = now.timeIntervalSinceReferenceDate
         s.notices = [
@@ -862,6 +1012,7 @@ enum DashDemo {
         ]
         s.layout = layout
         s.theme = theme
+        s.night = theme == .dark || (theme == .auto && SunClock.isNightByClock(now))
         s.demo = true
         return s
     }

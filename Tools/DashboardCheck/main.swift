@@ -4,7 +4,7 @@
 // con el modelo y el dibujo de la app:
 //   swiftc Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift \
 //          App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift \
-//          App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift -o dashcheck
+//          App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift -o dashcheck
 //   ./dashcheck carpeta_de_salida
 // El mapa de calles real (Apple Maps) solo existe en el iPhone; aquí se usa un mapa de prueba
 // dibujado por el propio programa para comprobar la proyección y el dibujo encima.
@@ -128,12 +128,16 @@ check("3000 combinaciones de tarjetas, lugares y tamaños al azar", cardProblem 
 
 // 4. Contenido de cada modo.
 func overlay(_ mode: DashMode) -> OverlaySettings { DashLayout.preset(mode).overlay }
-check("A · Navegación completa: mapa, maniobra y viaje, sin música grande",
+check("1 · Navegación completa: mapa, maniobra y viaje, sin música grande",
       DashLayout.preset(.gps).template == .overlay && overlay(.gps).maneuver && overlay(.gps).trip && !overlay(.gps).music)
-check("B · Navegación + Música: mapa con música compacta",
+check("2 · Navegación + música compacta",
       DashLayout.preset(.gpsMusic).template == .overlay && overlay(.gpsMusic).music && overlay(.gpsMusic).musicSize == .compact)
-check("C · Música: pantalla dedicada", DashLayout.preset(.music).template == .full && DashLayout.preset(.music).slots == [.music])
-check("D · Personalizado arranca con el mapa completo", DashConfig().custom.template == .overlay)
+check("3 · Pantalla dividida: mapa a la izquierda y música ampliada a la derecha",
+      DashLayout.preset(.split).template == .columns && DashLayout.preset(.split).normalized.slots == [.nav, .music]
+      && !DashLayout.preset(.split).mirrored && layoutProblems(DashLayout.preset(.split)) == nil)
+check("4 · Música completa: pantalla dedicada", DashLayout.preset(.music).template == .full && DashLayout.preset(.music).slots == [.music])
+check("5 · Personalizado arranca con el mapa completo", DashConfig().custom.template == .overlay)
+check("Los cinco modos principales van numerados del 1 al 5", DashMode.primary.compactMap { $0.number } == [1, 2, 3, 4, 5])
 check("Los otros modos se conservan", DashMode.others == [.full, .gpsNotices, .musicNotices]
       && DashLayout.preset(.musicNotices).normalized.slots == [.music, .notices])
 check("Los modos con mapa muestran la ruta", DashLayout.preset(.gps).showsRoute && DashLayout.preset(.gpsMusic).showsRoute && !DashLayout.preset(.music).showsRoute)
@@ -178,6 +182,15 @@ if let data = config.encoded(), let back = DashConfig.decoded(data) {
 }
 check("Datos guardados dañados no rompen la carga", DashConfig.decoded(Data("basura".utf8)) == nil)
 check("Hay seis perfiles de fábrica", DashConfig().profiles.count == 6)
+check("Por defecto: día y noche automáticos, guía de CFMoto Link y colores de la portada",
+      DashConfig().theme == .auto && DashConfig().navProvider == .cfmoto && DashConfig().musicStyle == .dynamic
+      && DashConfig().profiles.allSatisfy { $0.theme == .auto })
+var light = DashConfig()
+light.theme = .light
+light.version = 2
+if let data = light.encoded(), let back = DashConfig.decoded(data) {
+    check("Si el usuario eligió claro, se respeta al actualizar", back.theme == .light && back.version == 3)
+}
 let legacy = """
 {"mode":"full","custom":{"template":"mainSide","slots":["nav","music","notices"],"split":0.6,"sideSplit":0.46,"mirrored":false},
 "theme":"dark","rules":{"navStartsGpsMusic":true,"navEndRestores":true,"musicOnlyWithoutRoute":false,"turnPriority":true},
@@ -192,7 +205,9 @@ if let old = DashConfig.decoded(Data(legacy.utf8)) {
           old.mode == .full && old.noticeSeconds == 12 && old.noticePrivacy && !old.noticeLink && !old.showProgress
           && old.profiles.count == 2 && old.profiles[1].name == "Mi perfil" && old.profiles[1].layout.slots == [.music, .clock])
     check("Configuración de la 0.4: los perfiles de fábrica pasan al mapa completo",
-          old.profiles[0].layout.template == .overlay && old.version == 2)
+          old.profiles[0].layout.template == .overlay && old.version == 3)
+    check("Configuración vieja con tema oscuro fijo pasa a automático (el claro elegido se respeta)",
+          old.theme == .auto && old.profiles[0].theme == .auto && old.profiles[1].theme == .light)
     check("Configuración de la 0.4: mapa con valores de fábrica", old.map == MapSettings() && old.musicProvider == .appleMusic)
 } else {
     check("Configuración de la 0.4: se carga", false)
@@ -339,6 +354,102 @@ func streetsSnapshot(_ layout: DashLayout, theme: DashTheme) -> DashSnapshot {
     return s
 }
 
+// 8b. Día y noche por el sol (Ciudad de Guatemala, 17 de noviembre de 2026, UTC−6).
+var gt = Calendar(identifier: .gregorian)
+gt.timeZone = TimeZone(secondsFromGMT: -6 * 3600)!
+func gtDate(_ h: Int, _ m: Int) -> Date {
+    gt.date(from: DateComponents(year: 2026, month: 11, day: 17, hour: h, minute: m))!
+}
+let gLat = 14.6349
+let gLon = -90.5069
+if let sun = SunClock.times(on: gtDate(12, 0), lat: gLat, lon: gLon) {
+    let rise = gt.dateComponents([.hour, .minute], from: sun.sunrise)
+    let set = gt.dateComponents([.hour, .minute], from: sun.sunset)
+    let riseMin = (rise.hour ?? 0) * 60 + (rise.minute ?? 0)
+    let setMin = (set.hour ?? 0) * 60 + (set.minute ?? 0)
+    check("Amanecer en Guatemala hacia las 6:05", riseMin > 5 * 60 + 45 && riseMin < 6 * 60 + 25, "\(rise.hour ?? 0):\(rise.minute ?? 0)")
+    check("Atardecer en Guatemala hacia las 17:30", setMin > 17 * 60 + 5 && setMin < 17 * 60 + 45, "\(set.hour ?? 0):\(set.minute ?? 0)")
+} else {
+    check("Amanecer y atardecer en Guatemala", false, "sin resultado")
+}
+check("Día a las 9:00, 12:00 y 16:30", SunClock.isNight(at: gtDate(9, 0), lat: gLat, lon: gLon) == false
+      && SunClock.isNight(at: gtDate(12, 0), lat: gLat, lon: gLon) == false && SunClock.isNight(at: gtDate(16, 30), lat: gLat, lon: gLon) == false)
+check("Noche a las 5:00, 18:30 y 23:00", SunClock.isNight(at: gtDate(5, 0), lat: gLat, lon: gLon) == true
+      && SunClock.isNight(at: gtDate(18, 30), lat: gLat, lon: gLon) == true && SunClock.isNight(at: gtDate(23, 0), lat: gLat, lon: gLon) == true)
+check("Sin posición se decide por la hora", SunClock.isNightByClock(gtDate(21, 0), calendar: gt) && !SunClock.isNightByClock(gtDate(10, 0), calendar: gt))
+
+// 8c. Colores de la portada.
+func artwork(_ draw: (CGContext) -> Void) -> CGImage? {
+    let info = CGImageAlphaInfo.premultipliedLast.rawValue
+    guard let ctx = CGContext(data: nil, width: 128, height: 128, bitsPerComponent: 8, bytesPerRow: 0,
+                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+    draw(ctx)
+    return ctx.makeImage()
+}
+let redBlack = artwork { ctx in
+    ctx.setFillColor(CGColor(srgbRed: 0.05, green: 0.02, blue: 0.02, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 128, height: 128))
+    ctx.setFillColor(CGColor(srgbRed: 0.8, green: 0.08, blue: 0.1, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 128, height: 70))
+}
+let blue = artwork { ctx in
+    ctx.setFillColor(CGColor(srgbRed: 0.1, green: 0.35, blue: 0.85, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 128, height: 128))
+    ctx.setFillColor(CGColor(srgbRed: 0.9, green: 0.9, blue: 0.95, alpha: 1))
+    ctx.fill(CGRect(x: 40, y: 40, width: 30, height: 30))
+}
+let pale = artwork { ctx in
+    ctx.setFillColor(CGColor(srgbRed: 0.98, green: 0.96, blue: 0.86, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 128, height: 128))
+    ctx.setFillColor(CGColor(srgbRed: 0.95, green: 0.9, blue: 0.7, alpha: 1))
+    ctx.fill(CGRect(x: 0, y: 0, width: 128, height: 40))
+}
+func hueNear(_ c: RGB, _ target: Double, _ tolerance: Double) -> Bool {
+    var d = abs(c.hsl.h - target)
+    if d > 180 { d = 360 - d }
+    return d <= tolerance
+}
+check("Contraste: blanco sobre negro es 21:1", abs(RGB(1, 1, 1).contrast(with: RGB(0, 0, 0)) - 21) < 0.01)
+if let rb = redBlack.flatMap({ ArtPalette.extract($0) }), let bl = blue.flatMap({ ArtPalette.extract($0) }), let pl = pale.flatMap({ ArtPalette.extract($0) }) {
+    check("Portada roja y negra: color dominante rojo", hueNear(rb.base, 0, 20) && rb.base.hsl.s > 0.5)
+    check("Portada azul: color dominante azul", hueNear(bl.base, 220, 25))
+    var worst = 100.0
+    for pal in [rb, bl, pl] {
+        for night in [true, false] {
+            for intensity in [0.2, 0.75, 1.0] {
+                let c = MusicCardColors.make(style: .dynamic, palette: pal, night: night, intensity: intensity)
+                worst = min(worst, c.text.contrast(with: c.top), c.text.contrast(with: c.bottom))
+            }
+        }
+    }
+    check("Texto legible sobre cualquier fondo de portada (contraste ≥ 4,5)", worst >= 4.5, String(format: "peor %.1f:1", worst))
+    let redCard = MusicCardColors.make(style: .dynamic, palette: rb, night: true, intensity: 1)
+    check("La tarjeta toma tonos de la portada (rojo) sin saturar de más", hueNear(redCard.top, 0, 25) && redCard.top.hsl.s <= 0.56)
+    let blueCard = MusicCardColors.make(style: .dynamic, palette: bl, night: true, intensity: 1)
+    check("Con portada azul el fondo va hacia azul", hueNear(blueCard.top, 220, 30))
+    let fixedDark = MusicCardColors.make(style: .dark, palette: rb, night: false, intensity: 1)
+    let fixedLight = MusicCardColors.make(style: .light, palette: rb, night: true, intensity: 1)
+    check("Fondo oscuro fijo y claro fijo no dependen de la portada",
+          fixedDark.top.luminance < 0.05 && fixedLight.top.luminance > 0.8)
+    let half = redCard.mixed(with: blueCard, 0.5)
+    check("Transición entre canciones: los colores pasan de una a otra", half.top != redCard.top && half.top != blueCard.top)
+} else {
+    check("Colores de la portada", false, "no se pudieron analizar las portadas de prueba")
+}
+
+// 8d. Proveedores de navegación: enlaces oficiales.
+let wazeApp = NavProviderID.waze.link(lat: 14.588, lon: -90.5302, name: "Aeropuerto", app: true)?.absoluteString ?? ""
+let wazeWeb = NavProviderID.waze.link(lat: 14.588, lon: -90.5302, name: "Aeropuerto", app: false)?.absoluteString ?? ""
+let googleApp = NavProviderID.googleMaps.link(lat: 14.588, lon: -90.5302, name: "Aeropuerto", app: true)?.absoluteString ?? ""
+let googleWeb = NavProviderID.googleMaps.link(lat: 14.588, lon: -90.5302, name: "Aeropuerto", app: false)?.absoluteString ?? ""
+check("Waze: enlace oficial con destino y navegación", wazeApp.hasPrefix("waze://ul?ll=14.588000,-90.530200&navigate=yes")
+      && wazeWeb.hasPrefix("https://waze.com/ul?ll=14.588000,-90.530200&navigate=yes"), wazeApp)
+check("Google Maps: enlace de la app y de respaldo web", googleApp.hasPrefix("comgooglemaps://?daddr=14.588000,-90.530200&directionsmode=driving")
+      && googleWeb.contains("api=1") && googleWeb.contains("destination=14.588000,-90.530200"), googleApp)
+check("CFMoto Link no abre ninguna app externa", NavProviderID.cfmoto.link(lat: 0, lon: 0, name: "", app: true) == nil && !NavProviderID.cfmoto.external)
+check("Los proveedores externos no prometen giros en la moto",
+      NavProviderID.allCases.filter { $0.external }.allSatisfy { p in p.capabilities.contains { $0.0 == "Giros en la moto" && !$0.1 } })
+
 // 9. Composición: cada modo dibuja algo y usa toda la imagen.
 func pixels(_ s: DashSnapshot) -> (image: CGImage?, data: [UInt8], rowBytes: Int) {
     let w = Int(W)
@@ -428,9 +539,48 @@ small.privacy = true
 check("Otra resolución (640x320)", DashPreview.image(small, width: 640, height: 320, now: now) != nil)
 if let image = DashPreview.image(small, width: 640, height: 320, now: now) { save(image, "panel-640x320") }
 
+// 10b. Láminas de lo nuevo de la 0.6.
+var dyn = streetsSnapshot(.preset(.gpsMusic), theme: .dark)
+dyn.music.artwork = redBlack
+dyn.music.palette = redBlack.flatMap { ArtPalette.extract($0) }
+dyn.music.source = "Spotify"
+if let image = pixels(dyn).image { save(image, "panel-musica-colores-noche") }
+var dynDay = streetsSnapshot(.preset(.split), theme: .light)
+dynDay.music.artwork = blue
+dynDay.music.palette = blue.flatMap { ArtPalette.extract($0) }
+let splitDay = pixels(dynDay)
+check("Pantalla dividida de día con colores de portada", splitDay.image != nil && colors(splitDay, rows: 0..<Int(H)) > 40)
+if let image = splitDay.image { save(image, "panel-dividida-dia") }
+var ext = streetsSnapshot(.preset(.gpsMusic), theme: .dark)
+ext.nav.navigating = false
+ext.nav.shape = nil
+ext.nav.here = center
+ext.nav.course = heading
+ext.external = ExternalGuide(provider: .waze, destination: center.moved(4200, bearing: heading + 20), name: "Aeropuerto La Aurora")
+let extImg = pixels(ext)
+check("Guía en otra app: la moto muestra el destino sin inventar giros", extImg.image != nil)
+if let image = extImg.image { save(image, "panel-guia-waze") }
+var contrastRoute = streetsSnapshot(.preset(.gps), theme: .dark)
+contrastRoute.mapSettings.routeStyle = .highContrast
+if let image = pixels(contrastRoute).image { save(image, "panel-ruta-alto-contraste") }
+var preview = streetsSnapshot(.preset(.gps), theme: .dark)
+preview.nav.navigating = false
+preview.nav.here = center.moved(250, bearing: heading + 180)
+preview.nav.previewRoutes = [
+    (0...20).map { center.moved(-250 + Double($0) * 30, bearing: heading) },
+    (0...20).map { center.moved(-250 + Double($0) * 25, bearing: heading).moved(Double($0) * 6, bearing: heading + 90) },
+]
+preview.nav.previewSelected = 0
+let pv = pixels(preview)
+check("Vista previa de rutas en la moto antes de empezar", pv.image != nil)
+if let image = pv.image { save(image, "panel-rutas-propuestas") }
+
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
-let snap = streetsSnapshot(.preset(.full), theme: .dark)
+var snap = streetsSnapshot(.preset(.full), theme: .dark)
+snap.music.palette = redBlack.flatMap { ArtPalette.extract($0) }
+snap.paletteFrom = blue.flatMap { ArtPalette.extract($0) }
+snap.paletteFade = 0.5
 let start = Date()
 for _ in 0..<100 { _ = DashPreview.image(snap, now: now, renderer: renderer) }
 let ms = Date().timeIntervalSince(start) * 10

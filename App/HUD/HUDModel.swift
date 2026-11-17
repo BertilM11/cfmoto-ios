@@ -125,6 +125,9 @@ struct HUDSnapshot {
     var course: Double = -1
     /// Rutas alternativas, en los mismos metros locales que la ruta.
     var alternates: [[CGPoint]] = []
+    /// Rutas propuestas antes de empezar (la elegida y las demás), en coordenadas.
+    var previewRoutes: [[GeoPoint]] = []
+    var previewSelected = 0
 }
 
 /// Textos de distancia, duración y hora. Los usan el iPhone y la moto para decir lo mismo.

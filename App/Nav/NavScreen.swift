@@ -138,7 +138,7 @@ struct NavScreen: View {
             RoutePreviewCard(
                 engine: engine,
                 palette: p,
-                onStart: { engine.startNavigation() },
+                onStart: { RouteManager.shared.start(engine) },
                 onSimulate: { engine.startSimulation() },
                 onCancel: cancelPlan
             )
@@ -156,7 +156,9 @@ struct NavScreen: View {
                 .padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         default:
-            EmptyView()
+            ExternalGuideCard(palette: p)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
         }
     }
 

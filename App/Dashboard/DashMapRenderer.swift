@@ -56,16 +56,55 @@ extension HUDRenderer {
 
         ctx.saveGState()
         ctx.clip(to: r)
-        ctx.saveGState()
-        ctx.translateBy(x: ox, y: oy + dh)
-        ctx.scaleBy(x: 1, y: -1)
-        ctx.interpolationQuality = .medium
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: dw, height: dh))
-        ctx.restoreGState()
+        func paint(_ img: CGImage, _ b: MapBase, alpha: CGFloat) {
+            let s2 = max(r.width / CGFloat(b.pixelWidth), r.height / CGFloat(b.pixelHeight))
+            let w2 = CGFloat(b.pixelWidth) * s2
+            let h2 = CGFloat(b.pixelHeight) * s2
+            ctx.saveGState()
+            ctx.setAlpha(alpha)
+            ctx.translateBy(x: r.midX - w2 / 2, y: r.midY - h2 / 2 + h2)
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.interpolationQuality = .medium
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w2, height: h2))
+            ctx.restoreGState()
+        }
+        // Al pasar de día a noche (o cambiar de estilo) el mapa nuevo aparece fundido sobre el
+        // anterior: sin parpadeos ni pantallas negras.
+        if s.mapFade < 1, let from = s.mapFrom, let old = from.cgImage() {
+            paint(old, from, alpha: 1)
+            paint(image, base, alpha: CGFloat(max(0, s.mapFade)))
+        } else {
+            paint(image, base, alpha: 1)
+        }
 
         let n = s.nav
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
+        // Estilo de la línea de la ruta.
+        let style = s.mapSettings.routeStyle
+        let lineWidth: CGFloat = style == .thin ? 9 : (style == .highContrast ? 16 : 15)
+        let casingWidth: CGFloat = style == .thin ? 15 : (style == .highContrast ? 24 : 23)
+        let halo: CGColor? = style == .highContrast
+            ? (s.night ? CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.85) : CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.55)) : nil
+        func strokeRoute(_ line: CGPath, fade: CGFloat) {
+            ctx.saveGState()
+            ctx.setAlpha(fade)
+            if let halo = halo {
+                ctx.addPath(line)
+                ctx.setStrokeColor(halo)
+                ctx.setLineWidth(31 * u)
+                ctx.strokePath()
+            }
+            ctx.addPath(line)
+            ctx.setStrokeColor(p.routeCasing)
+            ctx.setLineWidth(casingWidth * u)
+            ctx.strokePath()
+            ctx.addPath(line)
+            ctx.setStrokeColor(p.route)
+            ctx.setLineWidth(lineWidth * u)
+            ctx.strokePath()
+            ctx.restoreGState()
+        }
         let limit = r.insetBy(dx: -r.width, dy: -r.height)
         func path(_ points: [GeoPoint]) -> CGPath? {
             let line = CGMutablePath()
@@ -118,17 +157,39 @@ extension HUDRenderer {
                 ctx.strokePath()
             }
             if let ahead = path(stretch(progress, to)) {
-                ctx.addPath(ahead)
-                ctx.setStrokeColor(p.routeCasing)
-                ctx.setLineWidth(23 * u)
-                ctx.strokePath()
-                ctx.addPath(ahead)
-                ctx.setStrokeColor(p.route)
-                ctx.setLineWidth(15 * u)
-                ctx.strokePath()
+                strokeRoute(ahead, fade: CGFloat(min(1, max(0, s.routeFade))))
             }
-            // Próxima maniobra.
-            if let at = n.maneuverAt, at > progress + 4, let m = view(geo.geo(shape.point(at: at))), r.contains(m) {
+            // Próxima maniobra: flecha blanca sobre la ruta que dibuja el giro (cuando se acerca).
+            if let at = n.maneuverAt, at > progress + 4, at - progress < 700 {
+                let a = max(progress, at - 32)
+                let b = min(shape.length, at + 30)
+                if b > a + 5, let arrow = path(stretch(a, b)),
+                   let tipA = view(geo.geo(shape.point(at: max(a, b - 9)))), let tip = view(geo.geo(shape.point(at: b))) {
+                    ctx.addPath(arrow)
+                    ctx.setStrokeColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.55))
+                    ctx.setLineWidth(13 * u)
+                    ctx.strokePath()
+                    ctx.addPath(arrow)
+                    ctx.setStrokeColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+                    ctx.setLineWidth(8 * u)
+                    ctx.strokePath()
+                    let ang = atan2(tip.y - tipA.y, tip.x - tipA.x)
+                    let size = 15 * u
+                    ctx.saveGState()
+                    ctx.translateBy(x: tip.x, y: tip.y)
+                    ctx.rotate(by: ang)
+                    ctx.beginPath()
+                    ctx.move(to: CGPoint(x: size * 0.9, y: 0))
+                    ctx.addLine(to: CGPoint(x: -size * 0.4, y: -size * 0.8))
+                    ctx.addLine(to: CGPoint(x: -size * 0.4, y: size * 0.8))
+                    ctx.closePath()
+                    ctx.setLineWidth(4 * u)
+                    ctx.setStrokeColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.55))
+                    ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+                    ctx.drawPath(using: .fillStroke)
+                    ctx.restoreGState()
+                }
+            } else if let at = n.maneuverAt, at > progress + 4, let m = view(geo.geo(shape.point(at: at))), r.contains(m) {
                 ctx.setFillColor(p.onAccent)
                 ctx.fillEllipse(in: CGRect(x: m.x - 12 * u, y: m.y - 12 * u, width: 24 * u, height: 24 * u))
                 ctx.setFillColor(p.accent)
@@ -138,6 +199,31 @@ extension HUDRenderer {
             if let d = view(geo.geo(shape.point(at: shape.length))), r.contains(d) {
                 drawFlag(at: d, u: u, p, ctx)
             }
+        }
+
+        // Antes de empezar: las rutas propuestas (la elegida en azul, las demás en gris).
+        if !n.navigating && !n.previewRoutes.isEmpty {
+            for (i, route) in n.previewRoutes.enumerated() where i != n.previewSelected {
+                if let line = path(route) {
+                    ctx.addPath(line)
+                    ctx.setStrokeColor(alpha(p.routeCasing, 0.55))
+                    ctx.setLineWidth(15 * u)
+                    ctx.strokePath()
+                    ctx.addPath(line)
+                    ctx.setStrokeColor(alpha(p.dim, 0.9))
+                    ctx.setLineWidth(9 * u)
+                    ctx.strokePath()
+                }
+            }
+            if n.previewRoutes.indices.contains(n.previewSelected) {
+                let chosen = n.previewRoutes[n.previewSelected]
+                if let line = path(chosen) { strokeRoute(line, fade: 1) }
+                if let last = chosen.last, let d = view(last), r.contains(d) { drawFlag(at: d, u: u, p, ctx) }
+            }
+        }
+        // Guía en otra app: solo el destino.
+        if let ext = s.external, !n.navigating, let d = view(ext.destination), r.contains(d) {
+            drawFlag(at: d, u: u, p, ctx)
         }
 
         // Posición: flecha si se conoce el rumbo, punto si no.

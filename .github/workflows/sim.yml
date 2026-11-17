@@ -29,7 +29,7 @@ jobs:
         if: always()
         run: |
           mkdir -p shots
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
           tail -n 40 hud.log
       - name: Recorrido de demostración
         if: always()
@@ -42,10 +42,10 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl privacy "$UDID" grant location io.github.cfmotolink.app
           xcrun simctl location "$UDID" set 14.6419,-90.5133
-          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "light 4"; do
+          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion"; do
             set -- $run
             xcrun simctl terminate "$UDID" io.github.cfmotolink.app || true
-            xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo $1 -tab $2
+            xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo $1 -tab $2 -more "${3:-lista}"
             sleep 34
             xcrun simctl io "$UDID" screenshot "raw-$2.png"
             sips -Z 1100 -s format jpeg -s formatOptions 65 "raw-$2.png" --out "shots/app-$1-tab$2.jpg" > /dev/null

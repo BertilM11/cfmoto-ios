@@ -242,6 +242,9 @@ struct MapSettings: Codable, Equatable {
     var labels: MapLabelSize = .large
     /// Multiplicador del zoom automático (menos = más cerca).
     var zoom: Double = 1.0
+    var routeStyle: RouteStyle = .standard
+    /// Zoom según la velocidad y antes de cada giro; apagado, distancia fija.
+    var autoZoom = true
 
     static let zoomRange = 0.6...1.6
 
@@ -258,6 +261,8 @@ struct MapSettings: Codable, Equatable {
         labels = (try? c.decode(MapLabelSize.self, forKey: .labels)) ?? d.labels
         let z = (try? c.decode(Double.self, forKey: .zoom)) ?? d.zoom
         zoom = min(max(z, MapSettings.zoomRange.lowerBound), MapSettings.zoomRange.upperBound)
+        routeStyle = (try? c.decode(RouteStyle.self, forKey: .routeStyle)) ?? d.routeStyle
+        autoZoom = (try? c.decode(Bool.self, forKey: .autoZoom)) ?? d.autoZoom
     }
 
     /// Lo que cambia el aspecto de la imagen (para descartar instantáneas viejas).

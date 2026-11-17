@@ -39,10 +39,13 @@ enum Demo {
 
     static func startDumping() {
         guard dumpTimer == nil else { return }
-        // Solo en la prueba automática: música de ejemplo para ver las tarjetas con contenido.
+        // Solo en la prueba automática: tema del panel según el modo de la prueba y música de
+        // ejemplo con una portada dibujada aquí (rojo y negro), para ver los colores dinámicos.
+        DashStore.shared.config.theme = mode == "night" ? .dark : .light
         DashState.shared.setMusic(MusicSnapshot(
             available: true, source: "Demo", title: "Canción de demostración", artist: "Prueba automática",
-            playing: true, duration: 214, position: 60, positionTime: Date().timeIntervalSinceReferenceDate, artwork: nil
+            playing: true, duration: 214, position: 60, positionTime: Date().timeIntervalSinceReferenceDate,
+            artwork: DashDemo.artwork, palette: DashDemo.palette
         ))
         let timer = Timer(timeInterval: 2.0, repeats: true) { _ in dump() }
         RunLoop.main.add(timer, forMode: .common)
@@ -69,7 +72,7 @@ enum Demo {
         try? image.pngData()?.write(to: folder.appendingPathComponent("hud.png"))
 
         // El mismo instante en cada modo, con el mapa de calles real, para revisarlos todos.
-        for mode in [DashMode.gps, .gpsMusic, .music, .full] {
+        for mode in [DashMode.gps, .gpsMusic, .split, .music, .full] {
             var s = DashState.shared.snapshot(now: now)
             s.layout = DashLayout.preset(mode)
             if s.map == nil && s.layout.showsMap { s.map = TFTMap.shared.base(for: s.nav, now: now) }

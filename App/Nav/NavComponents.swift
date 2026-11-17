@@ -165,6 +165,8 @@ struct RoutePreviewCard: View {
     let onStart: () -> Void
     let onSimulate: () -> Void
     let onCancel: () -> Void
+    @ObservedObject private var store = DashStore.shared
+    @ObservedObject private var routeManager = RouteManager.shared
 
     private var fastest: Int {
         var best = 0
@@ -211,11 +213,38 @@ struct RoutePreviewCard: View {
                 .padding(.vertical, 2)
             }
 
+            if let note = routeManager.message {
+                Label(note, systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(palette.secondaryText)
+            }
+
+            // Quién da la guía (se puede cambiar aquí mismo; el destino se conserva).
+            Menu {
+                ForEach(NavProviderID.allCases) { p in
+                    Button {
+                        store.config.navProvider = p
+                    } label: {
+                        if store.config.navProvider == p { Label(p.title, systemImage: "checkmark") } else { Text(p.title) }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: store.config.navProvider.symbol)
+                    Text("Guiar con: \(store.config.navProvider.title)")
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(palette.accent)
+            }
+
             HStack(spacing: 10) {
                 Button(action: onStart) {
                     HStack(spacing: 8) {
-                        Image(systemName: "location.north.fill")
-                        Text("Iniciar")
+                        Image(systemName: store.config.navProvider.external ? "arrow.up.forward.app.fill" : "location.north.fill")
+                        Text(store.config.navProvider.external ? "Abrir en \(store.config.navProvider.title)" : "Iniciar")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(palette.onAccent)

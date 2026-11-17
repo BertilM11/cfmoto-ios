@@ -128,6 +128,7 @@ final class NavEngine: ObservableObject {
         guard phase == .preview, routes.indices.contains(index), index != selectedIndex else { return }
         selectedIndex = index
         routesVersion += 1
+        pushHUD()
     }
 
     /// Cancela la vista previa o termina la navegación y vuelve al mapa.
@@ -140,6 +141,7 @@ final class NavEngine: ObservableObject {
         voice.stop()
         guided = nil
         rerouting = false
+        startAlternates = []
         routes = []
         selectedIndex = 0
         routesVersion += 1
@@ -233,6 +235,8 @@ final class NavEngine: ObservableObject {
     private func begin(simulated: Bool, speed: Double, skipToFirstTurn: Bool) {
         guard phase == .preview, routes.indices.contains(selectedIndex) else { return }
         let route = routes[selectedIndex]
+        // Las otras rutas propuestas se siguen viendo en la moto al empezar, como referencia.
+        startAlternates = routes.enumerated().filter { $0.offset != selectedIndex }.map { $0.element }
         routes = [route]
         selectedIndex = 0
         routesVersion += 1
@@ -475,18 +479,34 @@ final class NavEngine: ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = active
     }
 
+    /// Rutas que no se eligieron al empezar (se muestran en gris los primeros metros).
+    private var startAlternates: [MKRoute] = []
     /// Rutas alternativas en metros locales de la ruta elegida (se recalculan si cambian).
     private var alternateCache: (version: Int, routes: [[CGPoint]]) = (-1, [])
+    /// Rutas propuestas en coordenadas, para la vista previa en la moto.
+    private var previewCache: (version: Int, routes: [[GeoPoint]]) = (-1, [])
 
     private func alternates(for g: GuidedRoute) -> [[CGPoint]] {
         if alternateCache.version == routesVersion { return alternateCache.routes }
         var out: [[CGPoint]] = []
-        for (i, r) in routes.enumerated() where i != selectedIndex && r !== g.route {
+        for r in startAlternates where r !== g.route {
             let c = GuidedRoute.coordinates(of: r.polyline)
             let step = max(1, c.count / 400)
             out.append(stride(from: 0, to: c.count, by: step).map { g.local(c[$0]) })
         }
         alternateCache = (routesVersion, out)
+        return out
+    }
+
+    private func previewRoutes() -> [[GeoPoint]] {
+        if previewCache.version == routesVersion { return previewCache.routes }
+        let out: [[GeoPoint]] = routes.map { r in
+            let c = GuidedRoute.coordinates(of: r.polyline)
+            let step = max(1, c.count / 500)
+            return stride(from: 0, to: c.count, by: step).map { GeoPoint(lat: c[$0].latitude, lon: c[$0].longitude) }
+                + (c.last.map { [GeoPoint(lat: $0.latitude, lon: $0.longitude)] } ?? [])
+        }
+        previewCache = (routesVersion, out)
         return out
     }
 
@@ -531,6 +551,9 @@ final class NavEngine: ObservableObject {
             }
             // Las alternativas solo al empezar, como referencia; después distraen.
             if progress < 600 { s.alternates = alternates(for: g) }
+        } else if phase == .preview && !routes.isEmpty {
+            s.previewRoutes = previewRoutes()
+            s.previewSelected = selectedIndex
         }
         HUDState.shared.set(s)
     }

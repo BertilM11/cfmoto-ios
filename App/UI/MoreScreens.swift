@@ -12,7 +12,7 @@ struct ModesScreen: View {
             grid(DashMode.primary)
             Text("Otros modos").font(.headline)
             grid(DashMode.others)
-            Text("Las miniaturas usan datos de demostración y el mapa simplificado. El modo D es el que editas en Mi pantalla.")
+            Text("Las miniaturas usan datos de demostración y el mapa simplificado. El modo 5 es el que editas en Mi pantalla.")
                 .font(.caption).foregroundColor(Brand.dim)
 
             Card {
@@ -193,7 +193,22 @@ struct MusicScreen: View {
             }
             Text("El permiso de Spotify dura una hora; si caduca, toca Conectar otra vez. Conecta antes de salir: con el iPhone bloqueado no siempre se puede reconectar.")
                 .font(.caption).foregroundColor(Brand.dim)
+            // Spotify pide que cualquier uso de su contenido enlace con su app.
+            Button(spotifyInstalled ? "ABRIR SPOTIFY" : "OBTENER SPOTIFY GRATIS") { openSpotify() }
+                .font(.footnote.weight(.bold))
+                .buttonStyle(.bordered)
+                .tint(.white)
         }
+    }
+
+    private var spotifyInstalled: Bool {
+        guard let url = URL(string: "spotify:") else { return false }
+        return UIApplication.shared.canOpenURL(url)
+    }
+
+    private func openSpotify() {
+        let link = spotifyInstalled ? "spotify:" : "https://apps.apple.com/app/spotify-music-and-podcasts/id324684580"
+        if let url = URL(string: link) { UIApplication.shared.open(url) }
     }
 }
 
