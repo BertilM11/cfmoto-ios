@@ -38,12 +38,24 @@ struct DarkPage<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) { content }
-                .padding(16)
+            VStack(alignment: .leading, spacing: 14) {
+                // El título va dibujado aquí: así siempre es blanco, esté el iPhone en modo
+                // claro u oscuro.
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                    .accessibilityAddTraits(.isHeader)
+                content
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
         .background(Brand.bg.ignoresSafeArea())
         .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .toolbarBackground(Brand.bg, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .environment(\.colorScheme, .dark)
         .foregroundColor(.white)
@@ -163,7 +175,12 @@ struct MoreScreen: View {
 struct ConnectionScreen: View {
     var body: some View {
         MotoPanel(model: LinkModel.shared)
+            .background(Brand.bg.ignoresSafeArea())
+            .environment(\.colorScheme, .dark)
             .navigationTitle("Conexión")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Brand.bg, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
