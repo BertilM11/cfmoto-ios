@@ -10,7 +10,11 @@ Respaldo de la versión anterior: etiqueta `v0.6.0`, rama `backup/v0.6.0`, publi
   vivo. Antes solo avanzaba cuando el mapa en vivo estaba quieto, con un máximo de ~8 km.
 - Una imagen más **después de cada giro**, orientada a la calle nueva.
 - Los tramos por los que se pasará de noche se guardan **ya en oscuro**.
-- Al **recalcular** se conservan las imágenes que siguen sirviendo (antes se borraban todas).
+- Al **recalcular** se conservan las imágenes que siguen sirviendo (antes se borraban todas) y
+  no se vuelve a pedir lo que ya cubren.
+- Las imágenes se guardan en puntos fijos de la ruta: cada imagen nueva amplía el mapa por
+  delante (en el simulador, 4,7 km seguidos en 60 s; antes 0,8 km con casi las mismas imágenes).
+- Con el iPhone bloqueado se siguen calculando el tema (día/noche), el avance y la cobertura.
 - Peticiones atascadas canceladas y repetidas; imágenes que llegan tarde, descartadas.
 - **Cobertura** visible en Navegación: "Guardando el mapa…" / "Mapa guardado: X de Y km".
 - **Pantalla negra**: la app sigue al frente con brillo mínimo y el mapa sigue en vivo.

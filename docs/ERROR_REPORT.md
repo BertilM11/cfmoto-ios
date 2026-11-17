@@ -32,6 +32,19 @@ Cada error indica la evidencia, la corrección y cómo quedó comprobado. "Prueb
 6. Las imágenes con el tema equivocado (día/noche) podían ganar a las del tema correcto si
    estaban mejor colocadas.
 
+Y uno de la propia 0.6.1, encontrado con la prueba del simulador antes de publicarla:
+
+7. **El mapa guardado se repetía cerca de la moto en vez de avanzar.** En la primera prueba en
+   segundo plano había 26 imágenes guardadas pero solo 0,8 km seguidos. Los puntos donde
+   guardar imagen se contaban desde la posición actual, y la separación cambiaba un poco con
+   cada imagen (calibración): al avanzar unos metros nada de lo guardado coincidía con los
+   puntos nuevos y se volvía a pedir lo más cercano. Lo mismo pasaba al recalcular desde la
+   posición actual: la ruta nueva empieza en otro sitio y se volvía a pedir casi todo.
+8. **Con el iPhone bloqueado el tema del mapa se quedaba congelado.** El tema pedido (día o
+   noche), el avance por la ruta y la cobertura solo se actualizaban con la app al frente. Si
+   anochecía con el iPhone bloqueado, el dibujo seguía prefiriendo las imágenes claras, y el
+   diagnóstico mostraba la cobertura de cuando se bloqueó.
+
 ### Corrección
 
 - La ruta se guarda **entera por delante** (hasta el límite de memoria: 16–64 MB según la
@@ -42,6 +55,11 @@ Cada error indica la evidencia, la corrección y cómo quedó comprobado. "Prueb
   amanecer/atardecer de ese punto).
 - Al recalcular se **conservan** las imágenes que siguen sobre la ruta nueva y en la misma
   dirección; solo se pide lo nuevo.
+- Los puntos donde guardar imagen forman una **rejilla fija desde el inicio de la ruta** y la
+  separación solo cambia si la calibración varía más de un 15 %; además no se pide un tramo
+  que ya cubren otras imágenes (por ejemplo, las conservadas al recalcular).
+- En segundo plano se siguen calculando el tema, el avance y la cobertura (sin pedir nada a
+  Apple): al anochecer se eligen las imágenes oscuras guardadas para ese tramo.
 - Lo ya recorrido se suelta; si falta memoria, se sueltan las más lejanas.
 - Peticiones atascadas: se cancelan a los 12 s (en vivo) o 25 s (ruta) y se repiten.
 - Imágenes en vivo que llegan con más de 5 s de retraso se descartan.

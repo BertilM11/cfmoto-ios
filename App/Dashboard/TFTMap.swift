@@ -261,14 +261,11 @@ final class TFTMap {
             wasActive = active
             logState(active ? "[MAPA] la app vuelve al frente" : "[MAPA] la app deja el primer plano (Apple no entrega imágenes nuevas hasta que vuelva)")
         }
-        guard active else {
-            if t - backgroundLogTime > 30 {
-                backgroundLogTime = t
-                logState("[MAPA] en segundo plano")
-            }
-            return
+        if !active && t - backgroundLogTime > 30 {
+            backgroundLogTime = t
+            logState("[MAPA] en segundo plano")
         }
-        watchdog(t)
+        if active { watchdog(t) }
         lock.lock()
         let s = settings
         lock.unlock()
@@ -278,14 +275,26 @@ final class TFTMap {
         let n = HUDState.shared.get()
         let now = Date()
         guard let pose = MapPose.of(n, now: now) else { return }
+        // El tema, el avance por la ruta y la cobertura se mantienen al día también en segundo
+        // plano (solo cálculo, sin MapKit): si anochece con el iPhone bloqueado, el dibujo elige
+        // las imágenes oscuras guardadas para ese tramo. Antes se quedaba el tema de cuando la
+        // app estaba al frente.
         let night = DashState.shared.isNight(n.style)
         lock.lock()
         wantedStyle = s.styleKey(night: night)
         lock.unlock()
+        updateRoute(n, pose, s, now: t)
+        guard active else {
+            // Sin peticiones: Apple no entrega imágenes hasta que la app vuelve al frente.
+            if t - coverageTime > 2 {
+                coverageTime = t
+                updateCoverage(s)
+            }
+            return
+        }
         let rect = DashLayoutEngine.mapRect(layout, width: 800, height: 400, reservedBottom: HUDRenderer.reservedBottom)
             ?? CGRect(x: 0, y: 0, width: 800, height: 400)
         let pixels = CGSize(width: max(200, (rect.width / 2).rounded() * 2), height: max(120, (rect.height / 2).rounded() * 2))
-        updateRoute(n, pose, s, now: t)
 
         let preview = !n.navigating && !n.previewRoutes.isEmpty
         if liveSnapshotter == nil {

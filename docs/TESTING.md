@@ -34,6 +34,11 @@ Hay tres niveles. Solo el tercero prueba la moto de verdad.
   conserva el tramo común y solo se pide el nuevo; lo que se recorrerá de noche se guarda en
   oscuro; el tema correcto gana; sin imagen que sirva, mapa simple; la imagen en vivo reciente
   manda y una vieja solo como último recurso; tiempo de revisar la cobertura.
+  Con la **moto avanzando** (como en la app: cada 0,25 s se mira qué falta, dos imágenes a la
+  vez, imágenes que tardan 4,5 s o 2 s en llegar y una calibración que varía ±8 %): cada imagen
+  nueva amplía el mapa por delante, no se repite ningún punto y en 4 minutos queda guardada
+  toda la ruta. **Recálculo desde la posición actual** (la ruta nueva empieza donde está la
+  moto, con otra rejilla): no se vuelve a pedir lo que ya se tiene. Tiempo de decidir qué pedir.
 - **Spotify (0.6.1)**: una portada que llega tarde no se queda con otra canción.
 - **Reglas automáticas**.
 - **Proyección del mapa**: la homografía de 4 puntos reproduce una perspectiva exacta; con una

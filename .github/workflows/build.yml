@@ -49,11 +49,13 @@ jobs:
       # pruebas del panel con su resultado y el .ipa recién compilado.
       - name: Probar el panel y armar el paquete
         run: |
+          # Si alguna prueba falla, no se publica la versión.
+          set -o pipefail
           mkdir -p paquete/CFMotoLink_0.6.1/docs/laminas
           swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck
           ./dashcheck paquete/CFMotoLink_0.6.1/docs/laminas | tee resultados.txt
           D=paquete/CFMotoLink_0.6.1
-          cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md LICENSE .github "$D"/ 2>/dev/null || true
+          cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md CHANGELOG.md LICENSE .github "$D"/ 2>/dev/null || true
           mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
           cp CFMotoLink.ipa "$D"/
           (cd paquete && zip -qry ../CFMotoLink_0.6.1_Estabilidad.zip CFMotoLink_0.6.1)
