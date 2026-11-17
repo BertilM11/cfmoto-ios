@@ -220,18 +220,18 @@ enum HUDIcons {
 
 /// Dibuja un fotograma completo para la pantalla de la moto.
 final class HUDRenderer {
-    private let width: CGFloat
-    private let height: CGFloat
+    let width: CGFloat
+    let height: CGFloat
     /// Escala respecto al diseño base, pensado para 400 px de alto.
-    private let k: CGFloat
+    let k: CGFloat
     /// Píxeles por metro del minimapa. Se suaviza entre fotogramas.
-    private var zoom: CGFloat = 0.6
-    private var zoomReady = false
+    var zoom: CGFloat = 0.6
+    var zoomReady = false
 
     /// Parte baja de la imagen que la moto tapa con sus propios indicadores (velocidad, marcha).
     /// Ahí no se dibuja nada importante. 0 = usar toda la altura.
     static var reservedBottom: CGFloat = 0.22
-    private let fullHeight: CGFloat
+    let fullHeight: CGFloat
 
     init(width: Int, height: Int) {
         self.width = CGFloat(width)
@@ -259,7 +259,7 @@ final class HUDRenderer {
 
     // MARK: - Navegación
 
-    private func drawGuidance(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ ctx: CGContext) {
+    func drawGuidance(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ ctx: CGContext) {
         let mapWidth = (width * 0.375).rounded()
         let leftWidth = width - mapWidth
         drawMiniMap(s, p, now, CGRect(x: leftWidth, y: 0, width: mapWidth, height: height), ctx)
@@ -327,20 +327,24 @@ final class HUDRenderer {
         }
     }
 
-    private func column(_ value: String, _ label: String, x: CGFloat, top: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
+    func column(_ value: String, _ label: String, x: CGFloat, top: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
         let v = measure(value, size: 36 * k, bold: true, color: p.text)
         put(v, x: x, baseline: top + v.ascent, ctx)
         let l = measure(label, size: 18 * k, bold: false, color: p.dim)
         put(l, x: x, baseline: top + 44 * k + l.ascent, ctx)
     }
 
-    private func drawMiniMap(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ rect: CGRect, _ ctx: CGContext) {
+    func drawMiniMap(
+        _ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ rect: CGRect, _ ctx: CGContext,
+        anchor fixed: CGPoint? = nil, unit: CGFloat? = nil, divider: Bool = true
+    ) {
+        let u = unit ?? k
         ctx.saveGState()
         ctx.clip(to: rect)
         ctx.setFillColor(p.panel)
         ctx.fill(rect)
 
-        let anchor = CGPoint(x: rect.midX, y: rect.maxY - 80 * k)
+        let anchor = fixed ?? CGPoint(x: rect.midX, y: rect.maxY - 80 * u)
 
         if let shape = s.shape, shape.points.count >= 2 {
             // Avanzar la posición entre fijos del GPS para que el movimiento sea continuo.
@@ -352,7 +356,7 @@ final class HUDRenderer {
             // Zoom: que se vea hasta un poco más allá de la próxima maniobra.
             let toManeuver = max(0, (s.maneuverAt ?? shape.length) - progress)
             let ahead = min(max(toManeuver * 1.35, 150), 650)
-            let usable = anchor.y - rect.minY - 30 * k
+            let usable = anchor.y - rect.minY - 30 * u
             let target = usable / CGFloat(ahead)
             if zoomReady {
                 zoom += (target - zoom) * 0.12
@@ -395,16 +399,16 @@ final class HUDRenderer {
             let whole = trace(from, to)
             ctx.addPath(whole)
             ctx.setStrokeColor(p.routeCasing)
-            ctx.setLineWidth(22 * k)
+            ctx.setLineWidth(22 * u)
             ctx.strokePath()
             ctx.addPath(whole)
             ctx.setStrokeColor(p.route)
-            ctx.setLineWidth(14 * k)
+            ctx.setLineWidth(14 * u)
             ctx.strokePath()
             if progress - from > 1 {
                 ctx.addPath(trace(from, progress))
                 ctx.setStrokeColor(p.routeDone)
-                ctx.setLineWidth(14 * k)
+                ctx.setLineWidth(14 * u)
                 ctx.strokePath()
             }
 
@@ -412,37 +416,39 @@ final class HUDRenderer {
             if let at = s.maneuverAt, at > progress + 4, at <= to {
                 let m = project(shape.point(at: at))
                 ctx.setFillColor(p.accent)
-                ctx.fillEllipse(in: CGRect(x: m.x - 13 * k, y: m.y - 13 * k, width: 26 * k, height: 26 * k))
+                ctx.fillEllipse(in: CGRect(x: m.x - 13 * u, y: m.y - 13 * u, width: 26 * u, height: 26 * u))
                 ctx.setFillColor(p.onAccent)
-                ctx.fillEllipse(in: CGRect(x: m.x - 8 * k, y: m.y - 8 * k, width: 16 * k, height: 16 * k))
+                ctx.fillEllipse(in: CGRect(x: m.x - 8 * u, y: m.y - 8 * u, width: 16 * u, height: 16 * u))
             }
 
             // Indicador del norte.
-            let compass = CGPoint(x: rect.maxX - 36 * k, y: rect.minY + 36 * k)
+            let compass = CGPoint(x: rect.maxX - 36 * u, y: rect.minY + 36 * u)
             ctx.setFillColor(p.background)
-            ctx.fillEllipse(in: CGRect(x: compass.x - 22 * k, y: compass.y - 22 * k, width: 44 * k, height: 44 * k))
+            ctx.fillEllipse(in: CGRect(x: compass.x - 22 * u, y: compass.y - 22 * u, width: 44 * u, height: 44 * u))
             let north = CGPoint(x: -sinB, y: -cosB)
             let side = CGPoint(x: -north.y, y: north.x)
             ctx.beginPath()
-            ctx.move(to: CGPoint(x: compass.x + north.x * 17 * k, y: compass.y + north.y * 17 * k))
-            ctx.addLine(to: CGPoint(x: compass.x + side.x * 7 * k, y: compass.y + side.y * 7 * k))
-            ctx.addLine(to: CGPoint(x: compass.x - side.x * 7 * k, y: compass.y - side.y * 7 * k))
+            ctx.move(to: CGPoint(x: compass.x + north.x * 17 * u, y: compass.y + north.y * 17 * u))
+            ctx.addLine(to: CGPoint(x: compass.x + side.x * 7 * u, y: compass.y + side.y * 7 * u))
+            ctx.addLine(to: CGPoint(x: compass.x - side.x * 7 * u, y: compass.y - side.y * 7 * u))
             ctx.closePath()
             ctx.setFillColor(p.warn)
             ctx.fillPath()
             ctx.setFillColor(p.dim)
-            ctx.fillEllipse(in: CGRect(x: compass.x - 4 * k, y: compass.y - 4 * k, width: 8 * k, height: 8 * k))
+            ctx.fillEllipse(in: CGRect(x: compass.x - 4 * u, y: compass.y - 4 * u, width: 8 * u, height: 8 * u))
         }
 
-        cursor(at: anchor, size: 1.0, p, ctx)
+        cursor(at: anchor, size: u / k, p, ctx)
         ctx.restoreGState()
 
-        ctx.setFillColor(p.line)
-        ctx.fill(CGRect(x: rect.minX, y: 0, width: max(1, 2 * k), height: height))
+        if divider {
+            ctx.setFillColor(p.line)
+            ctx.fill(CGRect(x: rect.minX, y: 0, width: max(1, 2 * u), height: height))
+        }
     }
 
     /// Marca de posición: una punta de flecha que mira hacia arriba.
-    private func cursor(at c: CGPoint, size: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
+    func cursor(at c: CGPoint, size: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
         let u = k * size
         ctx.saveGState()
         ctx.setFillColor(p.accent)
@@ -468,7 +474,7 @@ final class HUDRenderer {
 
     // MARK: - Sin destino y llegada
 
-    private func drawIdle(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ ctx: CGContext) {
+    func drawIdle(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ ctx: CGContext) {
         let pad = 36 * k
         let brand = measure("CFMoto Link", size: 26 * k, bold: true, color: p.accent)
         put(brand, x: pad, baseline: 30 * k + brand.ascent, ctx)
@@ -498,7 +504,7 @@ final class HUDRenderer {
         cursor(at: center, size: 1.5, p, ctx)
     }
 
-    private func drawArrived(_ s: HUDSnapshot, _ p: HUDPalette, _ ctx: CGContext) {
+    func drawArrived(_ s: HUDSnapshot, _ p: HUDPalette, _ ctx: CGContext) {
         let pad = 36 * k
         let box = CGRect(x: pad, y: 100 * k, width: 200 * k, height: 200 * k)
         fillRounded(box, radius: 44 * k, color: p.good, ctx)
@@ -516,7 +522,7 @@ final class HUDRenderer {
 
     // MARK: - Utilidades de dibujo
 
-    private func fillRounded(_ rect: CGRect, radius: CGFloat, color: CGColor, _ ctx: CGContext) {
+    func fillRounded(_ rect: CGRect, radius: CGFloat, color: CGColor, _ ctx: CGContext) {
         guard rect.width > 0, rect.height > 0 else { return }
         let r = max(0, min(radius, min(rect.width, rect.height) / 2))
         ctx.addPath(CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil))
@@ -524,28 +530,28 @@ final class HUDRenderer {
         ctx.fillPath()
     }
 
-    private struct Measured {
+    struct Measured {
         let line: CTLine
         let width: CGFloat
         let ascent: CGFloat
         let descent: CGFloat
     }
 
-    private func font(_ size: CGFloat, bold: Bool) -> CTFont {
+    func font(_ size: CGFloat, bold: Bool) -> CTFont {
         if let f = CTFontCreateUIFontForLanguage(bold ? .emphasizedSystem : .system, size, nil) {
             return f
         }
         return CTFontCreateWithName((bold ? "Helvetica-Bold" : "Helvetica") as CFString, size, nil)
     }
 
-    private func attributes(size: CGFloat, bold: Bool, color: CGColor) -> [NSAttributedString.Key: Any] {
+    func attributes(size: CGFloat, bold: Bool, color: CGColor) -> [NSAttributedString.Key: Any] {
         [
             NSAttributedString.Key(kCTFontAttributeName as String): font(size, bold: bold),
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
         ]
     }
 
-    private func measured(_ line: CTLine) -> Measured {
+    func measured(_ line: CTLine) -> Measured {
         var ascent: CGFloat = 0
         var descent: CGFloat = 0
         var leading: CGFloat = 0
@@ -553,12 +559,12 @@ final class HUDRenderer {
         return Measured(line: line, width: width, ascent: ascent, descent: descent)
     }
 
-    private func measure(_ text: String, size: CGFloat, bold: Bool, color: CGColor) -> Measured {
+    func measure(_ text: String, size: CGFloat, bold: Bool, color: CGColor) -> Measured {
         let attributed = NSAttributedString(string: text, attributes: attributes(size: size, bold: bold, color: color))
         return measured(CTLineCreateWithAttributedString(attributed))
     }
 
-    private func put(_ m: Measured, x: CGFloat, baseline: CGFloat, _ ctx: CGContext) {
+    func put(_ m: Measured, x: CGFloat, baseline: CGFloat, _ ctx: CGContext) {
         // El contexto tiene el eje Y hacia abajo: se invierte solo el texto.
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         ctx.textPosition = CGPoint(x: x, y: baseline)
@@ -566,7 +572,7 @@ final class HUDRenderer {
     }
 
     /// Texto en varias líneas. Prueba tamaños de mayor a menor y recorta con "…" si no cabe.
-    private func wrapped(
+    func wrapped(
         _ text: String, sizes: [CGFloat], color: CGColor,
         x: CGFloat, top: CGFloat, width: CGFloat, maxLines: Int, _ ctx: CGContext
     ) {

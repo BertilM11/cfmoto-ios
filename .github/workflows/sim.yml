@@ -2,7 +2,7 @@ name: Prueba en simulador
 
 on:
   push:
-    branches: [dev/navegacion]
+    branches: [dev/navegacion, dev/dashboard]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
         if: always()
         run: |
           mkdir -p shots
-          swiftc -O Tools/RenderHUD/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift -o renderhud > hud.log 2>&1 && ./renderhud shots >> hud.log 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
           tail -n 40 hud.log
       - name: Recorrido de demostración
         if: always()
