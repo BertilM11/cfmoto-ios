@@ -23,8 +23,15 @@ extension HUDRenderer {
             let m = measure("Panel vacío: activa un módulo en Mi pantalla", size: 22 * k, bold: true, color: p.dim)
             put(m, x: area.midX - m.width / 2, baseline: area.midY, ctx)
         }
+        var tags: [String] = []
+        if s.demo { tags.append("DEMO") }
+        if s.nav.navigating && s.nav.simulated { tags.append("SIMULACIÓN") }
+        if s.nav.navigating && !s.nav.simulated && !s.nav.gpsOk { tags.append("SIN SEÑAL GPS") }
         for f in frames {
             ctx.saveGState()
+            // Si hay etiquetas arriba a la derecha, la brújula del mapa baja para no quedar tapada.
+            let underTags = !tags.isEmpty && f.rect.maxX > area.maxX - 1 && f.rect.minY < area.minY + 1
+            compassDrop = underTags ? 26 * k : 0
             let radius = 14 * k
             ctx.addPath(CGPath(roundedRect: f.rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
             ctx.clip()
@@ -41,11 +48,8 @@ extension HUDRenderer {
             }
             ctx.restoreGState()
         }
+        compassDrop = 0
 
-        var tags: [String] = []
-        if s.demo { tags.append("DEMO") }
-        if s.nav.navigating && s.nav.simulated { tags.append("SIMULACIÓN") }
-        if s.nav.navigating && !s.nav.simulated && !s.nav.gpsOk { tags.append("SIN SEÑAL GPS") }
         var right = area.maxX - 6 * k
         for tag in tags {
             let m = measure(tag, size: 13 * k, bold: true, color: p.background)
