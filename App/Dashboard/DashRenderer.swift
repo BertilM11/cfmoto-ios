@@ -355,10 +355,10 @@ extension HUDRenderer {
     // MARK: - Navegación
 
     func dashMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5,
-                 compassBottom: Bool = false) {
+                 compassBottom: Bool = false, compassLift: CGFloat = 0) {
         let size = 40 * k
         let compass = compassBottom
-            ? CGRect(x: r.maxX - size - 10 * k, y: r.maxY - size - 10 * k, width: size, height: size)
+            ? CGRect(x: r.maxX - size - 10 * k, y: r.maxY - size - 10 * k - compassLift, width: size, height: size)
             : CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size)
         if drawStreetMap(s, p, now, r, ctx, compass: compass) { return }
         let u = max(0.5, min(r.width, r.height) / 400)
@@ -369,10 +369,14 @@ extension HUDRenderer {
     func dashNav(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let n = s.nav
         let wide = r.width > r.height * 1.25
-        // Con la tarjeta a todo el ancho (zona estrecha, como en Pantalla dividida), la brújula
-        // va abajo para no quedar tapada.
-        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5, compassBottom: !wide)
         let pad = (r.height * 0.03).rounded() + 2
+        let tripSize = max(11, r.height * 0.062)
+        let tripH = tripSize * 1.9
+        let showTrip = n.navigating && !n.arrived
+        // Con la tarjeta a todo el ancho (zona estrecha, como en Pantalla dividida), la brújula
+        // va abajo a la derecha, encima de los datos del viaje, para no quedar tapada.
+        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5, compassBottom: !wide,
+                compassLift: !wide && showTrip ? tripH + pad * 0.5 : 0)
         let card: CGRect
         if wide {
             card = CGRect(x: r.minX + pad, y: r.minY + pad, width: min(r.width * 0.5, r.height * 1.25), height: r.height * 0.62)
@@ -388,13 +392,15 @@ extension HUDRenderer {
         fillRounded(card, radius: card.height * 0.1, color: alpha(p.background, 0.93), ctx)
         dashTurnContent(n, p, card, ctx)
 
-        if n.navigating && !n.arrived {
+        if showTrip {
             let clock = n.eta.map { HUDFormat.clock($0) }
             let text = "\(clock?.time ?? "--:--") \(clock?.suffix ?? "")  ·  \(HUDFormat.durationCompact(n.remainingTime))  ·  \(HUDFormat.distance(n.remainingDistance))"
-            let size = max(11, r.height * 0.062)
+            let size = tripSize
             let m = measure(text, size: size, bold: true, color: p.text)
-            let h = size * 1.9
-            let pill = CGRect(x: r.minX + pad, y: r.maxY - pad - h, width: min(m.width + size * 1.4, r.width - 2 * pad), height: h)
+            let h = tripH
+            let w = min(m.width + size * 1.4, r.width - 2 * pad)
+            // A la derecha: el logotipo de Mapas de Apple (abajo a la izquierda) queda a la vista.
+            let pill = CGRect(x: r.maxX - pad - w, y: r.maxY - pad - h, width: w, height: h)
             fillRounded(pill, radius: h / 2, color: alpha(p.background, 0.93), ctx)
             put(m, x: pill.minX + size * 0.7, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
         }
