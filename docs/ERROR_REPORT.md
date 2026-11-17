@@ -45,6 +45,13 @@ Y uno de la propia 0.6.1, encontrado con la prueba del simulador antes de public
    anochecía con el iPhone bloqueado, el dibujo seguía prefiriendo las imágenes claras, y el
    diagnóstico mostraba la cobertura de cuando se bloqueó.
 
+Y uno que venía de la 0.5, visto en la captura en segundo plano del simulador:
+
+9. **En rectas largas no se veía la línea de la ruta por delante de la moto** sobre las
+   imágenes planas (todas las guardadas). Apple describe una avenida recta con muy pocos
+   puntos; si el siguiente quedaba lejos, caía muy fuera de la imagen, se descartaba y la
+   línea no se dibujaba. Ahora la línea lleva un punto cada 40 m como mucho.
+
 ### Corrección
 
 - La ruta se guarda **entera por delante** (hasta el límite de memoria: 16–64 MB según la

@@ -138,13 +138,32 @@ extension HUDRenderer {
             }
             func stretch(_ a: Double, _ b: Double) -> [GeoPoint] {
                 guard b > a else { return [] }
-                var out = [geo.geo(shape.point(at: a))]
+                // Los puntos de la ruta y, en los tramos largos, uno cada 40 m. En una recta larga
+                // el siguiente punto de la ruta puede quedar muy fuera de la imagen (sobre todo en
+                // las guardadas, que son planas); se saltaba y la línea no se veía por delante.
+                var marks: [Double] = [a]
                 let first = shape.segmentIndex(at: a) + 1
                 let last = shape.segmentIndex(at: b)
                 if first <= last {
-                    for i in first...last { out.append(geo.geo(shape.points[i])) }
+                    for i in first...last where shape.cumulative[i] > a && shape.cumulative[i] < b {
+                        marks.append(shape.cumulative[i])
+                    }
                 }
-                out.append(geo.geo(shape.point(at: b)))
+                marks.append(b)
+                var out: [GeoPoint] = []
+                out.reserveCapacity(marks.count + 32)
+                for j in marks.indices {
+                    if j > 0 {
+                        let gap = marks[j] - marks[j - 1]
+                        if gap > 40 {
+                            let pieces = Int((gap / 40).rounded(.up))
+                            for k in 1..<pieces {
+                                out.append(geo.geo(shape.point(at: marks[j - 1] + gap * Double(k) / Double(pieces))))
+                            }
+                        }
+                    }
+                    out.append(geo.geo(shape.point(at: marks[j])))
+                }
                 return out
             }
             let from = max(0, progress - 200)

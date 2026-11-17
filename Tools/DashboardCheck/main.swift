@@ -368,8 +368,8 @@ if let sun = SunClock.times(on: gtDate(12, 0), lat: gLat, lon: gLon) {
     let set = gt.dateComponents([.hour, .minute], from: sun.sunset)
     let riseMin = (rise.hour ?? 0) * 60 + (rise.minute ?? 0)
     let setMin = (set.hour ?? 0) * 60 + (set.minute ?? 0)
-    check("Amanecer en Guatemala hacia las 6:05", riseMin > 5 * 60 + 45 && riseMin < 6 * 60 + 25, "\(rise.hour ?? 0):\(rise.minute ?? 0)")
-    check("Atardecer en Guatemala hacia las 17:30", setMin > 17 * 60 + 5 && setMin < 17 * 60 + 45, "\(set.hour ?? 0):\(set.minute ?? 0)")
+    check("Amanecer en Guatemala hacia las 6:05", riseMin > 5 * 60 + 45 && riseMin < 6 * 60 + 25, String(format: "%d:%02d", rise.hour ?? 0, rise.minute ?? 0))
+    check("Atardecer en Guatemala hacia las 17:30", setMin > 17 * 60 + 5 && setMin < 17 * 60 + 45, String(format: "%d:%02d", set.hour ?? 0, set.minute ?? 0))
 } else {
     check("Amanecer y atardecer en Guatemala", false, "sin resultado")
 }
@@ -503,6 +503,27 @@ if let p = base?.project(center.moved(250, bearing: heading + 180).moved(380, be
     check("La ruta azul se dibuja sobre su calle del mapa", b > 180 && b > rr + 60 && b > g, "color en la ruta: r\(rr) g\(g) b\(b)")
 } else {
     check("La ruta azul se dibuja sobre su calle del mapa", false, "punto fuera del mapa")
+}
+
+// Recta larga con solo dos puntos (Apple devuelve así las avenidas rectas): la línea tiene que
+// verse por delante de la moto aunque el siguiente punto de la ruta quede muy fuera de la
+// imagen. Antes, en las imágenes planas (las guardadas), no se dibujaba.
+var sparse = streetsSnapshot(.preset(.gps), theme: .dark)
+let sparseStart = center.moved(250, bearing: heading + 180)
+let sparseFrame = GeoFrame(origin: sparseStart)
+sparse.nav.shape = HUDRouteShape(points: [sparseFrame.local(sparseStart), sparseFrame.local(sparseStart.moved(3000, bearing: heading))])
+sparse.nav.geo = sparseFrame
+sparse.nav.maneuverAt = nil
+let sparsePixels = pixels(sparse)
+if let p = base?.project(sparseStart.moved(380, bearing: heading)) {
+    let o = Int(p.y * H) * sparsePixels.rowBytes + Int(p.x * W) * 4
+    let b = Int(sparsePixels.data[o])
+    let g = Int(sparsePixels.data[o + 1])
+    let rr = Int(sparsePixels.data[o + 2])
+    check("Recta larga sin puntos intermedios: la ruta se ve por delante de la moto", b > 180 && b > rr + 60 && b > g,
+          "color delante de la moto: r\(rr) g\(g) b\(b)")
+} else {
+    check("Recta larga sin puntos intermedios: la ruta se ve por delante de la moto", false, "punto fuera del mapa")
 }
 
 // Con la franja vacía activada a petición del usuario, esa parte queda lisa.
