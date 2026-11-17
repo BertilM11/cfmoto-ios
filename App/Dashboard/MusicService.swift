@@ -60,6 +60,11 @@ final class MusicService: ObservableObject {
         logLine("[MÚSICA] leyendo la app Música del iPhone")
     }
 
+    /// Vuelve a leer y publicar lo que suena (al elegir Apple Music como servicio).
+    func refreshNow() {
+        refresh()
+    }
+
     private func refresh() {
         guard running else { return }
         let item = player.nowPlayingItem

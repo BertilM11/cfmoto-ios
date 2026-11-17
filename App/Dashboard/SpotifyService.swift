@@ -33,7 +33,8 @@ final class SpotifyService: NSObject, ObservableObject {
     #if canImport(SpotifyiOS)
     static let available = true
     private var remote: SPTAppRemote?
-    private var lastTrack = ""
+    /// Canción que suena: las portadas que lleguen de otra se descartan.
+    private var gate = ArtworkGate()
     private var artwork: CGImage?
     private var palette: ArtPalette?
     #else
@@ -42,6 +43,8 @@ final class SpotifyService: NSObject, ObservableObject {
 
     private var token: String?
     private var wanted = false
+    /// Lo último publicado de Spotify (para volver a mostrarlo al elegir Spotify).
+    private var lastSnapshot = MusicSnapshot()
     /// Reintentos seguidos tras un corte (se ponen a cero al conectar).
     private var retries = 0
 
@@ -139,19 +142,47 @@ final class SpotifyService: NSObject, ObservableObject {
 
     func toggle() {
         #if canImport(SpotifyiOS)
-        if playing { remote?.playerAPI?.pause(nil) } else { remote?.playerAPI?.resume(nil) }
+        guard let api = remote?.playerAPI else {
+            logLine("[SPOTIFY] no hay conexión para pausar o reanudar")
+            return
+        }
+        if playing {
+            api.pause { _, error in if let e = error { logLine("[SPOTIFY] no se pudo pausar: \(e.localizedDescription)") } }
+        } else {
+            api.resume { _, error in if let e = error { logLine("[SPOTIFY] no se pudo reanudar: \(e.localizedDescription)") } }
+        }
         #endif
     }
 
     func next() {
         #if canImport(SpotifyiOS)
-        remote?.playerAPI?.skip(toNext: nil)
+        remote?.playerAPI?.skip(toNext: { _, error in
+            if let e = error { logLine("[SPOTIFY] no se pudo pasar a la siguiente: \(e.localizedDescription)") }
+        })
         #endif
     }
 
     func previous() {
         #if canImport(SpotifyiOS)
-        remote?.playerAPI?.skip(toPrevious: nil)
+        remote?.playerAPI?.skip(toPrevious: { _, error in
+            if let e = error { logLine("[SPOTIFY] no se pudo volver a la anterior: \(e.localizedDescription)") }
+        })
+        #endif
+    }
+
+    /// Al elegir Spotify como servicio: la moto muestra enseguida lo que suena (o nada, si no
+    /// está conectado), sin esperar a que cambie algo en el reproductor.
+    func republish() {
+        guard DashStore.shared.config.musicProvider == .spotify else { return }
+        if connected && lastSnapshot.available {
+            DashState.shared.setMusic(lastSnapshot)
+        } else {
+            DashState.shared.setMusic(MusicSnapshot())
+        }
+        #if canImport(SpotifyiOS)
+        remote?.playerAPI?.getPlayerState { [weak self] result, _ in
+            if let state = result as? SPTAppRemotePlayerState { self?.playerStateDidChange(state) }
+        }
         #endif
     }
 
@@ -159,6 +190,10 @@ final class SpotifyService: NSObject, ObservableObject {
         title = ""
         artist = ""
         playing = false
+        lastSnapshot = MusicSnapshot()
+        #if canImport(SpotifyiOS)
+        gate.reset()
+        #endif
         if DashStore.shared.config.musicProvider == .spotify {
             DashState.shared.setMusic(MusicSnapshot())
         }
@@ -219,22 +254,32 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
         m.position = Double(playerState.playbackPosition) / 1000
         m.positionTime = Date().timeIntervalSinceReferenceDate
         DispatchQueue.main.async {
-            let newTrack = track.uri != self.lastTrack
-            if newTrack {
-                self.lastTrack = track.uri
+            let uri = track.uri
+            if self.gate.begin(uri) {
+                // Canción nueva: fuera la portada y los colores de la anterior.
                 self.artwork = nil
                 self.palette = nil
-                self.remote?.imageAPI?.fetchImage(forItem: track, with: CGSize(width: 256, height: 256), callback: { [weak self] result, _ in
-                    guard let self = self, let image = (result as? UIImage)?.cgImage else { return }
-                    let colors = ArtPalette.extract(image)
+                self.remote?.imageAPI?.fetchImage(forItem: track, with: CGSize(width: 256, height: 256), callback: { [weak self] result, error in
+                    let image = (result as? UIImage)?.cgImage
+                    let colors = image.flatMap { ArtPalette.extract($0) }
                     DispatchQueue.main.async {
+                        guard let self = self else { return }
+                        // Si mientras llegaba ya sonaba otra canción, esta portada no sirve.
+                        guard self.gate.accepts(uri) else {
+                            logLine("[SPOTIFY] portada de una canción anterior descartada")
+                            return
+                        }
+                        guard let image = image else {
+                            logLine("[SPOTIFY] sin portada: \(error?.localizedDescription ?? "Spotify no la entregó")")
+                            return
+                        }
                         self.artwork = image
                         self.palette = colors
+                        // Se completa lo último publicado de ESTA canción (no una copia vieja).
+                        self.lastSnapshot.artwork = image
+                        self.lastSnapshot.palette = colors
                         if DashStore.shared.config.musicProvider == .spotify {
-                            var withArt = m
-                            withArt.artwork = image
-                            withArt.palette = colors
-                            DashState.shared.setMusic(withArt)
+                            DashState.shared.setMusic(self.lastSnapshot)
                         }
                     }
                 })
@@ -245,6 +290,7 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
             self.title = m.title
             self.artist = m.artist
             self.playing = m.playing
+            self.lastSnapshot = m
             if DashStore.shared.config.musicProvider == .spotify {
                 DashState.shared.setMusic(m)
                 if started { DashStore.shared.musicStarted() }

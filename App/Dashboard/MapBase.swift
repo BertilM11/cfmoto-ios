@@ -187,6 +187,9 @@ final class MapBase {
 
     var aspect: CGFloat { CGFloat(pixelWidth) / CGFloat(pixelHeight) }
 
+    /// Memoria que ocupa guardada: los datos comprimidos o, si no, la imagen completa.
+    var byteCount: Int { data?.count ?? pixelWidth * pixelHeight * 4 }
+
     /// Cuánto de perspectiva tiene la imagen (0 = mapa plano visto desde arriba).
     var perspective: Double { abs(h.m[6]) + abs(h.m[7]) }
 

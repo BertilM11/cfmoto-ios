@@ -2,28 +2,63 @@
 //
 // Mapa de calles para la moto con instantáneas de Apple Maps (MKMapSnapshotter).
 //
-// Apple solo genera instantáneas con la app en primer plano: si se piden en segundo plano, no
-// llegan hasta volver a abrir la app. Por eso:
+// Apple solo entrega instantáneas con la app en primer plano: si se piden en segundo plano,
+// llegan cuando la app vuelve a abrirse (documentación de MKMapSnapshotter.start). Por eso:
 //  - con la app abierta se piden sin parar, siguiendo la posición (mapa en vivo);
-//  - durante una ruta, además, se guardan instantáneas a lo largo del recorrido, para seguir
-//    mostrando calles con el iPhone bloqueado;
-//  - si no hay ninguna que sirva, el panel vuelve al dibujo simple de la ruta.
+//  - a la vez, y en paralelo, se guarda la ruta por delante: toda la que quepa en la memoria
+//    permitida, con una imagen más después de cada giro y con el tema (día/noche) que tocará
+//    al pasar por cada tramo;
+//  - con el iPhone bloqueado se usan esas imágenes; si no hay ninguna que sirva, el panel vuelve
+//    al dibujo simple de la ruta (MAPA SIMPLE).
+// Qué falta, cuánto cubre lo guardado y qué imagen usar se decide en MapCorridor.swift.
 import Foundation
 import MapKit
 import UIKit
+import os
 
 final class TFTMap {
     static let shared = TFTMap()
 
     /// Dónde debe quedar la posición dentro de la imagen (fracción del alto, desde arriba).
-    static let puckY = 0.72
+    static let puckY = MapCorridor.puckY
+    /// Imágenes de la ruta que se piden a la vez, además de la de en vivo.
+    static let parallelPrefetch = 2
+    /// Tope de imágenes guardadas (unos 36 MB con ~90 KB por imagen).
+    static let maxImages = 400
+
+    /// Estado para la pantalla de diagnóstico.
+    struct Stats {
+        var foreground = true
+        var source = MapSource.none.rawValue
+        var sourceAge: Double?
+        var liveAge: Double?
+        var requests = 0
+        var successes = 0
+        var failures = 0
+        var late = 0
+        var discardedLate = 0
+        var watchdog = 0
+        var inFlight = 0
+        var lastError = ""
+        var lastSuccess: Date?
+        var cached = 0
+        var cachedOtherStyle = 0
+        var cachedBytes = 0
+        var capacity = 0
+        var budgetBytes = 0
+        var routeActive = false
+        var routeRemaining: Double = 0
+        var target: Double = 0
+        var coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+        var wantedStyle = ""
+    }
 
     private let queue = DispatchQueue(label: "cfmoto.tftmap", qos: .userInitiated)
     private let lock = NSLock()
 
     // Lo que lee el hilo de dibujo (protegido por `lock`).
     private var live: MapBase?
-    private var cache: [MapBase] = []
+    private var entries: [CorridorEntry] = []
     private var inUse: MapBase?
     private var settings = MapSettings()
     /// Estilo que se quiere ahora (día/noche, tipo de mapa), para preferir esas imágenes.
@@ -32,15 +67,39 @@ final class TFTMap {
     private var fadeFrom: MapBase?
     private weak var fadeTo: MapBase?
     private var fadeStart: TimeInterval = 0
-    private var cacheStyle = ""
+    /// Qué imagen usó el último fotograma (para el diagnóstico).
+    private var lastSource = MapSource.none
+    private var lastSourceCreated: TimeInterval = 0
 
     // Lo demás solo se toca desde el hilo principal.
     private var timer: Timer?
     private var liveSnapshotter: MKMapSnapshotter?
-    private var cacheSnapshotter: MKMapSnapshotter?
+    private var liveToken: UUID?
+    private var liveStarted: TimeInterval = 0
+    private var prefetchers: [Double: (snapshotter: MKMapSnapshotter, started: TimeInterval, token: UUID)] = [:]
     private var lastLive: Request?
-    private var routeKey: ObjectIdentifier?
-    private var cachedUpTo = 0.0
+    private weak var routeShape: HUDRouteShape?
+    private var previewKey = ""
+    private var routeGeneration = 0
+    private var route: RouteLine?
+    private var turns: [Double] = []
+    private var routeProgress = 0.0
+    private var routeTarget = 0.0
+    private var routeMissingSince: TimeInterval?
+    private var capacity = TFTMap.maxImages
+    private var budget = 48 << 20
+    private var averageBytes = 90_000
+    private var coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+    private var coverageTime: TimeInterval = 0
+    private var wasActive = true
+    private var backgroundLogTime: TimeInterval = 0
+    private var requests = 0
+    private var successes = 0
+    private var failureCount = 0
+    private var late = 0
+    private var discardedLate = 0
+    private var watchdogCancels = 0
+    private var lastSuccess: Date?
     /// Metros de terreno a lo alto de la imagen por cada metro de distancia de la cámara
     /// (se ajusta con cada instantánea: no depende de suponer el campo de visión de Apple).
     private var heightPerDistance: [Bool: Double] = [false: 0.62, true: 0.5]
@@ -51,6 +110,7 @@ final class TFTMap {
     /// Lo que tarda Apple en entregar una imagen (media), para pedirla ya adelantada.
     private var latency = 0.8
     private var told3D = false
+    private var announced = false
 
     private struct Request {
         let here: GeoPoint
@@ -81,15 +141,23 @@ final class TFTMap {
         settings = s
         if changed {
             live = nil
-            cache.removeAll()
+            entries.removeAll()
             inUse = nil
         }
         lock.unlock()
-        if changed {
-            lastLive = nil
-            cachedUpTo = 0
-            routeKey = nil
+        guard changed else { return }
+        let reset = { [weak self] in
+            guard let self = self else { return }
+            self.lastLive = nil
+            self.liveSnapshotter?.cancel()
+            self.liveSnapshotter = nil
+            self.liveToken = nil
+            self.cancelPrefetch()
+            self.routeShape = nil
+            self.previewKey = ""
+            self.route = nil
         }
+        if Thread.isMainThread { reset() } else { DispatchQueue.main.async(execute: reset) }
     }
 
     // MARK: - Lo que usa el dibujo (cualquier hilo)
@@ -100,37 +168,15 @@ final class TFTMap {
         lock.lock()
         defer { lock.unlock() }
         guard settings.streets else { return nil }
-        let t = now.timeIntervalSinceReferenceDate
-        func spot(_ b: MapBase) -> CGPoint? { b.project(pose.here) }
-        // Vista general de las rutas propuestas: la última imagen en vivo, sea cual sea.
-        if !n.navigating && !n.previewRoutes.isEmpty, let l = live {
-            return use(l)
-        }
-        if let l = live, t - l.created < 30, let q = spot(l), q.x > 0.06, q.x < 0.94, q.y > 0.22, q.y < 0.96 {
-            return use(l)
-        }
-        // Guardadas a lo largo de la ruta (iPhone bloqueado o app en segundo plano).
-        var best: MapBase?
-        var score = Double.greatestFiniteMagnitude
-        if let progress = pose.progress {
-            for c in cache where abs(c.anchor - progress) < 3000 {
-                guard let q = spot(c), q.x > 0.1, q.x < 0.9, q.y > 0.3, q.y < 0.94 else { continue }
-                var turn = abs(c.heading - pose.heading).truncatingRemainder(dividingBy: 360)
-                if turn > 180 { turn = 360 - turn }
-                guard pose.heading < 0 || turn < 55 else { continue }
-                let value = abs(Double(q.y) - TFTMap.puckY) + turn / 90 + (c.styleKey == wantedStyle ? 0 : 0.6)
-                if value < score {
-                    score = value
-                    best = c
-                }
-            }
-        }
-        if let b = best { return use(b) }
-        // La última en vivo, aunque sea vieja, mientras la posición siga dentro.
-        if let l = live, let q = spot(l), q.x > 0.02, q.x < 0.98, q.y > 0.04, q.y < 0.99 {
-            return use(l)
-        }
-        return nil
+        let preview = !n.navigating && !n.previewRoutes.isEmpty
+        let choice = MapChooser.choose(
+            live: live, entries: entries, pose: pose, wantedStyle: wantedStyle,
+            now: now.timeIntervalSinceReferenceDate, preview: preview, northUp: settings.northUp
+        )
+        lastSource = choice.source
+        lastSourceCreated = choice.base?.created ?? 0
+        guard let b = choice.base else { return nil }
+        return use(b)
     }
 
     /// Fundido en curso al cambiar de estilo (día/noche): imagen anterior, nueva y avance 0…1.
@@ -155,10 +201,69 @@ final class TFTMap {
         return b
     }
 
+    // MARK: - Diagnóstico (hilo principal)
+
+    func stats() -> Stats {
+        let t = Date().timeIntervalSinceReferenceDate
+        var s = Stats()
+        lock.lock()
+        s.source = lastSource.rawValue
+        s.sourceAge = lastSourceCreated > 0 ? t - lastSourceCreated : nil
+        s.liveAge = live.map { t - $0.created }
+        s.cached = entries.count
+        s.cachedOtherStyle = entries.filter { $0.base.styleKey != wantedStyle }.count
+        s.cachedBytes = entries.reduce(0) { $0 + $1.bytes }
+        s.wantedStyle = wantedStyle
+        lock.unlock()
+        s.foreground = wasActive
+        s.requests = requests
+        s.successes = successes
+        s.failures = failureCount
+        s.late = late
+        s.discardedLate = discardedLate
+        s.watchdog = watchdogCancels
+        s.inFlight = prefetchers.count + (liveSnapshotter == nil ? 0 : 1)
+        s.lastError = lastError
+        s.lastSuccess = lastSuccess
+        s.capacity = capacity
+        s.budgetBytes = budget
+        s.routeActive = route != nil
+        s.routeRemaining = route.map { max(0, $0.length - routeProgress) } ?? 0
+        s.target = routeTarget
+        s.coverage = coverage
+        return s
+    }
+
+    /// Resumen de una línea para el registro.
+    private func logState(_ prefix: String) {
+        let s = stats()
+        let mb = Double(s.cachedBytes) / 1_048_576
+        var text = String(format: "%@: %d imágenes guardadas (%.1f MB)", prefix, s.cached, mb)
+        if s.routeActive {
+            text += String(format: ", mapa seguido para %.1f km de los %.1f km que quedan", s.coverage.continuous / 1000, s.routeRemaining / 1000)
+        }
+        text += ", imagen actual: \(s.source)"
+        if s.inFlight > 0 { text += ", pendientes \(s.inFlight)" }
+        logLine(text)
+    }
+
     // MARK: - Peticiones (hilo principal)
 
     private func tick() {
-        guard UIApplication.shared.applicationState == .active else { return }
+        let t = Date().timeIntervalSinceReferenceDate
+        let active = UIApplication.shared.applicationState == .active
+        if active != wasActive {
+            wasActive = active
+            logState(active ? "[MAPA] la app vuelve al frente" : "[MAPA] la app deja el primer plano (Apple no entrega imágenes nuevas hasta que vuelva)")
+        }
+        guard active else {
+            if t - backgroundLogTime > 30 {
+                backgroundLogTime = t
+                logState("[MAPA] en segundo plano")
+            }
+            return
+        }
+        watchdog(t)
         lock.lock()
         let s = settings
         lock.unlock()
@@ -175,28 +280,52 @@ final class TFTMap {
         let rect = DashLayoutEngine.mapRect(layout, width: 800, height: 400, reservedBottom: HUDRenderer.reservedBottom)
             ?? CGRect(x: 0, y: 0, width: 800, height: 400)
         let pixels = CGSize(width: max(200, (rect.width / 2).rounded() * 2), height: max(120, (rect.height / 2).rounded() * 2))
+        updateRoute(n, pose, s, now: t)
 
-        // Antes de empezar: vista general con todas las rutas propuestas.
-        if !n.navigating && !n.previewRoutes.isEmpty {
-            if liveSnapshotter == nil { requestOverview(n, pose, s, night: night, pixels: pixels, now: now) }
-            return
-        }
+        let preview = !n.navigating && !n.previewRoutes.isEmpty
         if liveSnapshotter == nil {
-            // Con ruta, la imagen se pide para el punto de la ruta donde estará la moto cuando
-            // llegue (posición y rumbo de ese punto): así el mapa no gira tarde en las curvas.
-            var target = pose
-            if let shape = n.shape, let geo = n.geo, let progress = pose.progress, pose.speed > 1 {
-                let ahead = min(shape.length, progress + min(80, pose.speed * latency))
-                target.here = geo.geo(shape.point(at: ahead))
-                var h = shape.bearing(at: ahead, span: 25) * 180 / .pi
-                if h < 0 { h += 360 }
-                target.heading = h
-                target.progress = ahead
+            if preview {
+                // Antes de empezar: vista general con todas las rutas propuestas.
+                requestOverview(n, pose, s, night: night, pixels: pixels, now: now)
+            } else {
+                // Con ruta, la imagen se pide para el punto de la ruta donde estará la moto
+                // cuando llegue (posición y rumbo de ese punto): así el mapa no gira tarde.
+                var target = pose
+                if let shape = n.shape, let geo = n.geo, let progress = pose.progress, pose.speed > 1 {
+                    let ahead = min(shape.length, progress + min(80, pose.speed * latency))
+                    target.here = geo.geo(shape.point(at: ahead))
+                    var h = shape.bearing(at: ahead, span: 25) * 180 / .pi
+                    if h < 0 { h += 360 }
+                    target.heading = h
+                    target.progress = ahead
+                }
+                requestLive(target, s, night: night, pixels: pixels, now: now)
             }
-            requestLive(target, s, night: night, pixels: pixels, now: now)
         }
-        if liveSnapshotter == nil && cacheSnapshotter == nil {
-            prefetch(n, pose, s, night: night, pixels: pixels, now: now)
+        // La ruta por delante se guarda a la vez que el mapa en vivo (antes solo cuando el
+        // mapa en vivo no tenía nada que pedir, y en marcha casi nunca se guardaba nada).
+        prefetch(n, s, pixels: pixels, now: now)
+        if t - coverageTime > 2 {
+            coverageTime = t
+            updateCoverage(s)
+        }
+    }
+
+    /// Una instantánea que no llega nunca dejaría el mapa congelado: se cancela y se pide otra.
+    private func watchdog(_ t: TimeInterval) {
+        if let l = liveSnapshotter, t - liveStarted > 12 {
+            l.cancel()
+            liveSnapshotter = nil
+            liveToken = nil
+            lastLive = nil
+            watchdogCancels += 1
+            logLine("[MAPA] la imagen en vivo no llegó en 12 s: se pide otra")
+        }
+        let stuck = prefetchers.filter { t - $0.value.started > 25 }.map { $0.key }
+        for anchor in stuck {
+            prefetchers[anchor]?.snapshotter.cancel()
+            prefetchers[anchor] = nil
+            watchdogCancels += 1
         }
     }
 
@@ -246,20 +375,15 @@ final class TFTMap {
         if let last = lastLive {
             let age = req.time - last.time
             let moved = last.here.distance(to: req.here)
-            var turn = abs(last.heading - req.heading).truncatingRemainder(dividingBy: 360)
-            if turn > 180 { turn = 360 - turn }
+            let turn = headingGap(last.heading, req.heading)
             let zoom = abs(last.distance - req.distance) / max(1, last.distance)
             let stale = last.styleKey != req.styleKey || last.pixels != req.pixels || last.pitch != req.pitch
             let needed = stale || age > 6 || moved > max(6, last.visibleHeight * 0.04) || turn > 5 || zoom > 0.1
             guard needed, age > 0.35 || stale else { return }
         }
         lastLive = req
-        liveSnapshotter = snap(req) { [weak self] base in
+        startLive(req) { [weak self] base in
             guard let self = self else { return }
-            self.liveSnapshotter = nil
-            guard let base = base else { return }
-            let took = Date().timeIntervalSinceReferenceDate - req.time
-            if took > 0 && took < 10 { self.latency = self.latency * 0.7 + took * 0.3 }
             if req.pitch > 0 && !self.told3D {
                 self.told3D = true
                 logLine(base.perspective > 0.02
@@ -268,6 +392,30 @@ final class TFTMap {
             }
             self.calibrate(base, req)
             self.setLive(base)
+        }
+    }
+
+    /// Pide la imagen en vivo. Si llega más de 5 s después (por ejemplo, pedida justo antes de
+    /// bloquear el iPhone), ya no corresponde a la posición y se descarta.
+    private func startLive(_ req: Request, use: @escaping (MapBase) -> Void) {
+        let token = UUID()
+        liveToken = token
+        liveStarted = req.time
+        requests += 1
+        liveSnapshotter = snap(req) { [weak self] base, error in
+            guard let self = self, self.liveToken == token else { return }
+            self.liveSnapshotter = nil
+            self.liveToken = nil
+            self.finished(base, error: error, req: req)
+            guard let base = base else { return }
+            let took = Date().timeIntervalSinceReferenceDate - req.time
+            if took > 5 {
+                self.discardedLate += 1
+                self.lastLive = nil
+                return
+            }
+            if took > 0 { self.latency = self.latency * 0.7 + took * 0.3 }
+            use(base)
         }
     }
 
@@ -308,11 +456,7 @@ final class TFTMap {
             styleKey: key, time: now.timeIntervalSinceReferenceDate, anchor: -1, visibleHeight: needed
         )
         lastLive = req
-        liveSnapshotter = snap(req) { [weak self] base in
-            guard let self = self else { return }
-            self.liveSnapshotter = nil
-            if let base = base { self.setLive(base) }
-        }
+        startLive(req) { [weak self] base in self?.setLive(base) }
     }
 
     /// Ajusta la escala y el adelanto con lo que de verdad devolvió Apple.
@@ -343,65 +487,193 @@ final class TFTMap {
         }
     }
 
-    /// Guarda instantáneas planas a lo largo de la ruta, por delante de la moto.
-    private func prefetch(_ n: HUDSnapshot, _ pose: MapPose, _ s: MapSettings, night: Bool, pixels: CGSize, now: Date) {
-        guard n.navigating, let shape = n.shape, let geo = n.geo, let progress = pose.progress else {
-            if routeKey != nil {
-                routeKey = nil
-                lock.lock()
-                cache.removeAll()
-                lock.unlock()
+    // MARK: - Ruta guardada
+
+    /// Ruta que se va a recorrer (en curso o propuesta antes de empezar) y avance sobre ella.
+    /// Al recalcular, se conservan las imágenes que siguen sirviendo (antes se borraban todas).
+    private func updateRoute(_ n: HUDSnapshot, _ pose: MapPose, _ s: MapSettings, now t: TimeInterval) {
+        var points: [GeoPoint]?
+        var present = false
+        if n.navigating, let shape = n.shape, let geo = n.geo {
+            present = true
+            if shape !== routeShape {
+                routeShape = shape
+                previewKey = ""
+                points = shape.points.map { geo.geo($0) }
+            }
+        } else if !n.navigating, n.previewRoutes.indices.contains(n.previewSelected) {
+            let r = n.previewRoutes[n.previewSelected]
+            if let a = r.first, let b = r.last {
+                present = true
+                let key = String(format: "%d-%d-%.5f-%.5f-%.5f-%.5f", n.previewSelected, r.count, a.lat, a.lon, b.lat, b.lon)
+                if key != previewKey {
+                    previewKey = key
+                    routeShape = nil
+                    points = r
+                }
+            }
+        }
+        if !present {
+            // Sin ruta un rato (navegación terminada): se libera la memoria.
+            if route != nil {
+                if let since = routeMissingSince {
+                    if t - since > 20 { clearRoute() }
+                } else {
+                    routeMissingSince = t
+                }
             }
             return
         }
-        let key = ObjectIdentifier(shape)
-        let style = s.styleKey(night: night)
-        lock.lock()
-        if key != routeKey {
-            cache.removeAll()
+        routeMissingSince = nil
+        if let pts = points {
+            let line = RouteLine(points: pts)
+            route = line
+            routeGeneration += 1
+            turns = line.turns()
+            lock.lock()
+            let before = entries.count
+            entries = CorridorPlanner.retain(entries, on: line, northUp: s.northUp)
+            let after = entries.count
+            lock.unlock()
+            cancelPrefetch()
+            logLine(String(format: "[MAPA] ruta para guardar: %.1f km y %d giros; se conservan %d de %d imágenes", line.length / 1000, turns.count, after, before))
         }
-        // Las de otro estilo (por ejemplo, de día al hacerse de noche) se quedan como reserva
-        // hasta que haya nuevas: con el iPhone bloqueado no se pueden pedir otras.
-        cache.removeAll { $0.anchor < progress - 500 }
-        while cache.count > 60, let i = cache.firstIndex(where: { $0.styleKey != style }) { cache.remove(at: i) }
-        let count = cache.filter { $0.styleKey == style }.count
-        lock.unlock()
-        if key != routeKey {
-            routeKey = key
-            cachedUpTo = progress
+        if n.navigating, let p = pose.progress {
+            routeProgress = p
+        } else if let line = route {
+            let place = line.locate(pose.here)
+            routeProgress = place.offset < 250 ? place.along : 0
         }
-        if style != cacheStyle {
-            cacheStyle = style
-            cachedUpTo = progress
-        }
-        cachedUpTo = max(cachedUpTo, progress - 50)
-        guard count < 40, cachedUpTo < min(shape.length, progress + 8000) else { return }
+    }
 
+    private func clearRoute() {
+        route = nil
+        routeShape = nil
+        previewKey = ""
+        turns = []
+        routeMissingSince = nil
+        routeTarget = 0
+        cancelPrefetch()
+        lock.lock()
+        entries.removeAll()
+        lock.unlock()
+        coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+    }
+
+    private func cancelPrefetch() {
+        for p in prefetchers.values { p.snapshotter.cancel() }
+        prefetchers.removeAll()
+    }
+
+    /// Memoria para el mapa guardado: una parte de la que le queda libre a la app.
+    static func memoryBudget() -> Int {
+        let available = Int(os_proc_available_memory())
+        guard available > 0 else { return 48 << 20 }
+        return max(16 << 20, min(64 << 20, available / 5))
+    }
+
+    /// Pide las imágenes que faltan de la ruta por delante, las más cercanas primero.
+    private func prefetch(_ n: HUDSnapshot, _ s: MapSettings, pixels: CGSize, now: Date) {
+        guard let route = route, !route.isEmpty else { return }
         let distance = 680 * s.zoom
         let visible = (heightPerDistance[false] ?? 0.62) * distance
-        // La moto entra por abajo y recorre la imagen hacia arriba: una instantánea cada ~45 %.
-        let at = min(shape.length, cachedUpTo + visible * 0.1)
-        var heading = shape.bearing(at: min(shape.length, at + visible * 0.25), span: 60) * 180 / .pi
-        if heading < 0 { heading += 360 }
-        let here = geo.geo(shape.point(at: at))
-        let req = makeRequest(here: here, heading: s.northUp ? 0 : heading, distance: distance, pitch: 0, night: night,
-                              pixels: pixels, s: s, now: now, anchor: at)
-        let next = at + visible * 0.45
-        cacheSnapshotter = snap(req, compress: true) { [weak self] base in
-            guard let self = self else { return }
-            self.cacheSnapshotter = nil
+        let step = CorridorPlanner.step(visible: visible)
+        budget = TFTMap.memoryBudget()
+        capacity = CorridorPlanner.capacity(budgetBytes: budget, averageBytes: averageBytes, maxImages: TFTMap.maxImages)
+        let progress = routeProgress
+        lock.lock()
+        if entries.count > capacity || (entries.first.map { $0.anchor < progress - 400 } ?? false) {
+            entries = CorridorPlanner.trim(entries, progress: progress, capacity: capacity)
+        }
+        let existing = entries
+        lock.unlock()
+        routeTarget = CorridorPlanner.horizon(remaining: max(0, route.length - progress), capacity: capacity, step: step)
+        let free = TFTMap.parallelPrefetch - prefetchers.count
+        guard free > 0, existing.count < capacity else { return }
+        let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + routeTarget, step: step, turns: turns)
+        // Velocidad media prevista, para saber a qué hora se pasa por cada tramo (día o noche).
+        let speed = n.remainingTime > 1 ? max(5, n.remainingDistance / n.remainingTime) : 11
+        let wanted = CorridorPlanner.missing(
+            anchors: anchors, route: route, existing: existing, inFlight: Array(prefetchers.keys),
+            night: { anchor in
+                let eta = now.addingTimeInterval(max(0, anchor - progress) / speed)
+                return DashState.shared.night(at: eta, place: route.point(at: anchor))
+            },
+            styleKey: { s.styleKey(night: $0) }, northUp: s.northUp, step: step, limit: free
+        )
+        for r in wanted {
+            startPrefetch(r, s: s, distance: distance, pixels: pixels, now: now)
+        }
+    }
+
+    private func startPrefetch(_ r: CorridorRequest, s: MapSettings, distance: Double, pixels: CGSize, now: Date) {
+        let req = makeRequest(here: r.here, heading: r.heading, distance: distance, pitch: 0, night: r.night,
+                              pixels: pixels, s: s, now: now, anchor: r.anchor)
+        let token = UUID()
+        let generation = routeGeneration
+        let northUp = s.northUp
+        requests += 1
+        let snapshotter = snap(req, compress: true) { [weak self] base, error in
+            guard let self = self, self.prefetchers[r.anchor]?.token == token else { return }
+            self.prefetchers[r.anchor] = nil
+            self.finished(base, error: error, req: req)
             guard let base = base else { return }
-            self.cachedUpTo = max(self.cachedUpTo, next)
+            self.calibrate(base, req)
+            var entry = CorridorEntry(base: base, anchor: r.anchor, ahead: req.center.distance(to: req.here))
+            if generation != self.routeGeneration {
+                // La ruta cambió mientras llegaba: se sitúa en la nueva o se descarta.
+                guard let line = self.route, let kept = CorridorPlanner.retain([entry], on: line, northUp: northUp).first else { return }
+                entry = kept
+            }
+            self.averageBytes = max(20_000, Int(Double(self.averageBytes) * 0.9 + Double(entry.bytes) * 0.1))
             self.lock.lock()
-            self.cache.append(base)
-            self.cache.sort { $0.anchor < $1.anchor }
+            self.entries.append(entry)
+            self.entries.sort { $0.anchor < $1.anchor }
             self.lock.unlock()
         }
+        prefetchers[r.anchor] = (snapshotter, now.timeIntervalSinceReferenceDate, token)
+    }
+
+    private func updateCoverage(_ s: MapSettings) {
+        guard let line = route else {
+            coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+            return
+        }
+        lock.lock()
+        let list = entries
+        lock.unlock()
+        coverage = CorridorCoverage.scan(route: line, from: routeProgress, to: line.length, entries: list, northUp: s.northUp)
     }
 
     // MARK: - Instantánea
 
-    private func snap(_ req: Request, compress: Bool = false, done: @escaping (MapBase?) -> Void) -> MKMapSnapshotter {
+    /// Cuenta y registra el resultado de cada petición.
+    private func finished(_ base: MapBase?, error: Error?, req: Request) {
+        guard let base = base else {
+            failureCount += 1
+            failures += 1
+            lastError = error?.localizedDescription ?? "sin imagen"
+            if failures == 1 || failures % 20 == 0 {
+                logLine("[MAPA] no llegó la imagen de calles: \(lastError)")
+            }
+            return
+        }
+        successes += 1
+        lastSuccess = Date()
+        if Date().timeIntervalSinceReferenceDate - req.time > 5 { late += 1 }
+        if failures > 0 || !announced {
+            failures = 0
+            announced = true
+            var detail = ""
+            if let a = base.project(req.center), let f = base.project(req.center.moved(50, bearing: req.heading)) {
+                let fraction = Double(hypot(a.x - f.x, a.y - f.y))
+                if fraction > 0.001 { detail = String(format: " (unos %.0f m de alto en la imagen)", 50 / fraction) }
+            }
+            logLine("[MAPA] calles de Apple Maps en la moto" + detail)
+        }
+    }
+
+    private func snap(_ req: Request, compress: Bool = false, done: @escaping (MapBase?, Error?) -> Void) -> MKMapSnapshotter {
         lock.lock()
         let s = settings
         lock.unlock()
@@ -426,36 +698,15 @@ final class TFTMap {
         }
         let snapshotter = MKMapSnapshotter(options: o)
         let size = o.size
-        snapshotter.start(with: queue) { [weak self] snapshot, error in
+        snapshotter.start(with: queue) { snapshot, error in
             var base: MapBase?
             if let snapshot = snapshot {
                 base = TFTMap.makeBase(snapshot, req, size: size, compress: compress)
             }
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                if base == nil {
-                    self.failures += 1
-                    self.lastError = error?.localizedDescription ?? "sin imagen"
-                    if self.failures == 1 || self.failures % 20 == 0 {
-                        logLine("[MAPA] no llegó la imagen de calles: \(self.lastError)")
-                    }
-                } else if self.failures > 0 || !self.announced {
-                    self.failures = 0
-                    self.announced = true
-                    var detail = ""
-                    if let b = base, let a = b.project(req.center), let f = b.project(req.center.moved(50, bearing: req.heading)) {
-                        let fraction = Double(hypot(a.x - f.x, a.y - f.y))
-                        if fraction > 0.001 { detail = String(format: " (unos %.0f m de alto en la imagen)", 50 / fraction) }
-                    }
-                    logLine("[MAPA] calles de Apple Maps en la moto" + detail)
-                }
-                done(base)
-            }
+            DispatchQueue.main.async { done(base, error) }
         }
         return snapshotter
     }
-
-    private var announced = false
 
     /// Lugares que se muestran en el mapa: solo los útiles en moto, para no saturarlo.
     static let places = MKPointOfInterestFilter(including: [.gasStation, .parking, .hospital, .police, .evCharger])
@@ -500,7 +751,7 @@ final class TFTMap {
         var data: Data?
         var image: CGImage? = cg
         if compress {
-            data = snap.image.jpegData(compressionQuality: 0.72)
+            data = snap.image.jpegData(compressionQuality: 0.7)
             if data != nil { image = nil }
         }
         return MapBase(

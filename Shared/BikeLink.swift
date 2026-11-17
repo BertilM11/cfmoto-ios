@@ -40,6 +40,11 @@ final class BikeLink {
     private var reprobing = false
     private var myIp = ""
     private var bikeIp = ""
+    /// La IP de la moto la puso el usuario a mano (no se cambia al reconectar).
+    private var manualBike = false
+    /// Momento del último fotograma enviado (segundos desde la fecha de referencia).
+    private var lastFrameTime: TimeInterval = 0
+    private var reconnectAttempts = 0
     private var negW = 800
     private var negH = 384
     private var encoder: H264Encoder?
@@ -96,6 +101,8 @@ final class BikeLink {
         touchSeen = 0
         myIp = wifi.ip
         bikeIp = manual.isEmpty ? wifi.gateway : manual
+        manualBike = !manual.isEmpty
+        reconnectAttempts = 0
         lock.unlock()
 
         logLine("nuestra IP=\(myIp)  IP de la moto=\(bikeIp)")
@@ -232,6 +239,7 @@ final class BikeLink {
             lock.lock()
             clients.append(client)
             everConnected = true
+            reconnectAttempts = 0
             lock.unlock()
             Thread.detachNewThread { [weak self] in
                 guard let self = self else { return }
@@ -256,15 +264,24 @@ final class BikeLink {
         Thread.detachNewThread { [weak self] in
             guard let self = self else { return }
             var tries = 0
-            while self.alive(gen) && tries < 10 {
-                tries += 1
+            // Diez avisos seguidos y, después, uno cada 10 s mientras el enlace siga activo
+            // (antes se rendía al décimo: al apagar la moto un rato había que reconectar a mano).
+            while self.alive(gen) {
                 self.lock.lock()
                 let connected = !self.clients.isEmpty
                 self.lock.unlock()
                 if connected { break }
-                logLine("[reconexión] enlace perdido; nuevo aviso (intento \(tries)/10)")
-                Thread.sleep(forTimeInterval: min(0.5 + 0.5 * Double(tries), 4.0))
+                tries += 1
+                let quick = tries <= 10
+                self.lock.lock()
+                self.reconnectAttempts = tries
+                self.lock.unlock()
+                if quick || tries % 6 == 0 {
+                    logLine("[reconexión] enlace perdido; nuevo aviso (intento \(tries)\(quick ? "/10" : ", uno cada 10 s"))")
+                }
+                Thread.sleep(forTimeInterval: quick ? min(0.5 + 0.5 * Double(tries), 4.0) : 10)
                 if !self.alive(gen) { break }
+                if !quick { self.refreshAddresses() }
                 self.probed = false
                 self.framesSent = 0
                 self.probe(gen, attempts: 2)
@@ -545,6 +562,7 @@ final class BikeLink {
             d.append(frame)
             try sock.writeAll(d)
             framesSent += 1
+            lastFrameTime = Date().timeIntervalSinceReferenceDate
             if framesSent == 1 {
                 logLine("[\(tag)] *** PRIMER FOTOGRAMA ENVIADO: mira la pantalla de la moto ***")
                 status("Enviando vídeo a la moto ✓")
@@ -598,6 +616,57 @@ final class BikeLink {
         let enc = encoder
         lock.unlock()
         enc?.preferHardware()
+    }
+
+    /// Si el Wi-Fi de la moto se cayó y volvió, el iPhone puede tener otra IP: se actualiza
+    /// para que el aviso salga por la red correcta.
+    private func refreshAddresses() {
+        let interfaces = wifiInterfaces()
+        guard let wifi = interfaces.first(where: { $0.iface == "en0" }) ?? interfaces.first else { return }
+        lock.lock()
+        let changed = wifi.ip != myIp
+        if changed {
+            myIp = wifi.ip
+            if !manualBike { bikeIp = wifi.gateway }
+        }
+        let ip = myIp
+        let bike = bikeIp
+        lock.unlock()
+        if changed { logLine("[reconexión] nueva IP del iPhone \(ip); moto en \(bike)") }
+    }
+
+    /// Estado del enlace para la pantalla de diagnóstico.
+    struct Stats {
+        var running = false
+        var accepted = false
+        var connections = 0
+        var framesSent = 0
+        var framesRepeated = 0
+        var lastFrameAge: Double?
+        var encoded = 0
+        var encoderFailures = 0
+        var backend = "-"
+        var size = "-"
+        var reconnectAttempts = 0
+    }
+
+    func stats() -> Stats {
+        var s = Stats()
+        lock.lock()
+        s.running = running
+        s.accepted = probed
+        s.connections = clients.count
+        s.framesSent = framesSent
+        s.framesRepeated = framesRepeated
+        s.lastFrameAge = lastFrameTime > 0 ? Date().timeIntervalSinceReferenceDate - lastFrameTime : nil
+        s.size = "\(negW)×\(negH)"
+        s.reconnectAttempts = reconnectAttempts
+        let enc = encoder
+        lock.unlock()
+        s.encoded = enc?.encodedFrames ?? 0
+        s.encoderFailures = enc?.errorCount ?? 0
+        s.backend = enc?.backend ?? "-"
+        return s
     }
 
     // MARK: - Estado periódico

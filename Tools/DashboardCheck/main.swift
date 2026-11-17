@@ -4,7 +4,8 @@
 // con el modelo y el dibujo de la app:
 //   swiftc Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift \
 //          App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift \
-//          App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift -o dashcheck
+//          App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift \
+//          App/Dashboard/MapCorridor.swift -o dashcheck
 //   ./dashcheck carpeta_de_salida
 // El mapa de calles real (Apple Maps) solo existe en el iPhone; aquí se usa un mapa de prueba
 // dibujado por el propio programa para comprobar la proyección y el dibujo encima.
@@ -576,6 +577,162 @@ preview.nav.previewTimes = [1080, 1260]
 let pv = pixels(preview)
 check("Vista previa de rutas en la moto antes de empezar", pv.image != nil)
 if let image = pv.image { save(image, "panel-rutas-propuestas") }
+
+// 10c. Mapa guardado para el iPhone bloqueado (0.6.1).
+// Ruta de prueba de 15 km: 6 km al noreste, giro a la derecha, 4 km, giro a la izquierda, 5 km.
+func legs(_ start: GeoPoint, _ parts: [(Double, Double)]) -> [GeoPoint] {
+    var pts = [start]
+    var here = start
+    for (length, bearing) in parts {
+        var d = 20.0
+        while d <= length {
+            pts.append(here.moved(d, bearing: bearing))
+            d += 20
+        }
+        here = here.moved(length, bearing: bearing)
+    }
+    return pts
+}
+let corridorStart = GeoPoint(lat: 14.58, lon: -90.55)
+let corridorRoute = RouteLine(points: legs(corridorStart, [(6000, 35), (4000, 125), (5000, 35)]))
+let corridorVisible = 0.62 * 680
+let corridorStep = CorridorPlanner.step(visible: corridorVisible)
+check("Ruta de prueba medida bien (15 km)", abs(corridorRoute.length - 15000) < 30, String(format: "%.0f m", corridorRoute.length))
+let corridorTurns = corridorRoute.turns()
+check("Se detectan los dos giros de la ruta", corridorTurns.count == 2 && abs(corridorTurns[0] - 6000) < 60 && abs(corridorTurns[1] - 10000) < 60,
+      corridorTurns.map { String(format: "%.0f", $0) }.joined(separator: ", "))
+let located = corridorRoute.locate(corridorRoute.point(at: 7300).moved(30, bearing: 35))
+check("Situar un punto en la ruta (a lo largo y de lado)", abs(located.along - 7300) < 5 && abs(located.offset - 30) < 2,
+      String(format: "%.1f m / %.1f m", located.along, located.offset))
+
+// Imagen guardada de prueba: la misma cámara que pide la app (moto al 72 % del alto).
+func fakeShot(_ here: GeoPoint, heading h: Double, style: String, anchor: Double) -> CorridorEntry? {
+    let v = corridorVisible
+    let ahead = (MapCorridor.puckY - 0.5) * v
+    let c = here.moved(ahead, bearing: h)
+    func cam(_ g: GeoPoint) -> CGPoint {
+        let dy = (g.lat - c.lat) * 110_574.0
+        let dx = (g.lon - c.lon) * 111_320.0 * cos(c.lat * .pi / 180)
+        let r = h * .pi / 180
+        let forward = dx * sin(r) + dy * cos(r)
+        let right = dx * cos(r) - dy * sin(r)
+        return CGPoint(x: 0.5 + right / (v * 2), y: 0.5 - forward / v)
+    }
+    let pts = [c.moved(60, bearing: h).moved(60, bearing: h + 90), c.moved(60, bearing: h).moved(60, bearing: h - 90),
+               c.moved(-60, bearing: h).moved(60, bearing: h - 90), c.moved(-60, bearing: h).moved(60, bearing: h + 90)]
+    guard let b = MapBase(image: nil, data: Data(repeating: 7, count: 90_000), pixelWidth: 800, pixelHeight: 400, center: c,
+                          heading: h, pitch: 0, night: style == "noche", live: false, anchor: anchor, created: 0,
+                          styleKey: style, samples: pts.map { ($0, cam($0)) }) else { return nil }
+    return CorridorEntry(base: b, anchor: anchor, ahead: ahead)
+}
+
+// Simula lo que hace la app con el iPhone desbloqueado: pedir lo que falta hasta completar.
+func fillCorridor(_ route: RouteLine, from progress: Double, existing: [CorridorEntry], nightAfter: Double = .infinity, capacity: Int = 400) -> [CorridorEntry] {
+    var list = existing
+    let turns = route.turns()
+    let horizon = CorridorPlanner.horizon(remaining: route.length - progress, capacity: capacity, step: corridorStep)
+    let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + horizon, step: corridorStep, turns: turns)
+    for _ in 0..<20 {
+        let wanted = CorridorPlanner.missing(anchors: anchors, route: route, existing: list, inFlight: [],
+                                             night: { $0 > nightAfter }, styleKey: { $0 ? "noche" : "dia" },
+                                             northUp: false, step: corridorStep, limit: 50)
+        if wanted.isEmpty { break }
+        for r in wanted {
+            if let e = fakeShot(r.here, heading: r.heading, style: r.night ? "noche" : "dia", anchor: r.anchor) { list.append(e) }
+        }
+        list.sort { $0.anchor < $1.anchor }
+    }
+    return list
+}
+
+let fullCorridor = fillCorridor(corridorRoute, from: 0, existing: [])
+let fullCoverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: fullCorridor, northUp: false)
+check("Ruta de 15 km guardada entera, sin huecos (antes: unos 8 km como máximo)",
+      fullCoverage.continuous >= corridorRoute.length - 30 && fullCoverage.gaps == 0,
+      String(format: "%.1f km seguidos, %d imágenes, %d huecos", fullCoverage.continuous / 1000, fullCorridor.count, fullCoverage.gaps))
+check("Las curvas tienen su imagen orientada a la calle nueva",
+      corridorTurns.allSatisfy { t in fullCorridor.contains { abs($0.anchor - (t + 15)) < 1 && headingGap($0.base.heading, corridorRoute.bearing(at: t + 55, span: 60)) < 5 } })
+let again = CorridorPlanner.missing(anchors: CorridorPlanner.anchors(route: corridorRoute, from: 0, to: corridorRoute.length, step: corridorStep, turns: corridorTurns),
+                                    route: corridorRoute, existing: fullCorridor, inFlight: [], night: { _ in false },
+                                    styleKey: { $0 ? "noche" : "dia" }, northUp: false, step: corridorStep, limit: 50)
+check("No se vuelve a pedir lo que ya está guardado", again.isEmpty, "\(again.count) repetidas")
+let pending = CorridorPlanner.missing(anchors: [100, 400, 700], route: corridorRoute, existing: [], inFlight: [400],
+                                      night: { _ in false }, styleKey: { _ in "dia" }, northUp: false, step: corridorStep, limit: 5)
+check("Lo que ya está pedido no se pide dos veces y se empieza por lo más cercano", pending.map { $0.anchor } == [100, 700])
+let mb = Double(fullCorridor.reduce(0) { $0 + $1.bytes }) / 1_048_576
+check("La memoria del mapa guardado queda acotada (15 km en menos de 20 MB)", mb < 20, String(format: "%.1f MB", mb))
+
+// Memoria limitada: solo se guarda lo que cabe, lo más cercano primero.
+let small = fillCorridor(corridorRoute, from: 0, existing: [], capacity: 20)
+check("Con memoria para 20 imágenes se guarda el tramo más cercano",
+      small.count <= 24 && small.allSatisfy { $0.anchor < 20 * corridorStep + 100 }, "\(small.count) imágenes")
+let trimmed = CorridorPlanner.trim(fullCorridor, progress: 5000, capacity: 30)
+check("Al pasar de largo y con poca memoria se sueltan las de atrás y las más lejanas",
+      trimmed.count == 30 && trimmed.allSatisfy { $0.anchor >= 4600 && $0.anchor < 5000 + 31 * corridorStep })
+
+// Huecos: sin imágenes entre 4 y 5 km la cobertura seguida se corta ahí.
+let holed = fullCorridor.filter { $0.anchor < 3900 || $0.anchor > 5100 }
+let holedCoverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: holed, northUp: false)
+check("Se detecta el tramo sin imagen", holedCoverage.gaps == 1 && holedCoverage.continuous > 3800 && holedCoverage.continuous < 4400,
+      String(format: "seguido %.1f km, %d huecos", holedCoverage.continuous / 1000, holedCoverage.gaps))
+
+// Recálculo: la ruta nueva comparte los primeros 6 km y luego va por otro lado.
+let rerouted = RouteLine(points: legs(corridorStart, [(6000, 35), (5000, 300)]))
+let kept = CorridorPlanner.retain(fullCorridor, on: rerouted, northUp: false)
+let keptFirstLeg = kept.filter { $0.anchor < 5900 }.count
+let firstLeg = fullCorridor.filter { $0.anchor < 5900 }.count
+check("Al recalcular se conservan las imágenes que siguen sobre la ruta nueva (antes se borraban todas)",
+      keptFirstLeg >= firstLeg - 1 && kept.allSatisfy { $0.anchor < 6200 }, "\(kept.count) de \(fullCorridor.count)")
+let refilled = fillCorridor(rerouted, from: 2000, existing: kept)
+let refilledCoverage = CorridorCoverage.scan(route: rerouted, from: 2000, to: rerouted.length, entries: refilled, northUp: false)
+check("Tras recalcular, solo se pide el tramo nuevo", refilled.count - kept.count < 45 && refilledCoverage.gaps == 0,
+      "\(refilled.count - kept.count) nuevas")
+
+// Qué imagen usa cada fotograma.
+func poseAt(_ route: RouteLine, _ d: Double) -> MapPose {
+    MapPose(here: route.point(at: d), heading: route.bearing(at: d, span: 18), speed: 12, progress: d, toTurn: nil)
+}
+let choice1 = MapChooser.choose(live: nil, entries: fullCorridor, pose: poseAt(corridorRoute, 2500), wantedStyle: "dia",
+                                now: 100, preview: false, northUp: false)
+check("iPhone bloqueado: se usa una imagen guardada", choice1.base != nil && choice1.source == .cached)
+let mixed = fillCorridor(corridorRoute, from: 0, existing: [], nightAfter: 9000)
+let nightChoice = MapChooser.choose(live: nil, entries: mixed, pose: poseAt(corridorRoute, 12000), wantedStyle: "noche",
+                                    now: 100, preview: false, northUp: false)
+check("Lo que se recorrerá de noche ya se guarda en oscuro", nightChoice.source == .cached && nightChoice.base?.styleKey == "noche"
+      && mixed.contains { $0.base.styleKey == "dia" } && mixed.contains { $0.base.styleKey == "noche" })
+let both = fullCorridor + fillCorridor(corridorRoute, from: 0, existing: [], nightAfter: -1)
+let rightTheme = MapChooser.choose(live: nil, entries: both, pose: poseAt(corridorRoute, 3000), wantedStyle: "noche",
+                                   now: 100, preview: false, northUp: false)
+check("Con las dos versiones guardadas gana siempre el tema correcto", rightTheme.base?.styleKey == "noche" && rightTheme.source == .cached)
+let onlyDay = MapChooser.choose(live: nil, entries: fullCorridor, pose: poseAt(corridorRoute, 3000), wantedStyle: "noche",
+                                now: 100, preview: false, northUp: false)
+check("Si solo hay del otro tema, se usa y se marca (mejor que un hueco)", onlyDay.source == .cachedOtherStyle)
+let empty = MapChooser.choose(live: nil, entries: [], pose: poseAt(corridorRoute, 3000), wantedStyle: "dia",
+                              now: 100, preview: false, northUp: false)
+check("Sin imagen que sirva: mapa simple, sin inventar calles", empty.base == nil && empty.source == .none)
+if let liveShot = fakeShot(corridorRoute.point(at: 3000), heading: corridorRoute.bearing(at: 3040, span: 60), style: "dia", anchor: -1) {
+    let fresh = MapChooser.choose(live: liveShot.base, entries: fullCorridor, pose: poseAt(corridorRoute, 3000), wantedStyle: "dia",
+                                  now: 10, preview: false, northUp: false)
+    let old = MapChooser.choose(live: liveShot.base, entries: [], pose: poseAt(corridorRoute, 3010), wantedStyle: "dia",
+                                now: 100, preview: false, northUp: false)
+    check("La imagen en vivo reciente manda; una vieja solo como último recurso", fresh.source == .live && old.source == .liveOld)
+}
+
+// Spotify: una portada que llega tarde no se queda con otra canción.
+var gate = ArtworkGate()
+let firstSong = gate.begin("cancion-1")
+let repeated = gate.begin("cancion-1")
+let secondSong = gate.begin("cancion-2")
+check("Portadas: solo vale la de la canción que suena", firstSong && !repeated && secondSong
+      && !gate.accepts("cancion-1") && gate.accepts("cancion-2") && !gate.accepts(""))
+
+// Rendimiento de la planificación (se hace con la app abierta, en el hilo principal).
+let planStart = Date()
+for _ in 0..<20 {
+    _ = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: fullCorridor, northUp: false)
+}
+let scanMs = Date().timeIntervalSince(planStart) * 1000 / 20
+check("Revisar la cobertura de 15 km tarda poco", scanMs < 60, String(format: "%.1f ms", scanMs))
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))

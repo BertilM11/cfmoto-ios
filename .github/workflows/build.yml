@@ -49,23 +49,36 @@ jobs:
       # pruebas del panel con su resultado y el .ipa recién compilado.
       - name: Probar el panel y armar el paquete
         run: |
-          mkdir -p paquete/CFMotoLink_0.6.0/docs/laminas
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift -o dashcheck
-          ./dashcheck paquete/CFMotoLink_0.6.0/docs/laminas | tee resultados.txt
-          D=paquete/CFMotoLink_0.6.0
+          mkdir -p paquete/CFMotoLink_0.6.1/docs/laminas
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck
+          ./dashcheck paquete/CFMotoLink_0.6.1/docs/laminas | tee resultados.txt
+          D=paquete/CFMotoLink_0.6.1
           cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md LICENSE .github "$D"/ 2>/dev/null || true
           mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
           cp CFMotoLink.ipa "$D"/
-          (cd paquete && zip -qry ../CFMotoLink_0.6.0_NavegacionMultimedia.zip CFMotoLink_0.6.0)
-          ls -la CFMotoLink_0.6.0_NavegacionMultimedia.zip
+          (cd paquete && zip -qry ../CFMotoLink_0.6.1_Estabilidad.zip CFMotoLink_0.6.1)
+          ls -la CFMotoLink_0.6.1_Estabilidad.zip
 
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.6.0_NavegacionMultimedia.zip \
+          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.6.1_Estabilidad.zip \
             --title "CFMoto Link · compilación ${{ github.run_number }}" \
             --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
+
+      # Etiquetas de versión: v0.6.0 (respaldo, la compilación 8) y la de esta versión.
+      - name: Etiquetas de versión
+        run: |
+          VERSION=$(grep -m1 'CFBundleShortVersionString' project.yml | sed -E 's/.*"([0-9.]+)".*/\1/')
+          git fetch -q --tags origin || true
+          if ! git rev-parse -q --verify "refs/tags/v0.6.0" >/dev/null; then
+            git fetch -q origin 88dfe27796e0e9c56a162544ef6ff718ccfffa43 && git tag v0.6.0 88dfe27796e0e9c56a162544ef6ff718ccfffa43 && git push -q origin v0.6.0 || echo "no se pudo crear v0.6.0"
+          fi
+          if ! git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            git tag "v$VERSION" "$GITHUB_SHA" && git push -q origin "v$VERSION" || echo "no se pudo crear v$VERSION"
+          fi
+          git ls-remote --tags origin | grep -E "refs/tags/v" || true
 
       # El resumen del registro se publica en la rama ci-logs para poder leer los errores
       # de compilación sin iniciar sesión.

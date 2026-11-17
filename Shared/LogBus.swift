@@ -41,6 +41,13 @@ final class LogBus: ObservableObject {
         DispatchQueue.main.async { self.lines.removeAll() }
     }
 
+    /// Las últimas `count` líneas.
+    func recent(_ count: Int) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(buffer.suffix(count))
+    }
+
     var text: String {
         lock.lock()
         defer { lock.unlock() }

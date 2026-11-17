@@ -14,9 +14,19 @@ final class DashStore: ObservableObject {
             guard config != oldValue else { return }
             persist()
             if config.musicProvider != oldValue.musicProvider {
-                // Al cambiar de proveedor, la moto deja de mostrar la canción del anterior.
+                // Al cambiar de proveedor, la moto deja de mostrar la canción del anterior y
+                // muestra enseguida lo que suena en el nuevo (Spotify antes esperaba a que
+                // cambiara algo en su reproductor).
                 DashState.shared.setMusic(MusicSnapshot())
                 logLine("[MÚSICA] proveedor: \(config.musicProvider.title)")
+                let provider = config.musicProvider
+                DispatchQueue.main.async {
+                    if provider == .spotify {
+                        SpotifyService.shared.republish()
+                    } else {
+                        MusicService.shared.refreshNow()
+                    }
+                }
             }
         }
     }
@@ -59,6 +69,7 @@ final class DashStore: ObservableObject {
         timer = t
 
         UIDevice.current.isBatteryMonitoringEnabled = true
+        Diagnostics.shared.start()
         NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)
             .sink { [weak self] _ in self?.checkBattery() }
             .store(in: &bag)

@@ -163,6 +163,7 @@ struct MoreScreen: View {
                 link("Modos", "square.grid.2x2.fill", "Modos predeterminados y cambios automáticos") { ModesScreen() }
                 link("Notificaciones", "bell.fill", "Fuentes, privacidad y duración de los avisos") { NoticesScreen() }
                 link("Conexión", "antenna.radiowaves.left.and.right", "Estado de la moto, diagnóstico y registro") { ConnectionScreen() }
+                link("Diagnóstico", "stethoscope", "Vídeo, GPS, mapa guardado, memoria y red; exportar informe") { DiagnosticsScreen() }
                 link("Ajustes", "gearshape.fill", "Tema, franja de la moto y restauración") { SettingsScreen() }
             }
             .navigationDestination(isPresented: $openPersonalization) { PersonalizationScreen() }

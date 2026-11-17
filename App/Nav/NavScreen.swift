@@ -13,6 +13,7 @@ struct NavScreen: View {
     @State private var following = true
     @State private var recenterToken = 0
     @State private var showMoto = false
+    @State private var showPocket = false
     @FocusState private var searchFocused: Bool
 
     private var theme: AppTheme {
@@ -66,6 +67,9 @@ struct NavScreen: View {
             MotoPanel(model: moto)
                 .presentationDetents([.medium, .large])
         }
+        .fullScreenCover(isPresented: $showPocket) {
+            PocketScreen()
+        }
         .onAppear {
             location.activate()
             engine.hudStyle = p.hud
@@ -90,10 +94,13 @@ struct NavScreen: View {
     private func topArea(_ p: Palette) -> some View {
         switch engine.phase {
         case .navigating:
-            ManeuverBanner(guidance: engine.guidance, simulated: engine.simulating, palette: p)
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(spacing: 6) {
+                ManeuverBanner(guidance: engine.guidance, simulated: engine.simulating, palette: p)
+                MapCoverageChip(palette: p)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .transition(.move(edge: .top).combined(with: .opacity))
         case .arrived:
             EmptyView()
         default:
@@ -182,6 +189,15 @@ struct NavScreen: View {
                 }
             } label: {
                 RoundIcon(system: theme.icon, palette: p)
+            }
+            if engine.phase == .navigating {
+                // Pantalla negra: la app sigue al frente y el mapa de la moto sigue al día.
+                Button {
+                    showPocket = true
+                } label: {
+                    RoundIcon(system: "moon.zzz.fill", palette: p)
+                }
+                .accessibilityLabel("Pantalla negra")
             }
             Button {
                 following = true

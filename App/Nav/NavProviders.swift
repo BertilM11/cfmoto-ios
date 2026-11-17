@@ -29,6 +29,8 @@ final class RouteManager: ObservableObject {
     }
 
     /// Botón "Iniciar" de la vista previa: guía aquí o abre la app elegida con el destino.
+    /// Solo se da la guía por pasada a la otra app si iOS confirma que se abrió; si no, el
+    /// destino y la ruta siguen aquí, listos para guiar con CFMoto Link.
     func start(_ engine: NavEngine) {
         let provider = DashStore.shared.config.navProvider
         guard provider.external else {
@@ -40,10 +42,16 @@ final class RouteManager: ObservableObject {
         guard let c = engine.destinationCoordinate else { return }
         let dest = GeoPoint(lat: c.latitude, lon: c.longitude)
         let name = engine.destinationName
-        if open(provider, dest, name) {
-            engine.cancel()
-            setExternal(ExternalGuide(provider: provider, destination: dest, name: name))
-            say("Guía en \(provider.title). La moto muestra el mapa y el destino; los giros los da \(provider.title).")
+        open(provider, dest, name) { [weak self] ok in
+            guard let self = self else { return }
+            if ok {
+                engine.cancel()
+                self.setExternal(ExternalGuide(provider: provider, destination: dest, name: name))
+                self.say("Guía en \(provider.title). La moto muestra el mapa y el destino; los giros los da \(provider.title).")
+            } else {
+                DashStore.shared.config.navProvider = .cfmoto
+                self.say("No se pudo abrir \(provider.title). La ruta sigue lista aquí: pulsa Iniciar para guiar con CFMoto Link.")
+            }
         }
     }
 
@@ -58,8 +66,9 @@ final class RouteManager: ObservableObject {
     }
 
     /// Cambia el proveedor predeterminado. Si hay un destino en curso, se conserva: pasa a la
-    /// otra app o, al volver a CFMoto Link, se recalcula la ruta aquí.
+    /// otra app (si iOS la abre) o, al volver a CFMoto Link, se recalcula la ruta aquí.
     func choose(_ p: NavProviderID, engine: NavEngine) {
+        let previous = DashStore.shared.config.navProvider
         DashStore.shared.config.navProvider = p
         var current: (GeoPoint, String)?
         if engine.phase == .navigating, let c = engine.destinationCoordinate {
@@ -70,10 +79,17 @@ final class RouteManager: ObservableObject {
         guard let cur = current else { return }
         let (dest, name) = cur
         if p.external {
-            if open(p, dest, name) {
-                if engine.phase == .navigating { engine.cancel() }
-                setExternal(ExternalGuide(provider: p, destination: dest, name: name))
-                say("Destino pasado a \(p.title): esa app calcula su propia ruta.")
+            open(p, dest, name) { [weak self] ok in
+                guard let self = self else { return }
+                if ok {
+                    if engine.phase == .navigating { engine.cancel() }
+                    self.setExternal(ExternalGuide(provider: p, destination: dest, name: name))
+                    self.say("Destino pasado a \(p.title): esa app calcula su propia ruta.")
+                } else {
+                    // La guía que había sigue igual y el proveedor vuelve a ser el de antes.
+                    DashStore.shared.config.navProvider = previous
+                    self.say("No se pudo abrir \(p.title). La guía actual sigue igual.")
+                }
             }
         } else {
             clearExternal()
@@ -84,31 +100,41 @@ final class RouteManager: ObservableObject {
         }
     }
 
-    /// Abre la app del proveedor con el destino (enlace oficial). Devuelve false si no se pudo.
-    @discardableResult
-    func open(_ p: NavProviderID, _ dest: GeoPoint, _ name: String) -> Bool {
+    /// Abre la app del proveedor con el destino (enlace oficial) y avisa si iOS la abrió.
+    func open(_ p: NavProviderID, _ dest: GeoPoint, _ name: String, done: @escaping (Bool) -> Void) {
         switch p {
         case .cfmoto:
-            return false
+            done(false)
         case .appleMaps:
             let item = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: dest.lat, longitude: dest.lon)))
             item.name = name
-            let ok = item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
-            logLine("[NAV] destino abierto en Mapas de Apple: \(ok ? "sí" : "no")")
-            return ok
+            item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving], from: nil) { ok in
+                DispatchQueue.main.async {
+                    logLine("[NAV] destino abierto en Mapas de Apple: \(ok ? "sí" : "no")")
+                    done(ok)
+                }
+            }
         case .googleMaps, .waze:
             let app = installed(p)
-            guard let url = p.link(lat: dest.lat, lon: dest.lon, name: name, app: app) else { return false }
-            UIApplication.shared.open(url)
-            logLine("[NAV] destino abierto en \(p.title)\(app ? "" : " (web: la app no está instalada)")")
-            return true
+            guard let url = p.link(lat: dest.lat, lon: dest.lon, name: name, app: app) else {
+                done(false)
+                return
+            }
+            UIApplication.shared.open(url, options: [:]) { ok in
+                DispatchQueue.main.async {
+                    logLine("[NAV] \(p.title)\(app ? "" : " (web: la app no está instalada)"): \(ok ? "abierto" : "iOS no pudo abrirlo")")
+                    done(ok)
+                }
+            }
         }
     }
 
     /// Vuelve a abrir la app externa con el mismo destino.
     func reopen() {
         guard let e = external else { return }
-        open(e.provider, e.destination, e.name)
+        open(e.provider, e.destination, e.name) { [weak self] ok in
+            if !ok { self?.say("No se pudo abrir \(e.provider.title).") }
+        }
     }
 
     func stopExternal() {

@@ -2,6 +2,7 @@
 import Foundation
 import CoreLocation
 import Combine
+import UIKit
 
 /// Ubicación GPS de la app. Con la navegación (o el enlace con la moto) activos, pide la
 /// máxima precisión y sigue recibiendo fijos con la app en segundo plano o el iPhone bloqueado.
@@ -13,6 +14,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     private let manager = CLLocationManager()
     private var driving = false
+    /// Fijos recibidos desde que arrancó la app (para el diagnóstico).
+    private(set) var fixes = 0
+    /// Fijos recibidos con la app en segundo plano.
+    private(set) var backgroundFixes = 0
     private var started = false
 
     private override init() {
@@ -71,6 +76,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
         // Descartar fijos viejos que iOS entrega de su caché al arrancar.
         if abs(location.timestamp.timeIntervalSinceNow) > 15 { return }
+        fixes += 1
+        if UIApplication.shared.applicationState == .background { backgroundFixes += 1 }
         last = location
     }
 

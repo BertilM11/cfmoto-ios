@@ -320,3 +320,25 @@ enum ArtworkSize: String, Codable, CaseIterable, Identifiable {
         }
     }
 }
+
+/// Evita que una portada que llega tarde se quede con otra canción: solo se acepta la de la
+/// canción que suena ahora (Spotify entrega las portadas de forma asíncrona).
+struct ArtworkGate {
+    private(set) var current = ""
+
+    /// Empieza a sonar `id`. Devuelve true si es otra canción (hay que pedir su portada).
+    mutating func begin(_ id: String) -> Bool {
+        guard id != current else { return false }
+        current = id
+        return true
+    }
+
+    /// ¿La portada de `id` corresponde a lo que suena ahora?
+    func accepts(_ id: String) -> Bool {
+        !id.isEmpty && id == current
+    }
+
+    mutating func reset() {
+        current = ""
+    }
+}

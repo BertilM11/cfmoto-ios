@@ -19,6 +19,9 @@ final class LinkModel: ObservableObject {
     /// Hay imagen saliendo hacia la moto por cualquiera de las dos vías.
     var linked: Bool { running || broadcasting }
 
+    /// Estado del enlace con la moto (diagnóstico).
+    func linkStats() -> BikeLink.Stats { link.stats() }
+
     private let link = BikeLink()
     private var pollTimer: Timer?
     private var observer: NSObjectProtocol?

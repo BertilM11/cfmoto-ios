@@ -77,6 +77,8 @@ final class NavEngine: ObservableObject {
     private var wrongWayCount = 0
     private var rerouting = false
     private var lastReroute = Date.distantPast
+    /// Separación de la ruta en el último fijo (para el aviso si el recálculo no llega).
+    private var lastLateral = 0.0
     private var spoken: [Int: Int] = [:]
     private var fixTime: TimeInterval = 0
 
@@ -214,7 +216,7 @@ final class NavEngine: ObservableObject {
         routesVersion += 1
         startGuidance(route)
         rerouting = false
-        logLine("[RUTA] ruta recalculada: \(Int(route.distance)) m")
+        logLine(String(format: "[RUTA] ruta recalculada en %.1f s: %d m (app: %@)", Date().timeIntervalSince(lastReroute), Int(route.distance), AppRuntime.description))
         if let location = LocationService.shared.last {
             process(location)
         }
@@ -325,6 +327,7 @@ final class NavEngine: ObservableObject {
         let accuracy = max(0, location.horizontalAccuracy)
         let limit = max(45, min(90, accuracy * 2))
         var off = snap.lateral > limit
+        lastLateral = snap.lateral
 
         // ¿Circula en sentido contrario al de la ruta?
         if !off, speed > 4, location.course >= 0 {
@@ -380,6 +383,11 @@ final class NavEngine: ObservableObject {
         next.fraction = 1 - ratio
         next.rerouting = rerouting
         next.offRoute = off
+        // Si el recálculo tarda (sin datos o con el iPhone bloqueado, Apple puede no responder
+        // hasta abrir la app), al menos se dice a cuánto queda la ruta.
+        if rerouting && Date().timeIntervalSince(lastReroute) > 12 {
+            next.text = "Sin ruta nueva todavía · la ruta está a \(HUDFormat.distance(lastLateral))"
+        }
         next.speed = speed
         next.bearing = bearing
         next.snapped = off ? location.coordinate : g.coordinate(g.shape.point(at: progress))
@@ -406,13 +414,16 @@ final class NavEngine: ObservableObject {
     }
 
     private func requestReroute(from location: CLLocation) {
-        guard !rerouting, Date().timeIntervalSince(lastReroute) > 8 else { return }
+        let since = Date().timeIntervalSince(lastReroute)
+        // Un recálculo que no responde en 20 s se vuelve a pedir.
+        guard (!rerouting && since > 8) || (rerouting && since > 20) else { return }
+        let retry = rerouting
         rerouting = true
         lastReroute = Date()
         offCount = 0
         wrongWayCount = 0
-        logLine("[RUTA] fuera de la ruta: recalculando")
-        voice.say("Recalculando la ruta")
+        logLine("[RUTA] fuera de la ruta: \(retry ? "el recálculo no respondió, se pide otra vez" : "recalculando") (app: \(AppRuntime.description))")
+        if !retry { voice.say("Recalculando la ruta") }
         calculate(from: location.coordinate, reroute: true)
     }
 

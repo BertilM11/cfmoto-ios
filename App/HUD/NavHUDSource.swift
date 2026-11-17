@@ -24,6 +24,28 @@ final class HUDState {
     }
 }
 
+/// Cuántas imágenes se dibujan para la moto y cuánto tarda cada una (diagnóstico).
+enum RenderStats {
+    private static let lock = NSLock()
+    private static var frames = 0
+    private static var averageMs = 0.0
+    private static var last: TimeInterval = 0
+
+    static func record(ms: Double) {
+        lock.lock()
+        frames += 1
+        averageMs = frames == 1 ? ms : averageMs * 0.95 + ms * 0.05
+        last = Date().timeIntervalSinceReferenceDate
+        lock.unlock()
+    }
+
+    static func snapshot() -> (frames: Int, averageMs: Double, last: TimeInterval) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (frames, averageMs, last)
+    }
+}
+
 /// Origen de imagen para la moto: dibuja la navegación de CFMoto Link a ritmo fijo.
 /// Es independiente de lo que muestre la pantalla del iPhone.
 final class NavHUDSource: FrameSource {
@@ -74,6 +96,7 @@ final class NavHUDSource: FrameSource {
         var created: CVPixelBuffer?
         CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &created)
         guard let buffer = created else { return }
+        let started = Date()
 
         CVPixelBufferLockBaseAddress(buffer, [])
         let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
@@ -92,6 +115,7 @@ final class NavHUDSource: FrameSource {
             renderer.drawDashboard(DashState.shared.snapshot(), now: Date(), in: ctx)
         }
         CVPixelBufferUnlockBaseAddress(buffer, [])
+        RenderStats.record(ms: Date().timeIntervalSince(started) * 1000)
 
         frames += 1
         sink(buffer)

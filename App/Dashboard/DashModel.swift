@@ -726,9 +726,11 @@ extension DashLayoutEngine {
     /// Tamaño base de cada tarjeta (en la escala de una imagen de 800 de ancho).
     static func cardSize(_ item: OverlayItem, _ o: OverlaySettings) -> CGSize {
         switch item {
-        case .maneuver: return o.maneuverSize == .large ? CGSize(width: 340, height: 176) : CGSize(width: 300, height: 150)
-        case .music: return o.musicSize == .large ? CGSize(width: 300, height: 124) : CGSize(width: 262, height: 84)
-        case .trip: return CGSize(width: 420, height: 50)
+        // 0.6.1: tarjetas compactas algo más pequeñas para tapar menos mapa (la letra se
+        // ajusta sola al tamaño de la tarjeta).
+        case .maneuver: return o.maneuverSize == .large ? CGSize(width: 340, height: 176) : CGSize(width: 284, height: 136)
+        case .music: return o.musicSize == .large ? CGSize(width: 300, height: 124) : CGSize(width: 250, height: 84)
+        case .trip: return CGSize(width: 400, height: 46)
         case .notices: return CGSize(width: 262, height: 58)
         case .clock: return CGSize(width: 136, height: 46)
         case .compass: return CGSize(width: 44, height: 44)

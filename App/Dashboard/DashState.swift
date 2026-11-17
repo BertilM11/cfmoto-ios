@@ -57,17 +57,25 @@ final class DashState {
     /// donde estás (sin posición, la hora local).
     func isNight(_ navStyle: HUDStyle, now: Date = Date()) -> Bool {
         lock.lock()
-        let theme = base.theme
         var place = lastPlace
+        lock.unlock()
+        // Antes del primer fotograma todavía no hay posición guardada: se usa la del GPS.
+        if place == nil { place = HUDState.shared.get().here }
+        return night(at: now, place: place)
+    }
+
+    /// Tema para un momento y un lugar. Sirve también para preparar el mapa de lo que viene:
+    /// un tramo por el que se pasará después del atardecer se guarda ya en oscuro.
+    func night(at date: Date, place: GeoPoint?) -> Bool {
+        lock.lock()
+        let theme = base.theme
         lock.unlock()
         switch theme {
         case .dark: return true
         case .light: return false
         case .auto:
-            // Antes del primer fotograma todavía no hay posición guardada: se usa la del GPS.
-            if place == nil { place = HUDState.shared.get().here }
-            if let g = place, let night = SunClock.isNight(at: now, lat: g.lat, lon: g.lon) { return night }
-            return SunClock.isNightByClock(now)
+            if let g = place, let n = SunClock.isNight(at: date, lat: g.lat, lon: g.lon) { return n }
+            return SunClock.isNightByClock(date)
         }
     }
 
