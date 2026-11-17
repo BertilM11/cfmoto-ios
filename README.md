@@ -1,4 +1,4 @@
-# CFMoto Link 0.5.0 — Mapa premium
+# CFMoto Link 0.6.0 — Navegación y multimedia
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -10,24 +10,34 @@ destino, la música y el panel antes de arrancar.
 ## Qué hace
 
 - **Imagen completa**: la app usa los 800×400 que pide la moto; los indicadores de la moto
-  (velocidad, rpm, marcha, testigos) siguen en su propia franja, debajo, sin taparse.
+  (velocidad, rpm, marcha, testigos) siguen en su propia franja, debajo, sin taparse
+  (comprobado con fotos de la 0.3 y la 0.5).
 - **Mapa de calles de Apple Maps** en la moto, con nombres de calles, la ruta resaltada con
-  borde, la flecha de posición, la brújula, vista 3D opcional, tráfico (iOS 17+), modo noche,
-  zoom según la velocidad y antes de cada giro, y rutas alternativas al empezar.
-- **Tarjetas flotantes** semitransparentes sobre el mapa: próxima maniobra (con la siguiente),
-  música, llegada/tiempo/distancia, avisos y reloj. Se mueven de esquina y cambian de tamaño.
-- **Modos**: A · Navegación completa, B · Navegación + Música, C · Música, D · Personalizado,
-  y los de la 0.4 (Panel completo, Navegación + Avisos, Música + Avisos).
-- **Mi pantalla**: editor con vista previa real (el mismo dibujo que recibe la moto), perfiles,
-  temas y ajustes del mapa.
-- **Navegación** con los mapas de Apple: búsqueda, rutas reales, guía giro a giro con voz en
-  español y recálculo.
+  borde, la flecha del próximo giro dibujada sobre la ruta, la posición, la brújula, vista 3D,
+  tráfico (iOS 17+), zoom automático y las rutas propuestas antes de empezar.
+- **Proveedor de navegación** (0.6): CFMoto Link guía en la moto giro a giro; Mapas de Apple,
+  Google Maps o Waze se abren con el destino mediante su enlace oficial y la moto muestra el
+  mapa, tu posición y el destino (esas apps no comparten sus giros). El destino se conserva al
+  cambiar de proveedor.
+- **Día y noche automáticos** (0.6) según el amanecer y el atardecer donde estás, o siempre
+  claro, o siempre oscuro: es el estilo de día o de noche de Apple Maps, con un fundido suave.
+- **Tarjeta de música con los colores de la portada** (0.6), para Spotify y Apple Music, con el
+  texto siempre legible y las reglas de marca de Spotify.
+- **Modos**: 1 · Navegación completa, 2 · Navegación + música compacta, 3 · Pantalla dividida
+  (mapa a la izquierda, música grande a la derecha), 4 · Música completa, 5 · Personalizado, y
+  los de la 0.4 (Panel completo, Navegación + Avisos, Música + Avisos).
+- **Personalización del tablero** (0.6): navegación, día y noche, estilo de la ruta, música,
+  tamaños, animaciones y diseño predeterminado en una sola pantalla, con vista previa real.
+- **Mi pantalla**: editor de tarjetas flotantes y perfiles.
+- **Navegación** con los mapas de Apple: búsqueda, rutas reales, guía con voz en español y
+  recálculo.
 - **Música**: Apple Music (app Música) o **Spotify** con su SDK oficial (con tu propio Client ID).
 - **Avisos**: navegación, conexión con la moto y batería baja del iPhone.
-- **Duplicar pantalla** (extensión ReplayKit) para ver Waze o Google Maps en la moto.
+- **Duplicar pantalla** (extensión ReplayKit) para ver Waze o Google Maps en la moto con el
+  iPhone desbloqueado.
 
-Por qué había una franja negra y cómo se eligió el proveedor de mapas: [docs/PANTALLA.md](docs/PANTALLA.md).
-Lo que es real, lo que está limitado por iOS y lo que falta está en [docs/FEATURES.md](docs/FEATURES.md).
+Proveedores, licencias y límites: [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
+Lo que es real, lo que está limitado por iOS y lo que falta: [docs/FEATURES.md](docs/FEATURES.md).
 
 ## Abrir y compilar
 
@@ -39,7 +49,8 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.4.0_SmartDashboard.zip` ya trae `CFMotoLink.xcodeproj` generado.
+El paquete `CFMotoLink_0.6.0_NavegacionMultimedia.zip` trae el código, la documentación, las
+láminas de las pruebas y los resultados.
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
 ejecuta en un iPhone con iOS 16 o posterior.
 
@@ -59,11 +70,14 @@ firmar en *Releases*.
 2. En el iPhone conéctate al Wi-Fi `DIRECT-…-CFMOTO` (clave `12345678`). Deja los datos
    móviles activos: ese Wi-Fi no da internet y el mapa lo necesita.
 3. En **Inicio** pulsa **Conectar y enviar el panel**.
-4. Cambia de modo o edita el panel en **Mi pantalla**: el cambio va en la siguiente imagen,
-   sin reconectar (falta confirmarlo en la moto).
-5. Al iniciar una ruta, deja CFMoto Link abierta unos segundos: así guarda las calles del
+4. Elige el modo (1 a 5) en Inicio o en Más > Personalización del tablero; el cambio va en la
+   siguiente imagen, sin reconectar.
+5. Busca el destino en **Navegación**. En la tarjeta de la ruta, "Guiar con" elige quién da la
+   guía: con CFMoto Link pulsa **Iniciar**; con Waze, Google Maps o Mapas de Apple pulsa
+   **Abrir en …** y vuelve a CFMoto Link si quieres cambiar algo.
+6. Al iniciar una ruta, deja CFMoto Link abierta unos segundos: así guarda las calles del
    recorrido para cuando bloquees el iPhone. Con la app abierta, el mapa se actualiza en vivo.
-6. Spotify: Música > Spotify y sigue los cuatro pasos (necesitas una app registrada en
+7. Spotify: Música > Spotify y sigue los cuatro pasos (necesitas una app registrada en
    developer.spotify.com; desde 2026 Spotify pide Premium a la cuenta dueña).
 
 ## Documentación
@@ -71,6 +85,7 @@ firmar en *Releases*.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): estructura y componentes.
 - [docs/CONNECTION.md](docs/CONNECTION.md): comunicación con la moto.
 - [docs/FEATURES.md](docs/FEATURES.md): estado real de cada función.
+- [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): pruebas y resultados.
 

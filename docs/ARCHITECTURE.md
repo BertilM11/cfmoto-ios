@@ -32,8 +32,9 @@ Mi pantalla ─► DashStore ─────┘        │
   próximo giro, mapa de ruta, viaje, música, avisos y reloj.
 - **Plantillas** (`DashTemplate`): 1 zona, 2 columnas, principal + 2 laterales. Cada zona lleva
   un módulo o queda vacía; una zona vacía cede su espacio a la vecina.
-- **Modos** (`DashMode`): seis combinaciones predefinidas y el modo personalizado. Un modo no
-  es una pantalla aparte: es una plantilla con módulos, dibujada por el mismo código.
+- **Modos** (`DashMode`): 1 Navegación completa, 2 Navegación + música compacta, 3 Pantalla
+  dividida, 4 Música completa, 5 Personalizado, y tres modos de la 0.4. Un modo no es una
+  pantalla aparte: es una plantilla con módulos, dibujada por el mismo código.
 - **Área útil**: `DashLayoutEngine.usableArea` usa la imagen entera desde la 0.5 (solo descuenta
   una franja inferior si el usuario lo pide en Ajustes)
   donde la moto dibuja velocidad, marcha y testigos. Ahí la app no dibuja nada.
@@ -57,7 +58,7 @@ para las pruebas (`Tools/DashboardCheck`).
 - `CFMotoLink`: la app (`App/` + `Shared/`).
 - `CFMotoLinkBroadcast`: extensión de transmisión de pantalla (`Broadcast/` + `Shared/`).
 
-No hay dependencias externas.
+Única dependencia externa: el SDK oficial de Spotify para iOS (Swift Package Manager).
 
 
 ## Mapa de calles (0.5)
@@ -72,3 +73,32 @@ No hay dependencias externas.
 
 El dibujo sigue siendo solo CPU (CoreGraphics). Lo único que necesita la app al frente es la
 generación de las imágenes de Apple; el dibujo de cada fotograma no.
+
+
+## Proveedores de navegación y apariencia (0.6)
+
+```
+Proveedor (CFMoto Link · Mapas de Apple · Google Maps · Waze)
+   │  NavProviderID: capacidades reales y enlace oficial de cada uno
+   ▼
+RouteManager ── conserva el destino al cambiar de proveedor
+   │   CFMoto Link → NavEngine (MKDirections, guía, voz) → HUDState
+   │   app externa → abre su enlace → ExternalGuide (solo destino)
+   ▼
+DashState (estado de navegación + música + día/noche + colores)
+   ▼
+HUDRenderer.drawDashboard (adaptador de la moto) ─► H264Encoder ─► BikeLink ─► TFT
+```
+
+| Pieza | Archivo | Qué hace |
+| --- | --- | --- |
+| `NavProviderID`, `ExternalGuide` | `App/Dashboard/DashModel.swift` | Lista de proveedores, lo que de verdad puede hacer cada uno y su enlace oficial. Sin UIKit: se prueba en macOS. |
+| `RouteManager`, `NavProviderPicker`, `ExternalGuideCard` | `App/Nav/NavProviders.swift` | Abre la app elegida con el destino, conserva el destino al cambiar, pregunta si hay una ruta en curso y muestra la tarjeta "Guiando con …" en el iPhone. |
+| `SunClock` | `App/Dashboard/Appearance.swift` | Amanecer y atardecer (ecuación del amanecer) para el modo automático. |
+| `ArtPalette`, `MusicCardColors` | `App/Dashboard/Appearance.swift` | Colores dominantes de la portada y colores finales de la tarjeta con contraste comprobado (WCAG). |
+| `DashState` | `App/Dashboard/DashState.swift` | Decide día o noche (tema + sol + última posición), y prepara los fundidos de colores, de ruta nueva y de estilo de mapa. |
+| `TFTMap` | `App/Dashboard/TFTMap.swift` | Pide el estilo de Apple Maps que toca (claro u oscuro), prefiere imágenes de ese estilo, guarda la anterior para el fundido y, antes de empezar, pide una vista general con las rutas propuestas. |
+| `PersonalizationScreen` | `App/UI/PersonalizationScreen.swift` | Todos los ajustes del panel en una pantalla; se guardan al momento en `DashConfig` (versión 3). |
+
+La moto nunca recibe nada de las apps externas: todo lo que se dibuja sale de MapKit, del GPS
+del iPhone y del destino que el usuario eligió en CFMoto Link.

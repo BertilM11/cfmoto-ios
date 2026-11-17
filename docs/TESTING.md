@@ -12,10 +12,21 @@ Hay tres niveles. Solo el tercero prueba la moto de verdad.
 - **Tarjetas sobre el mapa**: en cada modo y en 3000 combinaciones al azar de tarjetas, lugares,
   tamaños y escalas, ninguna se sale, ninguna se monta sobre otra, la maniobra siempre está y
   las tarjetas no tapan más de la mitad del mapa.
-- **Modos A–D** y los tres modos de la 0.4.
+- **Modos 1–5** (con la Pantalla dividida: mapa a la izquierda, música a la derecha) y los
+  tres modos de la 0.4.
 - **Edición**: intercambiar zonas y tarjetas, mover, agrandar, ocultar, cambiar de plantilla.
-- **Persistencia** y **actualización desde la 0.4**: se conservan el modo, los avisos y los
-  perfiles del usuario; los de fábrica pasan al mapa completo.
+- **Persistencia** y **actualización desde la 0.4 y la 0.5**: se conservan el modo, los avisos
+  y los perfiles del usuario; los de fábrica pasan al mapa completo; el tema oscuro fijo de
+  antes pasa a automático y el claro elegido se respeta.
+- **Día y noche (0.6)**: amanecer y atardecer en Ciudad de Guatemala el 17 de noviembre de 2026
+  (6:04 y 17:30, comprobados con la biblioteca *astral*); día a las 9:00, 12:00 y 16:30; noche a
+  las 5:00, 18:30 y 23:00; sin posición, por la hora.
+- **Colores de la portada (0.6)**: una portada roja y negra da tonos rojos; una azul, azules;
+  con portadas rojas, azules y muy claras, de día y de noche y a tres intensidades, el texto
+  siempre tiene contraste de al menos 4,5:1; los fondos fijos no dependen de la portada; la
+  transición entre canciones mezcla los colores.
+- **Proveedores (0.6)**: enlaces oficiales de Waze (`waze://ul` y `https://waze.com/ul`) y
+  Google Maps (app y web); CFMoto Link no abre nada; ningún proveedor externo dice dar giros.
 - **Reglas automáticas**.
 - **Proyección del mapa**: la homografía de 4 puntos reproduce una perspectiva exacta; con una
   cámara de prueba girada, la ruta cae a menos de 1 píxel de donde debe.
@@ -25,12 +36,14 @@ Hay tres niveles. Solo el tercero prueba la moto de verdad.
   otra resolución (640×320).
 - **Rendimiento**: tiempo medio de dibujo por fotograma con mapa y tarjetas.
 
-Además guarda una lámina PNG de cada modo.
+Además guarda una lámina PNG de cada modo y, desde la 0.6: tarjeta con colores de la portada
+de noche, pantalla dividida de día, guía en Waze, ruta de alto contraste y rutas propuestas.
 
 ```sh
 swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift \
        App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift \
-       App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift -o dashcheck
+       App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift \
+       App/Dashboard/Appearance.swift -o dashcheck
 ./dashcheck salida
 ```
 
@@ -58,8 +71,14 @@ iPhone real ni nada de la conexión con la moto.
 | 0.4: cambiar de modo sin reconectar | **Pendiente** |
 | 0.4: música de Apple Music en la TFT | **Pendiente** |
 | 0.4: avisos en la TFT | **Pendiente** |
-| 0.5: imagen completa, sin franja negra | **Pendiente** (foto) |
-| 0.5: mapa de calles legible en la TFT, de día y de noche | **Pendiente** |
+| 0.5: imagen completa, sin franja negra | Hecha: funciona (foto) |
+| 0.5: mapa de calles en la TFT con la app abierta | Hecha: funciona (foto, sin ruta, estilo oscuro) |
+| 0.6: mapa claro de día y oscuro de noche (automático) | **Pendiente** |
+| 0.6: Waze / Google Maps abiertos con el destino; tarjeta "Guía en …" en la moto | **Pendiente** |
+| 0.6: volver a CFMoto Link con el mismo destino (recálculo) | **Pendiente** |
+| 0.6: colores de la portada con Spotify y Apple Music | **Pendiente** |
+| 0.6: modos 1–5, incluida la Pantalla dividida | **Pendiente** |
+| 0.6: voz de la guía por el intercomunicador con Spotify sonando | **Pendiente** |
 | 0.5: mapa con el iPhone bloqueado (imágenes guardadas) | **Pendiente** |
 | 0.5: Spotify en la TFT | **Pendiente** (necesita tu Client ID) |
 | Vídeo con el iPhone bloqueado | **Pendiente** |
@@ -71,9 +90,16 @@ iPhone real ni nada de la conexión con la moto.
    panel y los indicadores de la moto.
 2. Con datos móviles activos, elige un destino e inicia la ruta. Deja la app abierta unos
    segundos para que vea las calles y guarde las del recorrido.
-3. Recorre los modos A–D desde Inicio y comprueba que la moto cambia sin reconectar.
+3. Recorre los modos 1–5 desde Inicio y comprueba que la moto cambia sin reconectar.
 4. Pon música (Apple Music, o Spotify si registraste tu app) y mira la tarjeta de música.
 5. Más > Notificaciones > Enviar un aviso de prueba.
 6. Bloquea el iPhone dos minutos con la ruta activa: deben seguir las calles mientras estés en
    la zona guardada.
 7. Más > Conexión > Copiar registro, y fotos de la TFT de día y de noche.
+8. (0.6) En la tarjeta de la ruta elige "Guiar con: Waze" y pulsa "Abrir en Waze": Waze debe
+   abrir con el destino y la moto mostrar "Guía en Waze" con la bandera del destino. Vuelve a
+   CFMoto Link y pulsa "Guiar aquí": la ruta se recalcula con el mismo destino.
+9. (0.6) Con Spotify conectado, cambia de canción: la tarjeta de la moto cambia de color en
+   menos de medio segundo. Prueba los fondos fijos en Más > Personalización del tablero.
+10. (0.6) Con el tema en Automático, mira la moto antes y después del atardecer (17:30 en
+    Guatemala en noviembre): el mapa pasa de claro a oscuro con un fundido.

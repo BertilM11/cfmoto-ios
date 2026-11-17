@@ -2,8 +2,10 @@
 
 La app habla el protocolo EasyConn / Carbit PXC que usa la app oficial de CFMOTO. La
 implementación de iOS (`Shared/BikeLink.swift`) se escribió a partir de la documentación y el
-comportamiento de [OpenCfMoto](https://github.com/zanderp/open-cfmoto). **Las versiones 0.4 y
-0.5 no cambian nada de este protocolo**: solo cambia la imagen que se le entrega.
+comportamiento de [OpenCfMoto](https://github.com/zanderp/open-cfmoto). **Las versiones 0.4,
+0.5 y 0.6 no cambian nada de este protocolo**: solo cambia la imagen que se le entrega. La
+conexión es por **Wi-Fi Direct**, no por Bluetooth; el Bluetooth del iPhone queda libre para el
+intercomunicador.
 
 ## Cómo funciona (verificado en una CFMOTO 450NK)
 
@@ -26,8 +28,9 @@ la moto reconoce.
 | Saludo, negociación y vídeo H.264 800×400 | Verificado | Registro y foto del propietario (0.1 y 0.2) |
 | Imagen dibujada por la app en la TFT | Verificado | Foto del propietario con la navegación de la 0.3 |
 | La moto muestra la imagen entera y pone sus indicadores **debajo**, en su propia franja | Verificado | Misma foto: la fila inferior de la 0.3 y el hueco vacío de la app se ven completos; velocidad, marcha y rpm están fuera de la imagen (corrige lo que decía la 0.4) |
-| Panel modular de la 0.4 en la TFT | **Pendiente** | Usa la misma vía de vídeo; falta probarlo en la moto |
-| Mapa de calles de la 0.5 en la TFT | **Pendiente** | Misma vía de vídeo; la imagen se compone en el iPhone |
+| Panel modular con tarjetas sobre el mapa en la TFT | Verificado | Foto del propietario con la 0.5 |
+| Mapa de calles de Apple Maps en la TFT | Verificado | Misma foto: calles con nombre, posición, brújula y tarjetas, imagen completa |
+| Panel de la 0.6 (proveedores, colores, modos 1–5) | **Pendiente** | Misma vía de vídeo; solo cambia el dibujo |
 | Cambiar de modo sin reconectar | **Pendiente** | El cambio solo altera el dibujo del siguiente fotograma |
 | Reconexión tras perder el enlace | Parcial | Programada (`Enlace perdido; reintentando…`); sin prueba sistemática |
 | Vídeo con el iPhone bloqueado | **Pendiente** | Ver más abajo |

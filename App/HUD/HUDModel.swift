@@ -128,6 +128,9 @@ struct HUDSnapshot {
     /// Rutas propuestas antes de empezar (la elegida y las demás), en coordenadas.
     var previewRoutes: [[GeoPoint]] = []
     var previewSelected = 0
+    /// Distancia (m) y tiempo (s) de cada ruta propuesta.
+    var previewDistances: [Double] = []
+    var previewTimes: [Double] = []
 }
 
 /// Textos de distancia, duración y hora. Los usan el iPhone y la moto para decir lo mismo.

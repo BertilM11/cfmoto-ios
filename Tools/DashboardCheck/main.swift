@@ -571,6 +571,8 @@ preview.nav.previewRoutes = [
     (0...20).map { center.moved(-250 + Double($0) * 25, bearing: heading).moved(Double($0) * 6, bearing: heading + 90) },
 ]
 preview.nav.previewSelected = 0
+preview.nav.previewDistances = [7400, 8100]
+preview.nav.previewTimes = [18 * 60, 21 * 60]
 let pv = pixels(preview)
 check("Vista previa de rutas en la moto antes de empezar", pv.image != nil)
 if let image = pv.image { save(image, "panel-rutas-propuestas") }

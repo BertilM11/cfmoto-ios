@@ -554,6 +554,8 @@ final class NavEngine: ObservableObject {
         } else if phase == .preview && !routes.isEmpty {
             s.previewRoutes = previewRoutes()
             s.previewSelected = selectedIndex
+            s.previewDistances = routes.map { $0.distance }
+            s.previewTimes = routes.map { $0.expectedTravelTime }
         }
         HUDState.shared.set(s)
     }

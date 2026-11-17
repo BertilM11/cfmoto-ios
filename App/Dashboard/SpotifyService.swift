@@ -42,6 +42,8 @@ final class SpotifyService: NSObject, ObservableObject {
 
     private var token: String?
     private var wanted = false
+    /// Reintentos seguidos tras un corte (se ponen a cero al conectar).
+    private var retries = 0
 
     override init() {
         super.init()
@@ -129,6 +131,7 @@ final class SpotifyService: NSObject, ObservableObject {
     func appBecameActive() {
         #if canImport(SpotifyiOS)
         guard wanted, let r = remote, !r.isConnected, token != nil else { return }
+        retries = 0
         phase = .connecting
         r.connect()
         #endif
@@ -166,6 +169,7 @@ final class SpotifyService: NSObject, ObservableObject {
 extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate {
     func appRemoteDidEstablishConnection(_ appRemote: SPTAppRemote) {
         DispatchQueue.main.async {
+            self.retries = 0
             self.phase = .connected
             logLine("[SPOTIFY] conectado con la app de Spotify")
         }
@@ -188,10 +192,18 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
 
     func appRemote(_ appRemote: SPTAppRemote, didDisconnectWithError error: Error?) {
         DispatchQueue.main.async {
-            if self.wanted {
-                self.phase = .failed("Se cortó la conexión con Spotify; se reintenta al abrir la app")
-            }
             logLine("[SPOTIFY] desconectado: \(error?.localizedDescription ?? "sin detalle")")
+            guard self.wanted else { return }
+            self.phase = .failed("Se cortó la conexión con Spotify; se reintenta al abrir la app")
+            // Dos reintentos cortos (sirven si Spotify sigue sonando). Si iOS ya suspendió
+            // Spotify o esta app, la conexión vuelve al abrir CFMoto Link.
+            guard self.retries < 2, self.token != nil else { return }
+            self.retries += 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                guard let self = self, self.wanted, let r = self.remote, !r.isConnected else { return }
+                self.phase = .connecting
+                r.connect()
+            }
         }
     }
 

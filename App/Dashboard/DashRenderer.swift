@@ -129,7 +129,7 @@ extension HUDRenderer {
                     let small = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(r.height, 112 * k))
                     cardBackground(small, p, ctx)
                     dashExternalCard(ext, s, p, now, small, ctx)
-                } else if n.navigating || n.arrived {
+                } else if n.navigating || n.arrived || !n.previewRoutes.isEmpty {
                     cardBackground(r, p, ctx)
                     dashTurnContent(n, p, r, ctx)
                 } else {
@@ -354,9 +354,12 @@ extension HUDRenderer {
 
     // MARK: - Navegación
 
-    func dashMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5) {
+    func dashMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5,
+                 compassBottom: Bool = false) {
         let size = 40 * k
-        let compass = CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size)
+        let compass = compassBottom
+            ? CGRect(x: r.maxX - size - 10 * k, y: r.maxY - size - 10 * k, width: size, height: size)
+            : CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size)
         if drawStreetMap(s, p, now, r, ctx, compass: compass) { return }
         let u = max(0.5, min(r.width, r.height) / 400)
         let anchor = CGPoint(x: r.minX + r.width * anchorX, y: r.maxY - r.height * 0.24)
@@ -366,13 +369,15 @@ extension HUDRenderer {
     func dashNav(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let n = s.nav
         let wide = r.width > r.height * 1.25
-        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5)
+        // Con la tarjeta a todo el ancho (zona estrecha, como en Pantalla dividida), la brújula
+        // va abajo para no quedar tapada.
+        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5, compassBottom: !wide)
         let pad = (r.height * 0.03).rounded() + 2
         let card: CGRect
         if wide {
             card = CGRect(x: r.minX + pad, y: r.minY + pad, width: min(r.width * 0.5, r.height * 1.25), height: r.height * 0.62)
         } else {
-            card = CGRect(x: r.minX + pad, y: r.minY + pad, width: r.width - 2 * pad, height: r.height * 0.46)
+            card = CGRect(x: r.minX + pad, y: r.minY + pad, width: r.width - 2 * pad, height: r.height * 0.4)
         }
         if let ext = s.external, !n.navigating {
             let small = CGRect(x: card.minX, y: card.minY, width: card.width, height: min(card.height, 112 * k))
@@ -419,6 +424,16 @@ extension HUDRenderer {
             kind = .arrive
             big = "Llegaste"
             line = n.destinationName
+        } else if !n.navigating && n.previewRoutes.indices.contains(n.previewSelected) {
+            // Antes de empezar: la ruta elegida, su distancia y su tiempo.
+            let i = n.previewSelected
+            let parts = HUDFormat.distanceParts(n.previewDistances.indices.contains(i) ? n.previewDistances[i] : 0)
+            big = parts.value
+            unit = parts.unit
+            kind = .depart
+            var text = n.previewRoutes.count > 1 ? "Ruta \(i + 1) de \(n.previewRoutes.count)" : "Ruta lista"
+            if n.previewTimes.indices.contains(i) { text += " · " + HUDFormat.durationCompact(n.previewTimes[i]) }
+            line = text + " · Toca Iniciar en el iPhone"
         } else if !n.navigating {
             color = p.line
             kind = .depart
