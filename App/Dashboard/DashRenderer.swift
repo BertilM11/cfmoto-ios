@@ -1380,13 +1380,41 @@ extension HUDRenderer {
             }
             g.restoreGState()
         }
+        /// El fondo completo en una imagen aparte (las capas se juntan antes de recortarlas por
+        /// las esquinas de la zona, igual con o sin guardarlo).
+        func render(_ colors: MusicCardColors, _ glow: RGB, _ lights: [(CGImage, CGFloat)]) -> CGImage? {
+            let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+            off.clear(CGRect(x: 0, y: 0, width: w, height: h))
+            // Misma orientación que la imagen de la moto (origen arriba a la izquierda).
+            off.translateBy(x: 0, y: CGFloat(h))
+            off.scaleBy(x: 1, y: -1)
+            off.translateBy(x: -r.minX, y: -r.minY)
+            paint(off, colors, glow, lights)
+            return off.makeImage()
+        }
+        func blit(_ image: CGImage, _ a: CGFloat) {
+            ctx.saveGState()
+            ctx.setAlpha(a)
+            ctx.translateBy(x: r.minX, y: r.minY + CGFloat(h))
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.interpolationQuality = .none
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.restoreGState()
+        }
         let lightNow = light(s.music.available ? s.music.artwork : nil)
         guard HUDRenderer.cacheStageBackground else {
-            // Sin guardar (pruebas): todo directo, con los colores ya mezclados del cambio.
+            // Sin guardar (pruebas): se dibuja entero en cada fotograma, con los colores ya
+            // mezclados del cambio de canción.
             var lights: [(CGImage, CGFloat)] = []
             if fadeIn < 1, let old = light(s.musicFrom?.artwork) { lights.append((old.image, lightAlpha * (1 - fadeIn))) }
             if let now = lightNow { lights.append((now.image, lightAlpha * (fadeIn < 1 ? fadeIn : 1))) }
-            paint(ctx, c, glowColor(s.music.palette, c), lights)
+            if let image = render(c, glowColor(s.music.palette, c), lights) {
+                blit(image, 1)
+            } else {
+                paint(ctx, c, glowColor(s.music.palette, c), lights)
+            }
             return
         }
         func rgb(_ x: RGB) -> String { String(format: "%.3f,%.3f,%.3f", x.r, x.g, x.b) }
@@ -1400,28 +1428,10 @@ extension HUDRenderer {
                 stageBackgrounds.insert(hit, at: 0)
                 return hit.image
             }
-            let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-            guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
-            off.clear(CGRect(x: 0, y: 0, width: w, height: h))
-            // Misma orientación que la imagen de la moto (origen arriba a la izquierda).
-            off.translateBy(x: 0, y: CGFloat(h))
-            off.scaleBy(x: 1, y: -1)
-            off.translateBy(x: -r.minX, y: -r.minY)
-            paint(off, colors, glow, lit.map { [($0.image, lightAlpha)] } ?? [])
-            guard let image = off.makeImage() else { return nil }
+            guard let image = render(colors, glow, lit.map { [($0.image, lightAlpha)] } ?? []) else { return nil }
             stageBackgrounds.insert((key, image), at: 0)
             if stageBackgrounds.count > 3 { stageBackgrounds.removeLast() }
             return image
-        }
-        func blit(_ image: CGImage, _ a: CGFloat) {
-            ctx.saveGState()
-            ctx.setAlpha(a)
-            ctx.translateBy(x: r.minX, y: r.minY + CGFloat(h))
-            ctx.scaleBy(x: 1, y: -1)
-            ctx.interpolationQuality = .none
-            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-            ctx.restoreGState()
         }
         let spotify = s.music.source == "Spotify"
         let target = MusicCardColors.make(style: s.musicStyle, palette: s.music.palette, night: s.night, intensity: s.musicIntensity, spotify: spotify)
