@@ -38,7 +38,10 @@ desde la salida hasta el destino, con el iPhone desbloqueado:
    o en una parada); con el iPhone bloqueado se mantienen al día el tema, el avance y la cobertura,
    pero no llegan imágenes nuevas.
 8. **Cobertura real** (nuevo): la app revisa cada 25 m de ruta si hay una imagen en la que la
-   moto se vería bien y cuenta los kilómetros **seguidos** que tienen mapa desde donde estás.
+   moto se vería bien y cuenta los kilómetros **seguidos** que tienen mapa desde donde estás. Los
+   puntos de revisión son fijos sobre la ruta: en la prueba del simulador se vio que, cuando se
+   movían con la moto, la cifra saltaba (4,0 → 1,8 → 3,9 km en 20 s sin imágenes nuevas); ahora
+   es estable (prueba automática: el final de lo guardado no se mueve al avanzar).
 
 ### Qué ves en el iPhone (Navegación y pantalla negra)
 
@@ -67,6 +70,7 @@ de la 0.6.1 midió unos 4,5 s por imagen; en un iPhone real se espera menos, **s
 | Ruta de 15 km, parado, 2 s por imagen: guardado en 40 s | ver `TEST_RESULTS.md` | ver `TEST_RESULTS.md` |
 | Ruta de 15 km: tiempo hasta «Ruta completa guardada» | — | poco más de 1 min (2 s por imagen) |
 | Memoria máxima | 64 MB | 96 MB (y 1/5 de la libre como mucho) |
+| Simulador de GitHub (prueba en segundo plano), ruta de 8,8 km | — | 31 imágenes en el primer minuto (unos 6 s por imagen y por petición: el simulador es más lento que un iPhone); al pasar a segundo plano la moto usó las guardadas |
 
 ## 4. Cómo usarlo
 

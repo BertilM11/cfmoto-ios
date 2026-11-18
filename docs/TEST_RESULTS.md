@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.6.2 (y 0.6.1)
+# Resultados de las pruebas — CFMoto Link 0.6.3 (y anteriores)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,7 +6,69 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **ni la 0.6.1 ni la 0.6.2 se han probado todavía en la moto.**
+3. **Moto** (manual, con la 450NK): **ni la 0.6.1, ni la 0.6.2, ni la 0.6.3 se han probado todavía en la moto.**
+
+## 0.6.3 — Rediseño premium y correcciones
+
+| Nivel | Qué se hizo | Resultado |
+| --- | --- | --- |
+| Automáticas | 193 pruebas: las 152 de la 0.6.2 (se conservan todas) y 41 nuevas | **193 pruebas, todas pasan** (prueba rápida 6; se repite al compilar la versión) |
+| Compilación para el simulador | Xcode en GitHub (macOS arm64) | **BUILD SUCCEEDED** |
+| Simulador | Recorrido de demostración en los modos, de día y de noche, y prueba en segundo plano | Capturas en `CAPTURAS/4_SIMULADOR_IPHONE` |
+| Compilación para iPhone | Release sin firmar (`CFMotoLink.ipa`) | Ver la publicación de la versión |
+| Moto | Ver el diseño nuevo en la TFT y el mapa con el iPhone bloqueado | **Pendiente** (pruebas L–T de `TESTING.md`) |
+
+Pruebas nuevas de la 0.6.3 (resultado tal como lo escribió la prueba):
+
+| Prueba | Resultado | Detalle |
+| --- | --- | --- |
+| Cobertura estable: al avanzar, el final del mapa guardado no salta | Pasa | el final se mueve 0 m en 31 posiciones (antes saltaba según el instante) |
+| Música: el mismo reproductor en cada modo, con la forma que cabe | Pasa | Música sola: stage, Dividida: column, Música + Avisos: column, Música + Avisos con ruta: row, Nav + Música: row, Completo: row, Tarjeta grande: row, Principal + 2 (zona lateral): row |
+| Música: portada, textos y barra dentro de su sitio, sin montarse ni tapar la hora | Pasa |  |
+| Música: portada proporcional al espacio (Dividida al menos 167 px como en la 0.6.2) | Pasa | Dividida 174 px, Música + Avisos 163 (con ruta 181), tarjeta compacta 64, grande 100 |
+| Música: en todas las formas el fondo es el degradado con los colores de la portada | Pasa | 7 formas, 3 portadas, día y noche |
+| Música: de noche se ve el resplandor de la portada en todas las formas | Pasa |  |
+| Música: título y artista legibles en todas las formas (contraste ≥ 4,5) | Pasa | peor 7.6:1 (Dividida light neón «Reproduciendo») |
+| Música: álbum y tiempos legibles (contraste ≥ 3) | Pasa | peor 3.9:1 |
+| Música: el estado (Reproduciendo / En pausa) está en la música completa y en la columna | Pasa |  |
+| Música en pausa: «En pausa» en la columna y sin texto cortado en la tarjeta | Pasa |  |
+| Ningún texto cortado, montado ni encima de la hora (todos los modos, día y noche, con y sin ruta) | Pasa | 68 composiciones |
+| Con datos normales ningún texto necesita «…» | Pasa |  |
+| Títulos y artistas largos: se acortan con «…» sin salirse de su sitio | Pasa |  |
+| Sin música: el mismo aviso en todas las formas, sin cortes | Pasa |  |
+| A 640×320 tampoco hay textos cortados ni montados | Pasa |  |
+| La vista previa del iPhone y la imagen de la moto salen del mismo dibujo (idénticas) | Pasa | diferencia máxima 0 |
+| Dividida: la tarjeta de la maniobra es la misma que en el mapa completo (200×96; antes 426×155) | Pasa | 200×96 |
+| Dividida: se ve más mapa (al menos el 80 % de la zona libre de tarjetas) | Pasa | mapa libre: 82 % (antes 53 %) |
+| Dividida: si se elige la tarjeta grande, es más grande pero proporcional a la zona | Pasa | 318×151 |
+| Dividida: la maniobra va donde se eligió en el iPhone, sin tapar la hora, el viaje, la brújula ni la ruta por delante | Pasa | 20 combinaciones |
+| Nav + Música, Completo y Nav + Avisos usan la misma maniobra compacta que Navegación (200×96) | Pasa | mapa libre: 1 · Navegación completa 87 %, 2 · Navegación + música compacta 81 %, Panel completo 76 %, Navegación + Avisos 82 % |
+| Cobertura: ruta completa, guardando y parcial (por memoria) se distinguen | Pasa | Ruta completa guardada: 12 km \| Guardando el mapa: 3.2 km de 12 km \| Mapa parcial: 141 km de 160 km (límite de memoria) |
+| Cobertura: se informan los kilómetros que de verdad tienen mapa seguido | Pasa |  |
+| Moto: aviso «MAPA GUARDADO» solo con el mapa guardado en uso y menos de 2 km | Pasa | MAPA GUARDADO: 1.4 KM |
+| Moto: el aviso se dibuja sin tapar nada (mapa completo y pantalla dividida) | Pasa |  |
+| Precarga antes de salir: con 3 imágenes a la vez se guarda más ruta en el mismo tiempo | Pasa | en 40 s (2 s por imagen): 10.4 km; antes 6.9 km |
+| Ruta de 15 km: «Ruta completa guardada» en poco más de un minuto con el iPhone desbloqueado | Pasa | Ruta completa guardada: 15 km (82 imágenes) |
+| Con 800 imágenes cabe una ruta de 120 km entera (antes, unos 70 km) | Pasa | 71 km → 120 km |
+| Memoria del mapa guardado: hasta 96 MB y nunca más de la quinta parte de la libre | Pasa |  |
+| Dividida: «Llegada», hora de llegada, tiempo y distancia por separado, y la hora actual arriba | Pasa |  |
+| Rediseño: tarjetas y zonas en el mismo sitio y del mismo tamaño que en la 0.6.2 (y la hora fija) | Pasa | 9 tarjetas y 5 zonas |
+| Rediseño: maniobra, viaje, avisos, hora y zonas usan el mismo vidrio con borde luminoso | Pasa | 6 tarjetas |
+| Rediseño: las tarjetas guardadas ya dibujadas se ven igual que dibujadas cada vez | Pasa | diferencia máxima 3 de 255 (caso 3, x 786, y 56, canal 1: 75 / 78) |
+| Rediseño: datos del viaje en tres bloques (Distancia, Restante, Llegada), cada cifra sobre su nombre | Pasa | 267 < 400 < 533 |
+| Rediseño: la hora actual (con su reloj, arriba) y la de llegada (con «Llegada», abajo) no se confunden | Pasa | arriba: 7:04 p.m.; llegada: 7:22 |
+| Rediseño: cada aviso con su remitente, título, mensaje y hora | Pasa |  |
+| Rediseño: sin avisos se ve un estado vacío centrado, no la zona en blanco | Pasa |  |
+| Rediseño: la ruta lleva un resplandor azul a los lados (más contraste sobre el mapa) | Pasa | 0.13,0.24,0.38 \| 0.23,0.36,0.53 |
+| Rediseño: la posición se marca con la flecha azul en su disco de vidrio | Pasa | flecha 302 px, disco 630 px |
+| Rediseño: ningún modo tarda más de 25 ms por fotograma (la moto recibe 10 por segundo) | Pasa | 1 · Navegación completa 3.7, 2 · Navegación + música compacta 3.8, 3 · Pantalla dividida 9.1, 4 · Música completa 7.0, 5 · Personalizado 5.9, Panel completo 4.9, Navegación + Avisos 3.7, Música + Avisos 6.8 ms |
+| Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma | Pasa | Dividida 7.0 ms, Nav + Música en transición 4.4 ms, Música + Avisos 6.4 ms |
+
+Lo que no se probó: la TFT real (contraste al sol y de noche, tamaño de letra), Spotify y Apple
+Music reales con el diseño nuevo, el tiempo real de guardado de una ruta en tu iPhone y que la
+TFT siga recibiendo imagen con el iPhone bloqueado (prueba Q).
+
+---
 
 ## 0.6.2 — Diseño de la pantalla
 
