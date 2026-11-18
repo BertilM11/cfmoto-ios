@@ -75,6 +75,7 @@ final class MusicService: ObservableObject {
             m.source = "Apple Music"
             m.title = item.title ?? ""
             m.artist = item.artist ?? ""
+            m.album = item.albumTitle ?? ""
             m.duration = item.playbackDuration
             let position = player.currentPlaybackTime
             m.position = position.isFinite ? position : 0

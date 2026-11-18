@@ -233,6 +233,9 @@ final class HUDRenderer {
     static var reservedBottom: CGFloat = 0
     /// Desplazamiento de la brújula del mapa cuando hay etiquetas en esa esquina.
     var compassDrop: CGFloat = 0
+    /// Sitio de la hora actual si cae dentro de la zona que se está dibujando (esa zona lo deja
+    /// libre). Solo en los diseños por zonas; sobre el mapa la hora es una tarjeta más.
+    var statusReserve: CGRect?
     /// El mapa simple dibuja su propia brújula salvo que el panel la ponga en otro sitio.
     var miniCompass = true
     /// Rumbo de la ruta en el último dibujo simple (radianes), para la brújula del panel.

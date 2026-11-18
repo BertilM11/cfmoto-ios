@@ -169,6 +169,40 @@ enum HUDFormat {
         return String(format: "%d h %02d", minutes / 60, minutes % 60)
     }
 
+    /// La calle de una indicación de Apple: "Da vuelta a la derecha por 7a Avenida" → "7a Avenida".
+    /// nil si no nombra ninguna ("Gira a la izquierda"). La tarjeta compacta muestra la calle; el
+    /// giro ya lo dice la flecha.
+    static func street(from instruction: String) -> String? {
+        let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let markers = [" por ", " hacia ", " sobre ", " en dirección a ", " rumbo a ", " onto ", " toward ", " towards "]
+        var cut: Range<String.Index>?
+        for m in markers {
+            if let r = text.range(of: m, options: [.caseInsensitive, .backwards]),
+               cut.map({ r.lowerBound > $0.lowerBound }) ?? true {
+                cut = r
+            }
+        }
+        guard let r = cut else { return nil }
+        var name = String(text[r.upperBound...])
+        if let stop = name.range(of: ", ") ?? name.range(of: ";") { name = String(name[..<stop.lowerBound]) }
+        name = name.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".,;:")))
+        for article in ["la ", "el ", "los ", "las ", "the "] where name.lowercased().hasPrefix(article) {
+            name = String(name.dropFirst(article.count))
+            break
+        }
+        guard let first = name.unicodeScalars.first, name.count <= 48,
+              CharacterSet.uppercaseLetters.contains(first) || CharacterSet.decimalDigits.contains(first) else { return nil }
+        return name
+    }
+
+    /// Las cifras del viaje por separado: la llegada (con su etiqueta), el tiempo restante y la
+    /// distancia. La hora actual no está aquí: va fija arriba a la derecha.
+    static func tripParts(_ n: HUDSnapshot) -> (label: String, eta: String, suffix: String, remaining: String, distance: String) {
+        let c = n.eta.map { clock($0) }
+        return ("Llegada", c?.time ?? "--:--", c?.suffix ?? "", durationCompact(n.remainingTime), distance(n.remainingDistance))
+    }
+
     static func clock(_ date: Date) -> (time: String, suffix: String) {
         let c = Calendar.current.dateComponents([.hour, .minute], from: date)
         let h = c.hour ?? 0

@@ -249,6 +249,7 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
         m.source = "Spotify"
         m.title = track.name
         m.artist = track.artist.name
+        m.album = track.album.name
         m.playing = !playerState.isPaused
         m.duration = Double(track.duration) / 1000
         m.position = Double(playerState.playbackPosition) / 1000

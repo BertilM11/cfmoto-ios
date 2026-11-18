@@ -16,6 +16,8 @@ final class DashState {
     /// Colores de la canción anterior y momento del cambio.
     private var paletteFrom: ArtPalette?
     private var paletteChanged: TimeInterval = 0
+    /// Fundido entre la canción anterior y la nueva (portada y textos).
+    private var track = TrackTransition()
     /// Ruta que se está mostrando y momento en que cambió (para el fundido al recalcular).
     private weak var lastShape: HUDRouteShape?
     private var shapeChanged: TimeInterval = 0
@@ -80,11 +82,13 @@ final class DashState {
     }
 
     func setMusic(_ m: MusicSnapshot) {
+        let t = Date().timeIntervalSinceReferenceDate
         lock.lock()
         if m.palette != base.music.palette {
             paletteFrom = base.music.palette
-            paletteChanged = Date().timeIntervalSinceReferenceDate
+            paletteChanged = t
         }
+        track.update(old: base.music, new: m, at: t)
         base.music = m
         lock.unlock()
     }
@@ -111,10 +115,18 @@ final class DashState {
         var s = base
         let keep = noticeSeconds
         base.notices.removeAll { t - $0.time > 600 }
-        // Transición de colores al cambiar de canción.
-        if animations && t - paletteChanged < DashState.fade {
+        // Transición de colores al cambiar de canción (al mismo ritmo que la portada y los textos).
+        if animations && t - paletteChanged < TrackTransition.duration {
             s.paletteFrom = paletteFrom
-            s.paletteFade = max(0, (t - paletteChanged) / DashState.fade)
+            s.paletteFade = max(0, (t - paletteChanged) / TrackTransition.duration)
+        }
+        if animations, let f = track.fade(at: t) {
+            s.musicFrom = track.from
+            s.musicFade = f
+        }
+        if animations, let f = track.artFade(at: t) {
+            s.artFrom = track.artFrom
+            s.artFade = f
         }
         // Fundido de entrada de una ruta nueva (al recalcular).
         if let shape = nav.shape, shape !== lastShape {

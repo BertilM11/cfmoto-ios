@@ -140,7 +140,9 @@ struct OverlaySettings: Codable, Equatable {
 }
 
 enum OverlayItem: String, CaseIterable {
-    case maneuver, music, trip, notices, clock, compass
+    /// `time`: la hora actual, fija arriba a la derecha en todos los modos (0.6.2). No se mueve
+    /// ni se oculta, para no confundirla con la hora de llegada.
+    case maneuver, music, trip, notices, clock, compass, time
 
     static let editable: [OverlayItem] = [.maneuver, .music, .trip, .notices, .clock]
 
@@ -152,6 +154,7 @@ enum OverlayItem: String, CaseIterable {
         case .notices: return "Avisos"
         case .clock: return "Reloj"
         case .compass: return "Brújula"
+        case .time: return "Hora actual"
         }
     }
     var symbol: String {
@@ -162,6 +165,7 @@ enum OverlayItem: String, CaseIterable {
         case .notices: return "bell.fill"
         case .clock: return "clock.fill"
         case .compass: return "location.north.fill"
+        case .time: return "clock"
         }
     }
     var resizable: Bool { self == .maneuver || self == .music }
@@ -175,7 +179,7 @@ extension OverlaySettings {
         case .trip: return trip
         case .notices: return notices
         case .clock: return clock
-        case .compass: return true
+        case .compass, .time: return true
         }
     }
 
@@ -186,7 +190,7 @@ extension OverlaySettings {
         case .trip: trip = on
         case .notices: notices = on
         case .clock: clock = on
-        case .compass: break
+        case .compass, .time: break
         }
     }
 
@@ -198,6 +202,7 @@ extension OverlaySettings {
         case .notices: return noticesSpot
         case .clock: return clockSpot
         case .compass: return .bottomRight
+        case .time: return .topRight
         }
     }
 
@@ -208,7 +213,7 @@ extension OverlaySettings {
         case .trip: tripSpot = spot
         case .notices: noticesSpot = spot
         case .clock: clockSpot = spot
-        case .compass: break
+        case .compass, .time: return
         }
         set(item, on: true)
     }
@@ -726,15 +731,25 @@ extension DashLayoutEngine {
     /// Tamaño base de cada tarjeta (en la escala de una imagen de 800 de ancho).
     static func cardSize(_ item: OverlayItem, _ o: OverlaySettings) -> CGSize {
         switch item {
-        // 0.6.1: tarjetas compactas algo más pequeñas para tapar menos mapa (la letra se
-        // ajusta sola al tamaño de la tarjeta).
-        case .maneuver: return o.maneuverSize == .large ? CGSize(width: 340, height: 176) : CGSize(width: 284, height: 136)
+        // 0.6.2: la maniobra compacta, un 30 % más pequeña por lado (era 284×136) para ver la
+        // ruta; lleva flecha, distancia y calle. La grande sigue igual para quien la prefiera.
+        case .maneuver: return o.maneuverSize == .large ? CGSize(width: 340, height: 176) : CGSize(width: 200, height: 96)
         case .music: return o.musicSize == .large ? CGSize(width: 300, height: 124) : CGSize(width: 250, height: 84)
         case .trip: return CGSize(width: 400, height: 46)
         case .notices: return CGSize(width: 262, height: 58)
         case .clock: return CGSize(width: 136, height: 46)
         case .compass: return CGSize(width: 44, height: 44)
+        case .time: return CGSize(width: 116, height: 30)
         }
+    }
+
+    /// Hora actual: siempre en el mismo sitio (arriba a la derecha), en todos los modos y con o
+    /// sin ruta. `area`: el área útil de la imagen.
+    static func statusClock(in area: CGRect, k: CGFloat) -> CGRect {
+        let size = cardSize(.time, OverlaySettings())
+        let margin = 12 * k
+        return CGRect(x: area.maxX - margin - size.width * k, y: area.minY + margin,
+                      width: size.width * k, height: size.height * k)
     }
 
     /// Tarjetas flotantes sobre el mapa. Las que comparten esquina se apilan; ninguna se sale
@@ -754,6 +769,10 @@ extension DashLayoutEngine {
         var placed: [OverlayCard] = []
         var stackTop: [CardSpot: CGFloat] = [:]
         var stackBottom: [CardSpot: CGFloat] = [:]
+        // La hora va primero y no se mueve: lo que vaya arriba a la derecha se pone debajo.
+        let clock = statusClock(in: area, k: k)
+        placed.append(OverlayCard(item: .time, rect: clock))
+        stackTop[.topRight] = clock.maxY + gap
 
         func attempt(_ item: OverlayItem, _ spot: CardSpot) -> CGRect? {
             var size = cardSize(item, o)
@@ -817,7 +836,7 @@ extension DashLayoutEngine {
             if let rect = attempt(item, spot) { commit(item, spot, rect) }
         }
         // La brújula, pequeña, en la primera esquina que tenga sitio.
-        let used = Set(placed.map { o.spot($0.item) })
+        let used = Set(placed.filter { $0.item != .time }.map { o.spot($0.item) })
         var candidates: [CardSpot] = used.contains(.bottomRight) && !used.contains(.bottomLeft)
             ? [.bottomLeft, .bottomRight] : [.bottomRight, .bottomLeft]
         candidates += [.topRight, .topLeft, .bottomCenter]
@@ -838,6 +857,8 @@ struct MusicSnapshot {
     var source = ""
     var title = ""
     var artist = ""
+    /// Álbum (si el servicio lo da).
+    var album = ""
     var playing = false
     var duration: Double = 0
     var position: Double = 0
@@ -846,6 +867,84 @@ struct MusicSnapshot {
     var artwork: CGImage?
     /// Colores dominantes de la portada (si hay portada).
     var palette: ArtPalette?
+}
+
+/// Fundido al cambiar de canción: la anterior se desvanece mientras entra la nueva. Lógica pura
+/// (la usa el estado del panel y la comprueban las pruebas). Sin coste apreciable: dura
+/// menos de medio segundo y solo mezcla lo que ya se dibuja.
+struct TrackTransition {
+    static let duration = 0.45
+    private(set) var from: MusicSnapshot?
+    private(set) var changed: TimeInterval = -1_000_000
+    private(set) var artFrom: CGImage?
+    private(set) var artChanged: TimeInterval = -1_000_000
+
+    /// Lo que identifica una canción (sin música: vacío).
+    static func key(_ m: MusicSnapshot) -> String {
+        m.available && !m.title.isEmpty ? m.source + "\u{1}" + m.title + "\u{1}" + m.artist : ""
+    }
+
+    /// Sonaba `old` y llega `new` en el momento `t` (segundos).
+    mutating func update(old: MusicSnapshot, new: MusicSnapshot, at t: TimeInterval) {
+        if TrackTransition.key(old) != TrackTransition.key(new) {
+            from = old
+            changed = t
+            artFrom = nil
+            artChanged = -1_000_000
+        } else if old.artwork !== new.artwork {
+            // Misma canción, portada nueva (Spotify la entrega después del título).
+            artFrom = old.artwork
+            artChanged = t
+        }
+    }
+
+    /// Avance (0…1) del fundido de canción, o nil si no hay ninguno en curso.
+    func fade(at t: TimeInterval) -> Double? {
+        let f = (t - changed) / TrackTransition.duration
+        return f >= 0 && f < 1 ? f : nil
+    }
+
+    /// Avance del fundido de la portada de la misma canción, o nil.
+    func artFade(at t: TimeInterval) -> Double? {
+        let f = (t - artChanged) / TrackTransition.duration
+        return f >= 0 && f < 1 ? f : nil
+    }
+}
+
+/// Pantalla de música completa (modo «4 · Música»), al estilo de CarPlay: portada grande a la
+/// derecha; título, artista y estado centrados a la izquierda; barra de progreso a todo el
+/// ancho con el tiempo transcurrido y la duración. Función pura para poder probarla.
+struct MusicStageLayout: Equatable {
+    var header: CGRect
+    var artwork: CGRect
+    var text: CGRect
+    var progress: CGRect
+
+    /// ¿Cabe esta distribución? Si no (columna estrecha), se usa la tarjeta de siempre.
+    static func fits(_ r: CGRect, k: CGFloat) -> Bool { r.width >= 520 * k && r.height >= 220 * k }
+
+    /// `reserve`: la hora actual, si cae dentro de la zona (la cabecera la deja libre).
+    static func make(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, reserve: CGRect?) -> MusicStageLayout {
+        let pad = 26 * k
+        var header = CGRect(x: r.minX + pad, y: r.minY + 16 * k, width: r.width - 2 * pad, height: 26 * k)
+        if let c = reserve, c.intersects(header.insetBy(dx: 0, dy: -8 * k)) {
+            header.size.width = max(0, c.minX - 12 * k - header.minX)
+        }
+        let progressH = 28 * k
+        let progress = CGRect(x: r.minX + pad, y: r.maxY - 22 * k - progressH, width: r.width - 2 * pad, height: progressH)
+        let bandTop = header.maxY + 12 * k
+        let bandH = max(0, progress.minY - 16 * k - bandTop)
+        var art = CGRect.zero
+        var textRight = r.maxX - pad
+        if artwork {
+            let f: CGFloat = size == .small ? 0.75 : (size == .large ? 1 : 0.92)
+            let side = (min(bandH, r.width * 0.36) * f).rounded()
+            art = CGRect(x: r.maxX - pad - side, y: (bandTop + bandH / 2 - side / 2).rounded(), width: side, height: side)
+            textRight = art.minX - 30 * k
+        }
+        let text = CGRect(x: r.minX + pad, y: bandTop, width: max(0, textRight - r.minX - pad), height: bandH)
+        return MusicStageLayout(header: header, artwork: art, text: text, progress: progress)
+    }
 }
 
 enum NoticeKind: String, Codable {
@@ -887,6 +986,12 @@ struct DashSnapshot {
     /// Colores de la canción anterior y avance de la transición (0…1).
     var paletteFrom: ArtPalette?
     var paletteFade: Double = 1
+    /// Canción anterior mientras dura el fundido al cambiar de canción (0…1).
+    var musicFrom: MusicSnapshot?
+    var musicFade: Double = 1
+    /// Portada anterior de la misma canción (por ejemplo, la de Spotify que llega tarde).
+    var artFrom: CGImage?
+    var artFade: Double = 1
     /// Ruta recién recalculada: avance del fundido de entrada (0…1).
     var routeFade: Double = 1
     /// Ruta guiada por otra app (la moto muestra solo el destino).
@@ -1004,6 +1109,7 @@ enum DashDemo {
         s.nav = nav(now: now)
         s.music = MusicSnapshot(
             available: true, source: "Música", title: "Canción de demostración", artist: "Artista de ejemplo",
+            album: "Álbum de ejemplo",
             playing: true, duration: 214, position: 73, positionTime: now.timeIntervalSinceReferenceDate,
             artwork: artwork, palette: palette
         )

@@ -170,7 +170,8 @@ struct MyScreenEditor: View {
                         .position(x: spot.region.midX * size.width, y: spot.region.midY * previewHeight)
                 }
                 let cards = DashLayoutEngine.overlayCards(current.overlay, in: usable, k: 1, showNotices: true)
-                ForEach(cards.filter { $0.item != .compass }, id: \.item) { card in
+                // La brújula y la hora actual no se mueven ni se ocultan.
+                ForEach(cards.filter { $0.item != .compass && $0.item != .time }, id: \.item) { card in
                     CardHandle(item: card.item)
                         .frame(width: card.rect.width * scale, height: card.rect.height * scale)
                         .position(x: card.rect.midX * scale, y: card.rect.midY * scale)

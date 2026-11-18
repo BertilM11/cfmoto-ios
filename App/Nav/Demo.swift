@@ -44,7 +44,7 @@ enum Demo {
         DashStore.shared.config.theme = mode == "night" ? .dark : .light
         DashState.shared.setMusic(MusicSnapshot(
             available: true, source: "Demo", title: "Canción de demostración", artist: "Prueba automática",
-            playing: true, duration: 214, position: 60, positionTime: Date().timeIntervalSinceReferenceDate,
+            album: "Álbum de demostración", playing: true, duration: 214, position: 60, positionTime: Date().timeIntervalSinceReferenceDate,
             artwork: DashDemo.artwork, palette: DashDemo.palette
         ))
         let timer = Timer(timeInterval: 2.0, repeats: true) { _ in dump() }
