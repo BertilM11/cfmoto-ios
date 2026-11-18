@@ -879,6 +879,8 @@ for mode in DashMode.allCases {
             if !routeOn {
                 s.nav.navigating = false
                 s.nav.shape = nil
+                s.nav.here = center.moved(90, bearing: heading + 180)
+                s.nav.course = heading
             }
             clockRenders += 1
             if clockInk(pixels(s), night: theme == .dark) < 40 {
@@ -902,6 +904,9 @@ check("La hora de llegada y la hora actual son cosas distintas (7:22 y 7:04)",
 var idleTrip = streetsSnapshot(.preset(.gpsMusic), theme: .dark)
 idleTrip.nav.navigating = false
 idleTrip.nav.shape = nil
+// Sin ruta, el mapa sigue donde está la moto (como en la foto de la TFT).
+idleTrip.nav.here = center.moved(90, bearing: heading + 180)
+idleTrip.nav.course = heading
 var idleNoTrip = idleTrip
 idleNoTrip.layout.overlay.trip = false
 check("Sin ruta, abajo no aparece otra hora (solo la fija de arriba)", pixels(idleTrip).data == pixels(idleNoTrip).data)

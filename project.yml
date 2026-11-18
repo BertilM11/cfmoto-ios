@@ -26,7 +26,7 @@ targets:
       properties:
         CFBundleDisplayName: CFMoto Link
         CFBundleShortVersionString: "0.6.2"
-        CFBundleVersion: "10"
+        CFBundleVersion: "11"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
@@ -71,7 +71,7 @@ targets:
       properties:
         CFBundleDisplayName: CFMoto Link
         CFBundleShortVersionString: "0.6.2"
-        CFBundleVersion: "10"
+        CFBundleVersion: "11"
         NSLocalNetworkUsageDescription: CFMoto Link se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.broadcast-services-upload
