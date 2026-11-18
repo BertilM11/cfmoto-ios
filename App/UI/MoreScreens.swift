@@ -120,7 +120,7 @@ struct MusicScreen: View {
                 .font(.title2)
                 .tint(Brand.blue)
                 .disabled(useSpotify ? !spotify.connected : (!music.authorized || !MusicService.supported))
-                Text("La pantalla de la moto no es táctil y el protocolo no envía botones: los controles están aquí, en el iPhone.")
+                Text("En la moto se ven los mismos botones, pero no se pueden pulsar (su pantalla no es táctil y el protocolo no envía teclas): para cambiar de canción, usa estos del iPhone.")
                     .font(.caption).foregroundColor(Brand.dim)
             }
 

@@ -966,12 +966,14 @@ extension HUDRenderer {
         }
     }
 
-    // MARK: - Música (0.6.3: el mismo reproductor en todos los modos)
+    // MARK: - Música (0.6.3: el mismo reproductor en todos los modos; 0.6.4: con botones)
 
     /// El reproductor en cualquier sitio: música completa, columna de la pantalla dividida o de
-    /// Música + Avisos, y tarjetas sobre el mapa. Siempre el mismo fondo con los colores de la
-    /// portada, la portada con sombra, la misma letra, el estado y la barra; solo cambia la
-    /// forma (`MusicPlayerLayout`). Sin botones: el protocolo de la moto no envía teclas.
+    /// Música + Avisos, y tarjetas sobre el mapa. Siempre el mismo fondo con los colores y la luz
+    /// de la portada, la portada con sombra, la misma letra, los botones y la barra; solo cambia
+    /// la forma (`MusicPlayerLayout`). 0.6.4: los botones (anterior, reproducir/pausar y
+    /// siguiente) son los de la referencia y solo se ven: el protocolo de la moto no envía
+    /// toques ni teclas a la app, así que la música se controla desde el iPhone.
     /// `card`: tamaño de la tarjeta sobre el mapa, o nil para una zona del panel.
     func dashPlayer(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, card: CardSize?) {
         let m = s.music
@@ -988,8 +990,8 @@ extension HUDRenderer {
             ctx.addPath(CGPath(roundedRect: r, cornerWidth: 18 * k, cornerHeight: 18 * k, transform: nil))
             ctx.clip()
         }
-        // Nombre del servicio arriba a la izquierda (en las tarjetas va junto al estado), con un
-        // punto del color de la barra, como la marca del servicio en la referencia.
+        // Nombre del servicio arriba a la izquierda (en las filas va en la primera línea o junto a
+        // los botones), con un punto del color de la barra, como la marca en la referencia.
         if L.style != .row && s.showSource && has && L.header.width > 40 * k {
             let src = textLines(sourceName(m), sizes: [L.source], bold: true, color: sourceColor(m, c), width: L.header.width - L.source, maxLines: 1)
             if let line = src.lines.first {
@@ -1011,6 +1013,7 @@ extension HUDRenderer {
         } else {
             playerTrack(m, s, c, L, p, artAlpha: 1, textAlpha: 1, dy: 0, art: m.artwork, artFrom: s.artFrom, artFade: CGFloat(s.artFade), ctx)
         }
+        playerControls(s, c, L, ctx)
         if has && s.showProgress && m.duration > 1 {
             playerProgress(m, c, L, now, ctx)
         }
@@ -1026,44 +1029,164 @@ extension HUDRenderer {
         m.source.isEmpty ? "Música" : m.source
     }
 
-    /// Barra de progreso con el tiempo transcurrido y la duración (a los lados en la música
-    /// completa y la columna; encima de la barra en las tarjetas grandes; sin tiempos en las
-    /// compactas).
+    /// 0.6.4: los botones de la referencia: anterior, reproducir/pausar (el grande, en un círculo)
+    /// y siguiente. Solo se ven (en la moto no se pueden pulsar). El central muestra el estado
+    /// real: ❚❚ mientras suena y ▶ en pausa, con un fundido corto al cambiar. Sin música se ven
+    /// apagados. De noche, iconos blancos y círculo blanco con el símbolo oscuro; de día, al revés
+    /// (oscuros sobre el fondo claro), para que se distingan igual.
+    func playerControls(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ ctx: CGContext) {
+        guard L.button > 0, !L.controls.isEmpty else { return }
+        let m = s.music
+        let has = m.available && !m.title.isEmpty
+        let g = L.transport
+        // Tarjeta compacta: el nombre del servicio, a la derecha de los botones.
+        if L.sourceInControls && s.showSource && has {
+            let room = L.controls.maxX - g.bounds.maxX - 10 * k
+            let d = L.source * 0.6
+            let gap = L.source * 0.4
+            let src = textLines(sourceName(m), sizes: [L.source, L.source * 0.9], bold: true, color: sourceColor(m, c),
+                                width: max(10, room - d - gap), maxLines: 1)
+            if let line = src.lines.first, !line.truncated, line.width + d + gap <= room {
+                let x = L.controls.maxX - line.width
+                ctx.setFillColor(c.accent.cg)
+                ctx.fillEllipse(in: CGRect(x: x - gap - d, y: L.controls.midY - d / 2, width: d, height: d))
+                put(line, x: x, baseline: L.controls.midY + (line.ascent - line.descent) / 2, ctx)
+            }
+        }
+        let alpha: CGFloat = has ? 1 : 0.35
+        let playing = has && m.playing
+        if HUDRenderer.recordText {
+            let box = textBox ?? ctx.boundingBoxOfClipPath
+            controlMarks.append(ControlMark(kind: "anterior", rect: g.previous, box: box, alpha: alpha))
+            controlMarks.append(ControlMark(kind: playing ? "pausa" : "reproducir", rect: g.play, box: box, alpha: alpha))
+            controlMarks.append(ControlMark(kind: "siguiente", rect: g.next, box: box, alpha: alpha))
+        }
+        if HUDRenderer.hideControls { return }
+        let ink = c.text.cg
+        // El símbolo del círculo: del tono del fondo, muy oscuro, sobre el círculo claro; blanco
+        // sobre el círculo oscuro.
+        let mid = c.top.mixed(with: c.bottom, 0.5)
+        let symbol = c.text.luminance > 0.5 ? mid.with(l: min(mid.hsl.l, 0.12)).cg : RGB(1, 1, 1).cg
+        ctx.saveGState()
+        ctx.setAlpha(alpha)
+        skipGlyph(g.previous, forward: false, ink, ctx)
+        skipGlyph(g.next, forward: true, ink, ctx)
+        let d = g.play.width
+        paintShadow(g.play, radius: d / 2, color: CGColor(gray: 0, alpha: s.night ? 0.45 : 0.24), blur: max(3 * k, d * 0.2), drop: d * 0.06, ctx)
+        ctx.setFillColor(ink)
+        ctx.fillEllipse(in: g.play)
+        let fade = CGFloat(max(0, min(1, s.playFade)))
+        if fade < 1 && has {
+            ctx.setAlpha(alpha * (1 - fade))
+            playPauseGlyph(!playing, g.play, symbol, ctx)
+            ctx.setAlpha(alpha * fade)
+        }
+        playPauseGlyph(playing, g.play, symbol, ctx)
+        ctx.restoreGState()
+    }
+
+    /// 0.6.4: icono de saltar (anterior o siguiente): barra y triángulo con las esquinas
+    /// suavizadas, como los de la referencia.
+    func skipGlyph(_ r: CGRect, forward: Bool, _ color: CGColor, _ ctx: CGContext) {
+        guard r.width > 2, r.height > 2 else { return }
+        let w = r.width
+        let barW = max(1.5 * k, w * 0.18)
+        let soft = max(0.6 * k, w * 0.06)
+        ctx.saveGState()
+        ctx.setFillColor(color)
+        ctx.setStrokeColor(color)
+        let bar = CGRect(x: forward ? r.maxX - barW : r.minX, y: r.minY, width: barW, height: r.height)
+        ctx.addPath(CGPath(roundedRect: bar, cornerWidth: barW / 2, cornerHeight: barW / 2, transform: nil))
+        ctx.fillPath()
+        // El triángulo apunta hacia la barra.
+        let near = forward ? bar.minX - w * 0.05 - soft : bar.maxX + w * 0.05 + soft
+        let far = forward ? r.minX + soft : r.maxX - soft
+        ctx.setLineJoin(.round)
+        ctx.setLineWidth(soft * 2)
+        ctx.beginPath()
+        ctx.move(to: CGPoint(x: far, y: r.minY + soft))
+        ctx.addLine(to: CGPoint(x: near, y: r.midY))
+        ctx.addLine(to: CGPoint(x: far, y: r.maxY - soft))
+        ctx.closePath()
+        ctx.drawPath(using: .fillStroke)
+        ctx.restoreGState()
+    }
+
+    /// 0.6.4: símbolo del botón central: ❚❚ mientras suena (el botón pausaría) o ▶ en pausa.
+    func playPauseGlyph(_ playing: Bool, _ circle: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let d = circle.width
+        let c = CGPoint(x: circle.midX, y: circle.midY)
+        ctx.saveGState()
+        ctx.setFillColor(color)
+        ctx.setStrokeColor(color)
+        if playing {
+            let h = d * 0.36
+            let bw = d * 0.115
+            let gap = d * 0.12
+            for x in [c.x - gap / 2 - bw, c.x + gap / 2] {
+                ctx.addPath(CGPath(roundedRect: CGRect(x: x, y: c.y - h / 2, width: bw, height: h),
+                                   cornerWidth: bw * 0.3, cornerHeight: bw * 0.3, transform: nil))
+            }
+            ctx.fillPath()
+        } else {
+            let h = d * 0.38
+            let w = h * 0.88
+            let soft = d * 0.025
+            // Un poco a la derecha: el triángulo se ve centrado así (centro óptico).
+            let x0 = c.x - w / 2 + d * 0.035
+            ctx.setLineJoin(.round)
+            ctx.setLineWidth(soft * 2)
+            ctx.beginPath()
+            ctx.move(to: CGPoint(x: x0 + soft, y: c.y - h / 2 + soft))
+            ctx.addLine(to: CGPoint(x: x0 + w - soft, y: c.y))
+            ctx.addLine(to: CGPoint(x: x0 + soft, y: c.y + h / 2 - soft))
+            ctx.closePath()
+            ctx.drawPath(using: .fillStroke)
+        }
+        ctx.restoreGState()
+    }
+
+    /// Barra de progreso con el tiempo transcurrido y la duración a los lados (en la tarjeta
+    /// compacta, fina, al pie y sin tiempos). 0.6.4: la parte hecha lleva un degradado del color
+    /// de la barra (más claro al empezar) y el punto, un halo suave.
     func playerProgress(_ m: MusicSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ now: Date, _ ctx: CGContext) {
         let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
         let pos = max(0, min(m.duration, m.position + elapsed))
         let fraction = CGFloat(pos / m.duration)
-        let a = measure(dashTime(pos), size: L.time, bold: true, color: c.secondary.cg)
-        let b = measure(dashTime(m.duration), size: L.time, bold: true, color: c.secondary.cg)
-        var bar: CGRect
-        switch L.style {
-        case .stage, .column:
+        var bar = CGRect(x: L.progress.minX, y: L.progress.midY - L.bar / 2, width: L.progress.width, height: L.bar)
+        if L.times {
+            let a = measure(dashTime(pos), size: L.time, bold: true, color: c.secondary.cg)
+            let b = measure(dashTime(m.duration), size: L.time, bold: true, color: c.secondary.cg)
             // Ancho fijo para los tiempos: la barra no se mueve al cambiar los segundos.
             let label = max(measure(m.duration >= 600 ? "88:88" : "8:88", size: L.time, bold: true, color: c.secondary.cg).width, a.width, b.width)
-            let gap = (L.style == .stage ? 14 : 10) * k
+            let gap = (L.style == .stage ? 14 : (L.card ? 7 : 10)) * k
             bar = CGRect(x: L.progress.minX + label + gap, y: L.progress.midY - L.bar / 2,
                          width: max(0, L.progress.width - 2 * (label + gap)), height: L.bar)
             let baseline = L.progress.midY + (a.ascent - a.descent) / 2
             put(a, x: bar.minX - gap - a.width, baseline: baseline, ctx)
             put(b, x: bar.maxX + gap, baseline: baseline, ctx)
-        case .row:
-            bar = CGRect(x: L.progress.minX, y: L.progress.maxY - L.bar, width: L.progress.width, height: L.bar)
-            if L.times {
-                let baseline = bar.minY - 4 * k - a.descent
-                put(a, x: bar.minX, baseline: baseline, ctx)
-                put(b, x: bar.maxX - b.width, baseline: baseline, ctx)
-            }
         }
+        guard bar.width > 4 else { return }
         fillRounded(bar, radius: L.bar / 2, color: c.track.cg, ctx)
         let done = bar.width * fraction
         if done > 1 {
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: done, height: bar.height), radius: L.bar / 2, color: c.accent.cg, ctx)
+            let fill = CGRect(x: bar.minX, y: bar.minY, width: max(done, L.bar), height: bar.height)
+            let light = c.text.luminance > 0.5 ? c.accent.mixed(with: RGB(1, 1, 1), 0.3) : c.accent.with(l: min(1, c.accent.hsl.l + 0.08))
+            ctx.saveGState()
+            ctx.addPath(CGPath(roundedRect: fill, cornerWidth: L.bar / 2, cornerHeight: L.bar / 2, transform: nil))
+            ctx.clip()
+            if let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [light.cg, c.accent.cg] as CFArray, locations: [0, 1]) {
+                ctx.drawLinearGradient(g, start: CGPoint(x: bar.minX, y: bar.midY), end: CGPoint(x: fill.maxX, y: bar.midY), options: [])
+            }
+            ctx.restoreGState()
         }
-        // 0.6.3: punto en la posición actual con un halo del color de la barra (referencia).
-        let d = max(L.bar * 2.2, 7 * k)
+        // Punto en la posición actual con un halo del color de la barra (referencia).
+        let thin = L.card && !L.times
+        let d = thin ? L.bar * 2 : max(L.bar * 2.2, 7 * k)
         let x = min(max(bar.minX + done, bar.minX + d / 2), bar.maxX - d / 2)
-        ctx.setFillColor(c.accent.cg.copy(alpha: 0.35) ?? c.accent.cg)
-        ctx.fillEllipse(in: CGRect(x: x - d, y: bar.midY - d, width: d * 2, height: d * 2))
+        let halo = thin ? d * 0.8 : d
+        ctx.setFillColor(c.accent.cg.copy(alpha: 0.3) ?? c.accent.cg)
+        ctx.fillEllipse(in: CGRect(x: x - halo, y: bar.midY - halo, width: halo * 2, height: halo * 2))
         ctx.setFillColor(c.text.cg)
         ctx.fillEllipse(in: CGRect(x: x - d / 2, y: bar.midY - d / 2, width: d, height: d))
     }
@@ -1073,7 +1196,8 @@ extension HUDRenderer {
         return String(format: "%d:%02d", t / 60, t % 60)
     }
 
-    func dashArtwork(_ image: CGImage?, _ rect: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
+    /// `fill`: color detrás de una portada que no es cuadrada (0.6.4).
+    func dashArtwork(_ image: CGImage?, _ rect: CGRect, _ p: HUDPalette, _ ctx: CGContext, fill: CGColor? = nil) {
         guard rect.width > 4 else { return }
         // Reglas de Spotify para portadas: sin recortes ni nada encima y esquinas de 4 px
         // (pequeñas) u 8 px (grandes). Se aplica igual a Apple Music.
@@ -1082,10 +1206,21 @@ extension HUDRenderer {
         ctx.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
         ctx.clip()
         if let image = image {
-            ctx.translateBy(x: rect.minX, y: rect.maxY)
+            // 0.6.4: proporciones respetadas. Las portadas de Spotify y Apple Music son cuadradas;
+            // si llega una que no lo es, se ve entera (sin recortar ni estirar) sobre un fondo.
+            var target = rect
+            let iw = CGFloat(image.width)
+            let ih = CGFloat(image.height)
+            if iw > 0, ih > 0, abs(iw - ih) > max(iw, ih) * 0.02 {
+                let scale = min(rect.width / iw, rect.height / ih)
+                target = CGRect(x: rect.midX - iw * scale / 2, y: rect.midY - ih * scale / 2, width: iw * scale, height: ih * scale)
+                ctx.setFillColor(fill ?? p.line)
+                ctx.fill(rect)
+            }
+            ctx.translateBy(x: target.minX, y: target.maxY)
             ctx.scaleBy(x: 1, y: -1)
             ctx.interpolationQuality = .medium
-            ctx.draw(image, in: CGRect(origin: .zero, size: rect.size))
+            ctx.draw(image, in: CGRect(origin: .zero, size: target.size))
         } else {
             ctx.setFillColor(p.line)
             ctx.fill(rect)
@@ -1191,7 +1326,9 @@ extension HUDRenderer {
 
     /// Fondo del reproductor: degradado con los colores de la portada y un resplandor suave
     /// detrás de ella (en las tarjetas, más pequeño y suave para que el texto se siga leyendo).
-    /// Solo cambia con la canción, así que se dibuja una vez y se reutiliza (salvo en el fundido).
+    /// 0.6.4: encima, la luz de la portada (sus colores, difuminados, como el fondo de CarPlay) y,
+    /// de noche, un velo algo más oscuro abajo. Solo cambia con la canción, así que se dibuja una
+    /// vez y se reutiliza (salvo en el fundido).
     func drawPlayerBackground(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ r: CGRect, _ ctx: CGContext) {
         var glow = c.accent
         if let base = s.music.palette?.base {
@@ -1208,14 +1345,37 @@ extension HUDRenderer {
         let alpha: CGFloat = L.card ? 0.94 : 1
         let reach = L.style == .row ? max(L.artwork.width * 1.6, r.height) : max(r.width, r.height) * 0.55
         let strength: CGFloat = (s.night ? 0.5 : 0.4) * (L.style == .row ? 0.8 : 1) * alpha
+        // Luz de la portada: la de ahora y, durante el cambio de canción, la anterior.
+        let dynamic = s.musicStyle == .dynamic
+        let fadeIn = CGFloat(max(0, min(1, s.paletteFade)))
+        let lightNow = dynamic && s.music.available ? s.music.artwork.flatMap { ambientLight($0, night: s.night) } : nil
+        let lightOld = dynamic && fadeIn < 1 ? s.musicFrom?.artwork.flatMap { ambientLight($0, night: s.night) } : nil
+        let lightAlpha = (L.card ? 0.42 : 0.6) * CGFloat(max(0, min(1, s.musicIntensity / 0.75)))
+        let veil = c.text.luminance > 0.5 ? (L.card ? 0.12 : 0.2) as CGFloat : 0
         func paint(_ g: CGContext) {
             drawMusicBackground(r, c, radius: radius, alpha: alpha, g)
-            let colors = [glow.cg.copy(alpha: strength) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
-            guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
             g.saveGState()
             g.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
             g.clip()
-            g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: reach, options: [])
+            func light(_ image: CGImage, _ a: CGFloat) {
+                guard a > 0.005 else { return }
+                g.saveGState()
+                g.setAlpha(a * alpha)
+                g.interpolationQuality = .medium
+                g.translateBy(x: r.minX, y: r.maxY)
+                g.scaleBy(x: 1, y: -1)
+                g.draw(image, in: CGRect(x: 0, y: 0, width: r.width, height: r.height))
+                g.restoreGState()
+            }
+            if let o = lightOld { light(o.image, lightAlpha * (1 - fadeIn)) }
+            if let n = lightNow { light(n.image, lightAlpha * fadeIn) }
+            let colors = [glow.cg.copy(alpha: strength) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) {
+                g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: reach, options: [])
+            }
+            if veil > 0 {
+                fillVertical(r, CGColor(gray: 0, alpha: 0), CGColor(gray: 0, alpha: veil), g)
+            }
             g.restoreGState()
         }
         let w = Int(r.width.rounded())
@@ -1225,8 +1385,8 @@ extension HUDRenderer {
             return
         }
         func rgb(_ x: RGB) -> String { String(format: "%.3f,%.3f,%.3f", x.r, x.g, x.b) }
-        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f,%.0f,%.2f", r.minX, r.minY, w, h, center.x, center.y, reach, alpha),
-                   L.style.rawValue, rgb(c.top), rgb(c.bottom), rgb(glow), s.night ? "n" : "d"].joined(separator: "|")
+        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f,%.0f,%.2f,%.3f", r.minX, r.minY, w, h, center.x, center.y, reach, alpha, lightAlpha),
+                   L.style.rawValue, rgb(c.top), rgb(c.bottom), rgb(c.text), rgb(glow), s.night ? "n" : "d", lightNow?.signature ?? "-"].joined(separator: "|")
         if stageBackground?.key != key {
             let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
             guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
@@ -1255,9 +1415,108 @@ extension HUDRenderer {
         ctx.restoreGState()
     }
 
-    /// Sombra suave de la portada sin desenfoque (tres capas), proporcional a su tamaño.
+    /// 0.6.4: la luz de la portada para el fondo, como en CarPlay: la portada reducida a 4×4
+    /// colores (más oscuros de noche y más claros de día, para que el texto se siga leyendo) y
+    /// ampliada con suavizado. Se calcula una vez por portada y tema. `signature`: sus colores.
+    func ambientLight(_ art: CGImage, night: Bool) -> (image: CGImage, signature: String)? {
+        if let a = ambientCache.first(where: { $0.art === art && $0.night == night }) { return (a.image, a.signature) }
+        let src = 32
+        let n = 4
+        let cell = src / n
+        var px = [UInt8](repeating: 0, count: src * src * 4)
+        let drawn: Bool = px.withUnsafeMutableBytes { raw in
+            guard let g = CGContext(data: raw.baseAddress, width: src, height: src, bitsPerComponent: 8, bytesPerRow: src * 4,
+                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            g.interpolationQuality = .high
+            g.draw(art, in: CGRect(x: 0, y: 0, width: src, height: src))
+            return true
+        }
+        guard drawn else { return nil }
+        var out = [UInt8](repeating: 255, count: n * n * 4)
+        var signature = ""
+        for by in 0..<n {
+            for bx in 0..<n {
+                var r = 0.0
+                var g = 0.0
+                var b = 0.0
+                var count = 0.0
+                for y in by * cell ..< (by + 1) * cell {
+                    for x in bx * cell ..< (bx + 1) * cell {
+                        let o = (y * src + x) * 4
+                        let a = Double(px[o + 3]) / 255
+                        guard a > 0.05 else { continue }
+                        r += Double(px[o]) / 255 / a
+                        g += Double(px[o + 1]) / 255 / a
+                        b += Double(px[o + 2]) / 255 / a
+                        count += 1
+                    }
+                }
+                var color = count > 0 ? RGB(min(1, r / count), min(1, g / count), min(1, b / count)) : RGB(0.3, 0.3, 0.3)
+                let hsl = color.hsl
+                color = night ? RGB(h: hsl.h, s: min(0.7, hsl.s), l: max(0.07, min(0.27, hsl.l * 0.55)))
+                              : RGB(h: hsl.h, s: min(0.5, hsl.s * 0.9), l: max(0.74, min(0.9, 0.62 + hsl.l * 0.28)))
+                let o = (by * n + bx) * 4
+                out[o] = UInt8(max(0, min(255, (color.r * 255).rounded())))
+                out[o + 1] = UInt8(max(0, min(255, (color.g * 255).rounded())))
+                out[o + 2] = UInt8(max(0, min(255, (color.b * 255).rounded())))
+                signature += String(format: "%02x%02x%02x", out[o], out[o + 1], out[o + 2])
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(out) as CFData),
+              let tiny = CGImage(width: n, height: n, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: n * 4,
+                                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                                 provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
+        // Ampliada una vez a 48×48 con buena interpolación: al estirarla queda lisa.
+        let side = 48
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let big = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+        big.interpolationQuality = .high
+        big.draw(tiny, in: CGRect(x: 0, y: 0, width: side, height: side))
+        guard let image = big.makeImage() else { return nil }
+        ambientCache.insert((art, night, image, signature), at: 0)
+        if ambientCache.count > 4 { ambientCache.removeLast() }
+        return (image, signature)
+    }
+
+    /// 0.6.4: sombra difuminada de la portada (da profundidad, como en la referencia). Se dibuja
+    /// una vez por tamaño y tema y luego solo se copia.
+    func artShadowImage(_ side: CGFloat, night: Bool) -> (image: CGImage, margin: CGFloat)? {
+        let u = max(0.35, min(1, side / 200))
+        let blur = 20 * k * u
+        let m = (blur * 2.2).rounded(.up)
+        let key = String(format: "%.1f|%.2f|%d", side, k, night ? 1 : 0)
+        if let image = shadowImages[key] { return (image, m) }
+        let w = Int((side + 2 * m).rounded(.up))
+        guard w > 0, w < 1400 else { return nil }
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let off = CGContext(data: nil, width: w, height: w, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+        off.clear(CGRect(x: 0, y: 0, width: w, height: w))
+        let rad = (side < 110 ? 4 : 8) * k
+        // La forma va fuera de la imagen y solo su sombra cae dentro.
+        let far = CGFloat(4 * w)
+        off.setShadow(offset: CGSize(width: far, height: 0), blur: blur, color: CGColor(gray: 0, alpha: night ? 0.6 : 0.3))
+        off.addPath(CGPath(roundedRect: CGRect(x: m - far, y: m, width: side, height: side), cornerWidth: rad, cornerHeight: rad, transform: nil))
+        off.setFillColor(CGColor(gray: 0, alpha: 1))
+        off.fillPath()
+        guard let image = off.makeImage() else { return nil }
+        if shadowImages.count > 16 { shadowImages.removeAll() }
+        shadowImages[key] = image
+        return (image, m)
+    }
+
+    /// Sombra de la portada: la difuminada (0.6.4) o, si no se pudo preparar, tres capas suaves.
     func drawArtShadow(_ art: CGRect, night: Bool, _ ctx: CGContext) {
-        let u = max(0.4, min(1, art.width / 200))
+        let u = max(0.35, min(1, art.width / 200))
+        if let shadow = artShadowImage(art.width, night: night) {
+            let size = CGFloat(shadow.image.width)
+            ctx.saveGState()
+            ctx.interpolationQuality = .none
+            ctx.draw(shadow.image, in: CGRect(x: art.minX - shadow.margin, y: art.minY - shadow.margin + 7 * k * u, width: size, height: size))
+            ctx.restoreGState()
+            return
+        }
         let base: CGFloat = art.width < 110 ? 4 : 8
         for i in 1...3 {
             let d = CGFloat(i)
@@ -1270,24 +1529,18 @@ extension HUDRenderer {
     struct PlayerBlock {
         var lines: [Measured]
         var gap: CGFloat
-        /// Estado (reproduciendo / en pausa) en vez de texto.
-        var state = false
-        /// Primera línea de las tarjetas: símbolo del estado y nombre del servicio.
+        /// Primera línea de las filas: punto del color de la barra y nombre del servicio.
         var sourceLine = false
     }
 
     /// Separación entre las líneas de un mismo texto.
     func playerLineGap(_ L: MusicPlayerLayout) -> CGFloat { (L.style == .row ? 1 : 2) * k }
 
-    /// Alto de la píldora del estado.
-    func playerPill(_ L: MusicPlayerLayout) -> CGFloat { (L.style == .stage ? 36 : 28) * k }
-
     /// Alto total de unos bloques (como se dibujan en `playerTrack`).
     func playerHeight(_ blocks: [PlayerBlock], _ L: MusicPlayerLayout) -> CGFloat {
         var h: CGFloat = 0
         for (i, b) in blocks.enumerated() {
             if i > 0 { h += b.gap }
-            if b.state { h += playerPill(L); continue }
             for (j, line) in b.lines.enumerated() {
                 h += line.ascent + line.descent
                 if j < b.lines.count - 1 { h += playerLineGap(L) }
@@ -1299,6 +1552,7 @@ extension HUDRenderer {
     /// Los textos de una canción para una forma del reproductor, ya ajustados al alto disponible:
     /// si no caben, el título pasa a una línea, se quita el álbum y se reduce la letra (hasta
     /// dos veces). Nunca se cortan por el borde: como mucho, el final de una línea lleva "…".
+    /// 0.6.4: sin el estado («Reproduciendo»): ahora lo muestra el botón central.
     func playerBlocks(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout) -> (blocks: [PlayerBlock], height: CGFloat) {
         let has = m.available && !m.title.isEmpty
         let w = L.text.width
@@ -1311,9 +1565,10 @@ extension HUDRenderer {
                 return [PlayerBlock(lines: a.lines, gap: 0), PlayerBlock(lines: b.lines, gap: (row ? 3 : 8) * k)]
             }
             var blocks: [PlayerBlock] = []
-            if row && s.showSource {
-                let src = textLines(sourceName(m), sizes: [L.source * scale], bold: true,
-                                    color: sourceColor(m, c), width: max(10, w - L.source * scale * 1.6), maxLines: 1)
+            if row && s.showSource && !L.sourceInControls {
+                let size = L.source * scale
+                let src = textLines(sourceName(m), sizes: [size], bold: true, color: sourceColor(m, c),
+                                    width: max(10, w - size * 1.1), maxLines: 1)
                 blocks.append(PlayerBlock(lines: src.lines, gap: 0, sourceLine: true))
             }
             let t = L.title * scale
@@ -1321,7 +1576,7 @@ extension HUDRenderer {
             if !title.fits && twoLines {
                 title = textLines(m.title, sizes: [t * 0.9, t * 0.82, t * 0.76], bold: true, color: c.text.cg, width: w, maxLines: 2)
             }
-            blocks.append(PlayerBlock(lines: title.lines, gap: 1.5 * k))
+            blocks.append(PlayerBlock(lines: title.lines, gap: (row ? 1.5 : 2) * k))
             if artist && s.showArtist && !m.artist.isEmpty {
                 let a = L.artist * scale
                 blocks.append(PlayerBlock(lines: textLines(m.artist, sizes: [a, a * 0.9], bold: false, color: c.text.cg, width: w, maxLines: 1).lines,
@@ -1331,9 +1586,6 @@ extension HUDRenderer {
                 let a = L.album * scale
                 blocks.append(PlayerBlock(lines: textLines(m.album, sizes: [a, a * 0.9], bold: false, color: c.secondary.cg, width: w, maxLines: 1).lines,
                                           gap: (row ? 1.5 : 6) * k))
-            }
-            if !row && s.showSource {
-                blocks.append(PlayerBlock(lines: [], gap: (L.style == .stage ? 24 : 14) * k, state: true))
             }
             return blocks
         }
@@ -1364,57 +1616,53 @@ extension HUDRenderer {
         return (last, playerHeight(last, L))
     }
 
-    /// Portada, textos y estado de una canción (con transparencia y desplazamiento para la
-    /// transición), en cualquiera de las tres formas.
+    /// Portada y textos de una canción (con transparencia y desplazamiento para la transición),
+    /// en cualquiera de las tres formas.
     func playerTrack(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ p: HUDPalette,
                      artAlpha: CGFloat, textAlpha: CGFloat, dy: CGFloat, art: CGImage?, artFrom: CGImage?, artFade: CGFloat,
                      _ ctx: CGContext) {
         let has = m.available && !m.title.isEmpty
         if L.artwork.width > 4 && artAlpha > 0.01 {
+            let behind = c.top.mixed(with: c.bottom, 0.5).cg
             ctx.saveGState()
             ctx.setAlpha(artAlpha)
             drawArtShadow(L.artwork, night: s.night, ctx)
             if artFade < 1 {
-                dashArtwork(has ? artFrom : nil, L.artwork, p, ctx)
+                dashArtwork(has ? artFrom : nil, L.artwork, p, ctx, fill: behind)
                 ctx.setAlpha(artAlpha * max(0, artFade))
             }
-            dashArtwork(has ? art : nil, L.artwork, p, ctx)
+            dashArtwork(has ? art : nil, L.artwork, p, ctx, fill: behind)
+            ctx.restoreGState()
+            // 0.6.4: un filo muy fino alrededor (fuera de la portada) la separa de un fondo del
+            // mismo color.
+            let radius = (L.artwork.width < 110 ? 4 : 8) * k
+            ctx.saveGState()
+            ctx.setAlpha(artAlpha)
+            ctx.addPath(CGPath(roundedRect: L.artwork.insetBy(dx: -0.75 * k, dy: -0.75 * k), cornerWidth: radius + 0.75 * k,
+                               cornerHeight: radius + 0.75 * k, transform: nil))
+            ctx.setStrokeColor(c.text.cg.copy(alpha: c.text.luminance > 0.5 ? 0.14 : 0.1) ?? c.text.cg)
+            ctx.setLineWidth(1 * k)
+            ctx.strokePath()
             ctx.restoreGState()
         }
         guard textAlpha > 0.01, L.text.width > 30 * k, L.text.height > 10 * k else { return }
         ctx.saveGState()
         ctx.setAlpha(textAlpha)
         let fit = playerBlocks(m, s, c, L)
-        let pillH = playerPill(L)
         let lineGap = playerLineGap(L)
         // Centrados en el alto disponible; si no cupieran, nunca por encima del borde de arriba.
         var y = max(L.text.minY, L.text.midY - fit.height / 2) + dy
         for (i, b) in fit.blocks.enumerated() {
             if i > 0 { y += b.gap }
-            if b.state {
-                // Estado de la reproducción (no es un botón).
-                let label = measure(m.playing ? "Reproduciendo" : "En pausa", size: L.state, bold: true, color: c.text.cg)
-                let g = (L.style == .stage ? 13 : 11) * k
-                let pw = 16 * k + g + 9 * k + label.width + 18 * k
-                let pill = CGRect(x: L.text.midX - pw / 2, y: y, width: pw, height: pillH)
-                fillRounded(pill, radius: pillH / 2, color: c.text.cg.copy(alpha: 0.13) ?? c.text.cg, ctx)
-                glassEdge(pill, radius: pillH / 2, top: c.text.cg.copy(alpha: 0.3) ?? c.text.cg,
-                          bottom: c.text.cg.copy(alpha: 0.06) ?? c.text.cg, width: 1 * k, ctx)
-                stateGlyph(m.playing, CGRect(x: pill.minX + 16 * k, y: pill.midY - g / 2, width: g, height: g), c.text.cg, ctx)
-                put(label, x: pill.minX + 16 * k + g + 9 * k, baseline: pill.midY + (label.ascent - label.descent) / 2, ctx)
-                y += pillH
-                continue
-            }
             for (j, line) in b.lines.enumerated() {
                 var x = L.centered ? L.text.midX - line.width / 2 : L.text.minX
                 if b.sourceLine {
-                    // Símbolo del estado dentro de un círculo, delante del nombre del servicio.
-                    let d = line.ascent + line.descent
-                    let chip = CGRect(x: x, y: y, width: d, height: d)
-                    ctx.setFillColor(c.text.cg.copy(alpha: 0.16) ?? c.text.cg)
-                    ctx.fillEllipse(in: chip)
-                    stateGlyph(m.playing, chip.insetBy(dx: d * 0.3, dy: d * 0.3), c.text.cg, ctx)
-                    x = chip.maxX + d * 0.35
+                    // Punto del color de la barra delante del nombre del servicio.
+                    let h = line.ascent + line.descent
+                    let d = h * 0.5
+                    ctx.setFillColor(c.accent.cg)
+                    ctx.fillEllipse(in: CGRect(x: x, y: y + (h - d) / 2, width: d, height: d))
+                    x += d * 1.7
                 }
                 put(line, x: x, baseline: y + line.ascent, ctx)
                 y += line.ascent + line.descent
@@ -1422,22 +1670,6 @@ extension HUDRenderer {
             }
         }
         ctx.restoreGState()
-    }
-
-    /// Triángulo (reproduciendo) o dos barras (en pausa).
-    func stateGlyph(_ playing: Bool, _ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
-        ctx.setFillColor(color)
-        if playing {
-            ctx.beginPath()
-            ctx.move(to: CGPoint(x: r.minX + r.width * 0.08, y: r.minY))
-            ctx.addLine(to: CGPoint(x: r.maxX, y: r.midY))
-            ctx.addLine(to: CGPoint(x: r.minX + r.width * 0.08, y: r.maxY))
-            ctx.closePath()
-            ctx.fillPath()
-        } else {
-            ctx.fill(CGRect(x: r.minX + r.width * 0.05, y: r.minY, width: r.width * 0.32, height: r.height))
-            ctx.fill(CGRect(x: r.minX + r.width * 0.63, y: r.minY, width: r.width * 0.32, height: r.height))
-        }
     }
 
     // MARK: - Avisos

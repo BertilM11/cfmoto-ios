@@ -955,12 +955,14 @@ struct MusicStageLayout: Equatable {
 
 /// 0.6.3: un solo reproductor para todos los modos. Las tres formas comparten el fondo
 /// (degradado con los colores de la portada y un resplandor detrás de ella), la portada con
-/// sombra, la letra (título en negrita, artista, álbum), el estado y la barra de progreso:
+/// sombra, la letra (título en negrita, artista, álbum) y la barra de progreso:
 ///  - `stage`: zona ancha (Música sola). Portada grande a la derecha y textos centrados.
 ///  - `column`: zona alta y estrecha (Dividida, Música + Avisos). Portada arriba, textos debajo.
 ///  - `row`: tarjetas y zonas bajas (Nav + Música, Completo). Portada a la izquierda.
-/// No hay botones: la pantalla de la moto no es táctil para la app y el protocolo no envía
-/// teclas (la música se controla desde el iPhone o el intercomunicador).
+/// 0.6.4: todas llevan los botones de la referencia (anterior, reproducir/pausar y siguiente)
+/// donde antes iba el estado («Reproduciendo»). Son solo dibujo: la pantalla de la moto no es
+/// táctil para la app y el protocolo no envía teclas, así que la música se sigue controlando
+/// desde el iPhone o el intercomunicador. El botón central muestra el estado real.
 enum MusicPlayerStyle: String {
     case stage, column, row
 }
@@ -970,9 +972,9 @@ struct MusicPlayerLayout: Equatable {
     /// Nombre del servicio (en `row` va en la primera línea de los textos y esto queda vacío).
     var header: CGRect
     var artwork: CGRect
-    /// Título, artista, álbum y estado.
+    /// Título, artista y álbum.
     var text: CGRect
-    /// Fila de la barra (con los tiempos si `times`).
+    /// Fila de la barra (con los tiempos a los lados si `times`).
     var progress: CGRect
     var times: Bool
     /// Tamaños de letra (ya multiplicados por la escala de la imagen).
@@ -981,7 +983,6 @@ struct MusicPlayerLayout: Equatable {
     /// 0: sin línea de álbum.
     var album: CGFloat
     var source: CGFloat
-    var state: CGFloat
     var time: CGFloat
     /// Grosor de la barra de progreso.
     var bar: CGFloat
@@ -989,9 +990,21 @@ struct MusicPlayerLayout: Equatable {
     var centered: Bool
     /// Tarjeta flotante sobre el mapa (esquinas redondeadas y algo de transparencia).
     var card: Bool
+    /// 0.6.4: fila de los botones y diámetro del botón central (0: sin botones).
+    var controls: CGRect
+    var button: CGFloat
+    /// Botones centrados en su fila (música completa y columna) o desde la izquierda (filas).
+    var controlsCentered: Bool
+    /// Tarjeta compacta: el nombre del servicio va en la fila de los botones, a la derecha.
+    var sourceInControls: Bool
 
     /// Portada mínima para usar la forma en columna; si sale más pequeña, se usa la fila.
     static let minColumnArtwork: CGFloat = 140
+
+    /// Los tres botones dentro de su fila.
+    var transport: TransportGeometry {
+        TransportGeometry.make(controls, button: button, centered: controlsCentered)
+    }
 
     /// `card`: tamaño de la tarjeta sobre el mapa, o nil si es una zona del panel.
     /// `reserve`: la hora actual, si cae dentro (se deja libre).
@@ -1000,9 +1013,16 @@ struct MusicPlayerLayout: Equatable {
         let clock = reserve.flatMap { $0.intersects(r) ? $0 : nil }
         if card == nil && MusicStageLayout.fits(r, k: k) {
             let L = MusicStageLayout.make(r, k: k, artwork: artwork, size: size, reserve: clock)
-            return MusicPlayerLayout(style: .stage, header: L.header, artwork: L.artwork, text: L.text, progress: L.progress,
-                                     times: true, title: 40 * k, artist: 25 * k, album: 19 * k, source: 15 * k, state: 16 * k,
-                                     time: 18 * k, bar: 6 * k, centered: true, card: false)
+            // Los botones van al pie de la columna de los textos, donde estaba el estado, y los
+            // textos se centran en lo que queda encima (como en CarPlay).
+            let button = (62 * k).rounded()
+            let controls = CGRect(x: L.text.minX, y: (L.text.maxY - button).rounded(), width: L.text.width, height: button)
+            var text = L.text
+            text.size.height = max(0, controls.minY - 16 * k - text.minY)
+            return MusicPlayerLayout(style: .stage, header: L.header, artwork: L.artwork, text: text, progress: L.progress,
+                                     times: true, title: 40 * k, artist: 25 * k, album: 19 * k, source: 15 * k,
+                                     time: 18 * k, bar: 6 * k, centered: true, card: false,
+                                     controls: controls, button: button, controlsCentered: true, sourceInControls: false)
         }
         if card == nil && r.width >= 240 * k && r.height >= 300 * k, let c = column(r, k: k, artwork: artwork, size: size, clock: clock) {
             return c
@@ -1023,35 +1043,38 @@ struct MusicPlayerLayout: Equatable {
         }
         let progressH = 22 * k
         let progress = CGRect(x: r.minX + padX, y: r.maxY - 14 * k - progressH, width: r.width - 2 * padX, height: progressH)
-        let title = max(22 * k, min(30 * k, r.width * 0.075))
+        // 0.6.4: los botones, encima de la barra (en el sitio del estado).
+        let button = (44 * k).rounded()
+        let controls = CGRect(x: r.minX + padX, y: (progress.minY - 10 * k - button).rounded(), width: r.width - 2 * padX, height: button)
+        let title = max(22 * k, min(28 * k, r.width * 0.075))
         let artist = title * 0.74
-        let state = 14 * k
-        let pill = 28 * k
-        // Título, artista y estado (el álbum solo cabe en la música completa). Mismos espacios
-        // que usa el dibujo.
-        let block = lineHeight(title) + 8 * k + lineHeight(artist) + 14 * k + pill
+        // Título y artista (el álbum solo cabe en la música completa). Mismos espacios que usa el
+        // dibujo.
+        let block = lineHeight(title) + 8 * k + lineHeight(artist)
         var top = header.maxY + 10 * k
         if let c = clock { top = max(top, c.maxY + 6 * k) }
         var art = CGRect.zero
         var textTop = top
         if artwork {
-            let room = progress.minY - 12 * k - block - 10 * k - top
+            let room = controls.minY - 12 * k - block - 10 * k - top
             let side = (min(r.width - 2 * padX, room) * factor(size)).rounded()
             guard side >= minColumnArtwork * k else { return nil }
             // La portada y los textos, juntos y centrados en el alto libre.
             let used = side + 10 * k + block
-            let y = (top + max(0, (progress.minY - 12 * k - top - used) / 2)).rounded()
+            let y = (top + max(0, (controls.minY - 12 * k - top - used) / 2)).rounded()
             art = CGRect(x: (r.midX - side / 2).rounded(), y: y, width: side, height: side)
             textTop = art.maxY + 10 * k
         }
-        let text = CGRect(x: r.minX + padX, y: textTop, width: r.width - 2 * padX, height: max(0, progress.minY - 8 * k - textTop))
+        let text = CGRect(x: r.minX + padX, y: textTop, width: r.width - 2 * padX, height: max(0, controls.minY - 8 * k - textTop))
         return MusicPlayerLayout(style: .column, header: header, artwork: art, text: text, progress: progress, times: true,
-                                 title: title, artist: artist, album: 0, source: 13 * k, state: state, time: 14 * k,
-                                 bar: 5 * k, centered: true, card: false)
+                                 title: title, artist: artist, album: 0, source: 13 * k, time: 14 * k,
+                                 bar: 5 * k, centered: true, card: false,
+                                 controls: controls, button: button, controlsCentered: true, sourceInControls: false)
     }
 
     private static func row(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, clock: CGRect?, card: CardSize?) -> MusicPlayerLayout {
-        let pad = card != nil ? (r.height < 100 * k ? 10 * k : 12 * k) : max(12 * k, min(18 * k, r.height * 0.07))
+        let compactCard = card != nil && r.height < 100 * k
+        let pad = card != nil ? (compactCard ? 10 * k : 12 * k) : max(12 * k, min(18 * k, r.height * 0.07))
         var content = r
         if let c = clock {
             // La hora cae en la zona: todo el contenido va por debajo.
@@ -1069,23 +1092,80 @@ struct MusicPlayerLayout: Equatable {
             tx = art.maxX + (card != nil ? 12 * k : max(14 * k, side * 0.09))
         }
         let tw = max(0, r.maxX - pad - tx)
+        let inner = CGRect(x: tx, y: artwork ? art.minY : content.minY + pad, width: tw,
+                           height: artwork ? side : content.height - 2 * pad)
+        if compactCard {
+            // 0.6.4, tarjeta compacta (250×84): título y artista; debajo, los botones con el
+            // nombre del servicio a la derecha; la barra, fina, al pie.
+            let bar = 3 * k
+            let button = (22 * k).rounded()
+            let progress = CGRect(x: tx, y: r.maxY - 4.5 * k - bar, width: tw, height: bar)
+            let controls = CGRect(x: tx, y: (progress.minY - 5 * k - button).rounded(), width: tw, height: button)
+            let text = CGRect(x: tx, y: inner.minY, width: tw, height: max(0, controls.minY - 3.5 * k - inner.minY))
+            return MusicPlayerLayout(style: .row, header: .zero, artwork: art, text: text, progress: progress, times: false,
+                                     title: 16 * k, artist: 12.5 * k, album: 0, source: 10.5 * k, time: 11 * k,
+                                     bar: bar, centered: false, card: true,
+                                     controls: controls, button: button, controlsCentered: false, sourceInControls: true)
+        }
+        if card != nil {
+            // 0.6.4, tarjeta grande (300×124): servicio, título y artista; los botones; la barra
+            // con los tiempos a los lados.
+            let time = 11 * k
+            let bar = 4 * k
+            let button = (26 * k).rounded()
+            let progress = CGRect(x: tx, y: inner.maxY - lineHeight(time), width: tw, height: lineHeight(time))
+            let controls = CGRect(x: tx, y: (progress.minY - 5 * k - button).rounded(), width: tw, height: button)
+            let text = CGRect(x: tx, y: inner.minY, width: tw, height: max(0, controls.minY - 4 * k - inner.minY))
+            return MusicPlayerLayout(style: .row, header: .zero, artwork: art, text: text, progress: progress, times: true,
+                                     title: 17 * k, artist: 13.5 * k, album: 0, source: 11 * k, time: time,
+                                     bar: bar, centered: false, card: true,
+                                     controls: controls, button: button, controlsCentered: false, sourceInControls: false)
+        }
+        // Zonas bajas (Música + Avisos con ruta, zona lateral): como la tarjeta grande, a escala.
         let reference = artwork ? side : content.height - 2 * pad
         let title = max(15 * k, min(30 * k, reference * 0.29, tw * 0.13))
         let artist = title * 0.78
         let source = max(11 * k, title * 0.58)
         let time = max(11 * k, title * 0.55)
         let bar = max(3 * k, title * 0.17)
-        let inner = CGRect(x: tx, y: artwork ? art.minY : content.minY + pad, width: tw,
-                           height: artwork ? side : content.height - 2 * pad)
         let times = inner.height >= 96 * k
-        let progressH = times ? lineHeight(time) + 4 * k + bar : bar
+        let progressH = times ? lineHeight(time) : bar
         let progress = CGRect(x: tx, y: inner.maxY - progressH, width: tw, height: progressH)
+        let button = max(24 * k, min(44 * k, inner.height * 0.22)).rounded()
+        let controls = CGRect(x: tx, y: (progress.minY - 8 * k - button).rounded(), width: tw, height: button)
         // Álbum solo si sobra alto (zonas grandes).
-        let album: CGFloat = card == nil && inner.height >= 170 * k ? title * 0.6 : 0
-        let text = CGRect(x: tx, y: inner.minY, width: tw, height: max(0, progress.minY - (times ? 6 : 3) * k - inner.minY))
+        let album: CGFloat = inner.height >= 170 * k ? title * 0.6 : 0
+        let text = CGRect(x: tx, y: inner.minY, width: tw, height: max(0, controls.minY - 6 * k - inner.minY))
         return MusicPlayerLayout(style: .row, header: .zero, artwork: art, text: text, progress: progress, times: times,
-                                 title: title, artist: artist, album: album, source: source, state: source, time: time,
-                                 bar: bar, centered: false, card: card != nil)
+                                 title: title, artist: artist, album: album, source: source, time: time,
+                                 bar: bar, centered: false, card: false,
+                                 controls: controls, button: button, controlsCentered: false, sourceInControls: false)
+    }
+}
+
+/// 0.6.4: los tres botones del reproductor dentro de su fila: anterior, el círculo de
+/// reproducir/pausar y siguiente. Función pura (la usan el dibujo y las pruebas).
+struct TransportGeometry: Equatable {
+    var previous: CGRect
+    var play: CGRect
+    var next: CGRect
+
+    var bounds: CGRect { previous.union(play).union(next) }
+
+    static func make(_ row: CGRect, button d: CGFloat, centered: Bool) -> TransportGeometry {
+        guard d > 0, !row.isEmpty else { return TransportGeometry(previous: .zero, play: .zero, next: .zero) }
+        // Iconos laterales algo menores que la mitad del círculo y bien separados de él, como en
+        // la referencia; con un mínimo para que se distingan en las tarjetas pequeñas.
+        let gw = max(d * 0.42, min(11, d * 0.6))
+        let gh = (gw * 0.9).rounded()
+        let gap = max(d * 0.62, 9)
+        let total = d + 2 * (gap + gw)
+        let x0 = (centered ? row.midX - total / 2 : row.minX).rounded()
+        let cy = row.midY
+        let previous = CGRect(x: x0, y: (cy - gh / 2).rounded(), width: gw.rounded(), height: gh)
+        let play = CGRect(x: (x0 + gw + gap).rounded(), y: (cy - d / 2).rounded(), width: d, height: d)
+        let next = CGRect(x: (play.maxX + gap).rounded(), y: previous.minY, width: gw.rounded(), height: gh)
+        return TransportGeometry(previous: previous, play: play, next: next)
     }
 }
 
@@ -1203,6 +1283,8 @@ struct DashSnapshot {
     /// Portada anterior de la misma canción (por ejemplo, la de Spotify que llega tarde).
     var artFrom: CGImage?
     var artFade: Double = 1
+    /// 0.6.4: la música pasa de sonar a pausa (o al revés): avance del fundido del botón central (0…1).
+    var playFade: Double = 1
     /// Ruta recién recalculada: avance del fundido de entrada (0…1).
     var routeFade: Double = 1
     /// Ruta guiada por otra app (la moto muestra solo el destino).

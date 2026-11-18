@@ -77,7 +77,7 @@ struct PersonalizationScreen: View {
                 Toggle("Mostrar la portada", isOn: $store.config.showArtwork)
                 Toggle("Barra de progreso", isOn: $store.config.showProgress)
                 Toggle("Artista", isOn: $store.config.showArtist)
-                Toggle("Nombre del servicio y estado", isOn: $store.config.showSource)
+                Toggle("Nombre del servicio", isOn: $store.config.showSource)
             }
             .font(.subheadline)
             .tint(Brand.blue)

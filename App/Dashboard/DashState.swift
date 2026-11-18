@@ -8,6 +8,8 @@ final class DashState {
 
     /// Duración de las transiciones (colores de la música, ruta nueva).
     static let fade = 0.3
+    /// 0.6.4: duración del cambio del botón central entre reproducir y pausa.
+    static let playFade = 0.25
 
     private let lock = NSLock()
     private var base = DashSnapshot()
@@ -18,6 +20,8 @@ final class DashState {
     private var paletteChanged: TimeInterval = 0
     /// Fundido entre la canción anterior y la nueva (portada y textos).
     private var track = TrackTransition()
+    /// 0.6.4: momento en que la música pasó de sonar a pausa o al revés (misma canción).
+    private var playChanged: TimeInterval = -1_000_000
     /// Ruta que se está mostrando y momento en que cambió (para el fundido al recalcular).
     private weak var lastShape: HUDRouteShape?
     private var shapeChanged: TimeInterval = 0
@@ -88,6 +92,9 @@ final class DashState {
             paletteFrom = base.music.palette
             paletteChanged = t
         }
+        if TrackTransition.key(base.music) == TrackTransition.key(m) && base.music.playing != m.playing {
+            playChanged = t
+        }
         track.update(old: base.music, new: m, at: t)
         base.music = m
         lock.unlock()
@@ -127,6 +134,10 @@ final class DashState {
         if animations, let f = track.artFade(at: t) {
             s.artFrom = track.artFrom
             s.artFade = f
+        }
+        // 0.6.4: el botón central cambia de ▶ a ❚❚ (o al revés) con un fundido corto.
+        if animations && t - playChanged < DashState.playFade {
+            s.playFade = max(0, (t - playChanged) / DashState.playFade)
         }
         // Fundido de entrada de una ruta nueva (al recalcular).
         if let shape = nav.shape, shape !== lastShape {

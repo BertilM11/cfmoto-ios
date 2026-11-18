@@ -305,6 +305,22 @@ final class HUDRenderer {
     /// tamaño y tema. Solo cambian si cambia el tamaño, así que se reutilizan en cada fotograma.
     var cardImages: [String: CGImage] = [:]
     static var cacheCards = true
+    /// 0.6.4: «luz» de las últimas portadas (sus colores reducidos a 4×4 y ampliados), para el
+    /// fondo de la música. Se calcula una vez por portada y tema.
+    var ambientCache: [(art: CGImage, night: Bool, image: CGImage, signature: String)] = []
+    /// 0.6.4: sombras difuminadas de la portada ya dibujadas, por tamaño y tema.
+    var shadowImages: [String: CGImage] = [:]
+    /// Solo para las pruebas (0.6.4): cada botón del reproductor que se dibuja (anterior,
+    /// reproducir, pausa, siguiente), con su sitio, su zona o tarjeta y su transparencia.
+    struct ControlMark {
+        let kind: String
+        let rect: CGRect
+        let box: CGRect
+        let alpha: CGFloat
+    }
+    var controlMarks: [ControlMark] = []
+    /// Solo para las pruebas: dibuja todo menos los botones (para medir su contraste con el fondo).
+    static var hideControls = false
     /// Solo para las pruebas (0.6.3): cada texto que se dibuja, con su caja y el recorte vigente,
     /// para comprobar que nada se corta, se monta ni tapa la hora. En la app está apagado.
     struct TextMark {
