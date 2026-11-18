@@ -323,6 +323,11 @@ final class TFTMap {
         let s = settings
         lock.unlock()
         guard s.streets else { return }
+        // 0.7: con el mapa propio de OpenStreetMap no se piden imágenes a Apple.
+        guard s.provider == .apple else {
+            if route != nil { clearRoute() }
+            return
+        }
         let layout = DashState.shared.currentLayout()
         guard layout.showsMap else { return }
         let n = HUDState.shared.get()

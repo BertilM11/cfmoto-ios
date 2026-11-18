@@ -40,6 +40,9 @@ components.hour = 19
 components.minute = 4
 let now = Calendar.current.date(from: components) ?? Date()
 
+// 0.7: las pruebas de antes usan el mapa de Apple; las del mapa propio lo eligen a mano.
+MapSettings.defaultProvider = .apple
+
 let W: CGFloat = 800
 let H: CGFloat = 400
 HUDRenderer.reservedBottom = 0
@@ -2060,6 +2063,102 @@ for (name, snap) in [("Dividida", musicSnap(.preset(.split), .dark, art: neon)),
     perfCases.append(String(format: "%@ %.1f ms", name, ms))
 }
 check("Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma", perfWorst < 25, perfCases.joined(separator: ", "))
+
+// 10h. Versión 0.7: mapa propio de OpenStreetMap (zona 10 de la ciudad de Guatemala, archivo de
+// prueba hecho con Tools/OSM/build_cfmap.py), ruta calculada en el teléfono y maniobras.
+if let osm = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/zona10.cfmap")) {
+    OSMMapData.override = osm
+    check("0.7: mapa de prueba de OpenStreetMap leído (zona 10)", osm.tileCount > 100 && osm.nameCount > 100,
+          "\(osm.tileCount) cuadros, \(osm.nameCount) nombres, \(osm.placeCount) lugares")
+    let osmFrom = GeoPoint(lat: 14.59379, lon: -90.51747)   // Avenida Reforma
+    let osmTo = GeoPoint(lat: 14.60132, lon: -90.50959)     // 11 Calle, zona 10
+    let tRoute = Date()
+    let osmRoutes = OSMRouter(map: osm).routes(from: osmFrom, to: osmTo)
+    let routeMs = Date().timeIntervalSince(tRoute) * 1000
+    let best = osmRoutes.first
+    check("0.7: ruta calculada en el teléfono, sin internet (Reforma → 11 Calle, zona 10)",
+          best.map { $0.distance > 1200 && $0.distance < 2600 } ?? false,
+          best.map { String(format: "%.0f m, %.1f min, %d rutas, %.0f ms, %@", $0.distance, $0.time / 60, osmRoutes.count, routeMs, $0.summary) } ?? "sin ruta")
+    check("0.7: calcular la ruta tarda poco (menos de 1,5 s)", routeMs < 1500, String(format: "%.0f ms", routeMs))
+    if let r = best {
+        let texts = r.maneuvers.map { $0.text }
+        check("0.7: maniobras en español con el nombre de la calle y la llegada",
+              texts.contains { $0.contains("14 Calle") } && texts.last == "Has llegado a tu destino" && texts.count >= 3,
+              texts.joined(separator: " · "))
+        check("0.7: las maniobras van en orden y dentro de la ruta",
+              zip(r.maneuvers, r.maneuvers.dropFirst()).allSatisfy { $0.at <= $1.at } && r.maneuvers.allSatisfy { $0.at >= 0 && $0.at <= r.distance + 1 })
+        let reverse = OSMRouter(map: osm).routes(from: osmTo, to: osmFrom, alternatives: 0)
+        check("0.7: la vuelta respeta los sentidos de las calles (no es la misma línea al revés)",
+              reverse.first.map { abs($0.distance - r.distance) > 30 || Set($0.points.map { "\($0.lat),\($0.lon)" }) != Set(r.points.map { "\($0.lat),\($0.lon)" }) } ?? false,
+              reverse.first.map { String(format: "ida %.0f m, vuelta %.0f m", r.distance, $0.distance) } ?? "sin vuelta")
+        let frame = GeoFrame(origin: r.points[0])
+        func osmSnap(_ theme: DashTheme, _ layout: DashLayout, progress: Double) -> DashSnapshot {
+            var s = DashDemo.snapshot(layout: layout, theme: theme, now: now)
+            s.nav.shape = HUDRouteShape(points: r.points.map { frame.local($0) })
+            s.nav.geo = frame
+            s.nav.progress = progress
+            s.nav.speed = 0
+            let next = r.maneuvers.first { $0.at > progress + 5 }
+            s.nav.maneuverAt = next?.at
+            s.nav.kind = next?.kind ?? .arrive
+            s.nav.instruction = next?.text ?? ""
+            s.nav.distanceToManeuver = (next?.at ?? r.distance) - progress
+            s.nav.remainingDistance = r.distance - progress
+            s.nav.fixTime = now.timeIntervalSinceReferenceDate
+            s.map = nil
+            var ms = MapSettings()
+            ms.provider = .osm
+            s.mapSettings = ms
+            return s
+        }
+        var osmShots: [String: (image: CGImage?, data: [UInt8], rowBytes: Int)] = [:]
+        for (name, mode) in [("navegacion", DashMode.gps), ("nav-musica", .gpsMusic), ("dividida", .split), ("completo", .full)] {
+            for theme in [DashTheme.dark, .light] {
+                let out = render(osmSnap(theme, DashLayout.preset(mode), progress: 380))
+                let key = "070-osm-\(name)-\(theme == .dark ? "noche" : "dia")"
+                osmShots[key] = out.px
+                if let img = out.px.image { save(img, key) }
+            }
+        }
+        // Las calles se ven: muchos colores distintos en el mapa (con el mapa simple casi no hay).
+        let navNight = osmShots["070-osm-navegacion-noche"]!
+        check("0.7: se dibujan las calles del mapa propio (noche)", colors(navNight, rows: 120..<330) > 40, "\(colors(navNight, rows: 120..<330)) colores")
+        let navDay = osmShots["070-osm-navegacion-dia"]!
+        func meanLight(_ px: (image: CGImage?, data: [UInt8], rowBytes: Int)) -> Double {
+            var sum = 0.0
+            var n = 0
+            for y in stride(from: 140, to: 320, by: 12) {
+                for x in stride(from: 20, to: 780, by: 20) {
+                    let c = rgbAt(px, CGFloat(x), CGFloat(y))
+                    sum += (c.r + c.g + c.b) / 3
+                    n += 1
+                }
+            }
+            return sum / Double(max(1, n))
+        }
+        let dayLight = meanLight(navDay)
+        let nightLight = meanLight(navNight)
+        check("0.7: el mapa propio es claro de día y oscuro de noche (el tema siempre coincide)",
+              dayLight > 0.7 && nightLight < 0.3, String(format: "día %.2f, noche %.2f", dayLight, nightLight))
+        // Sin mapa de OpenStreetMap a mano, el mapa simple (como antes).
+        OSMMapData.override = nil
+        let none = render(osmSnap(.dark, DashLayout.preset(.gps), progress: 380))
+        check("0.7: sin el archivo del mapa se usa el mapa simple, sin errores", none.px.image != nil)
+        OSMMapData.override = osm
+        // Rendimiento: el fotograma completo con el mapa propio.
+        var times: [Double] = []
+        for i in 0..<12 {
+            let t0 = Date()
+            _ = render(osmSnap(.dark, DashLayout.preset(.gpsMusic), progress: 300 + Double(i) * 30))
+            times.append(Date().timeIntervalSince(t0) * 1000)
+        }
+        let osmMs = times.sorted()[times.count / 2]
+        check("0.7: un fotograma con el mapa propio tarda menos de 25 ms", osmMs < 25, String(format: "%.1f ms (mediana)", osmMs))
+    }
+    OSMMapData.override = nil
+} else {
+    check("0.7: mapa de prueba de OpenStreetMap leído (zona 10)", false, "no se pudo abrir Tools/DashboardCheck/zona10.cfmap")
+}
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))

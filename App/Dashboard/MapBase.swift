@@ -235,8 +235,23 @@ enum MapLabelSize: String, Codable, CaseIterable, Identifiable {
     var scale: Double { self == .normal ? 1.5 : 2.0 }
 }
 
+/// 0.7: de dónde salen el mapa y la ruta.
+enum MapProvider: String, Codable, CaseIterable, Identifiable {
+    /// Mapa propio de OpenStreetMap guardado en el iPhone; ruta e indicaciones calculadas en el
+    /// iPhone. Funciona sin internet y con el iPhone bloqueado.
+    case osm
+    /// Apple Maps (imágenes de Apple y rutas de Apple, como hasta la 0.6.5).
+    case apple
+    var id: String { rawValue }
+    var title: String { self == .osm ? "OpenStreetMap (sin internet)" : "Apple Maps" }
+}
+
 struct MapSettings: Codable, Equatable {
-    /// Mapa de calles de Apple. Si está apagado se dibuja solo la ruta.
+    /// 0.7: OpenStreetMap (por defecto) o Apple Maps.
+    var provider: MapProvider = MapSettings.defaultProvider
+    /// Proveedor de los ajustes nuevos (las pruebas de antes usan Apple).
+    static var defaultProvider: MapProvider = .osm
+    /// Mapa de calles. Si está apagado se dibuja solo la ruta.
     var streets = true
     var style: MapStyle = .standard
     var threeD = true
@@ -256,6 +271,7 @@ struct MapSettings: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = MapSettings()
+        provider = (try? c.decode(MapProvider.self, forKey: .provider)) ?? d.provider
         streets = (try? c.decode(Bool.self, forKey: .streets)) ?? d.streets
         style = (try? c.decode(MapStyle.self, forKey: .style)) ?? d.style
         threeD = (try? c.decode(Bool.self, forKey: .threeD)) ?? d.threeD

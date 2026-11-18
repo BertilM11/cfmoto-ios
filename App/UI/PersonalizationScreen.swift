@@ -33,6 +33,19 @@ struct PersonalizationScreen: View {
             }
             .tint(Brand.blue)
             Card {
+                Text("Mapa y navegación").font(.headline)
+                Picker("Mapa", selection: $store.config.map.provider) {
+                    Text("OpenStreetMap").tag(MapProvider.osm)
+                    Text("Apple Maps").tag(MapProvider.apple)
+                }
+                .pickerStyle(.segmented)
+                Text(store.config.map.provider == .osm
+                     ? "Mapa de Guatemala guardado en el iPhone: no descarga nada, funciona con el iPhone bloqueado y la ruta se calcula en el teléfono (sin tráfico en vivo). © OpenStreetMap."
+                     : "Imágenes y rutas de Apple: necesita internet y se guardan por tramos antes de bloquear el iPhone.")
+                    .font(.caption).foregroundColor(Brand.dim)
+            }
+            .tint(Brand.blue)
+            Card {
                 Text("Vista del mapa").font(.headline)
                 Picker("Vista", selection: $store.config.map.threeD) {
                     Text("2D").tag(false)

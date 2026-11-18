@@ -38,8 +38,25 @@ extension HUDRenderer {
     /// entonces quien llama usa el dibujo simple de la ruta.
     @discardableResult
     func drawStreetMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, compass: CGRect?) -> Bool {
-        guard s.mapSettings.streets, let base = s.map, let image = base.cgImage(),
-              let pose = MapPose.of(s.nav, now: now) else { return false }
+        guard s.mapSettings.streets, let pose = MapPose.of(s.nav, now: now) else { return false }
+        if s.mapSettings.provider == .osm {
+            // 0.7: mapa propio de OpenStreetMap (sin imágenes de Apple).
+            guard let map = OSMMapData.current else { return false }
+            let north = s.mapSettings.northUp || pose.heading < 0
+            let cam = OSMCamera(center: pose.here, heading: north ? 0 : pose.heading,
+                                metersPerPixel: OSMCamera.metersPerPixel(zoom: s.mapSettings.zoom, auto: s.mapSettings.autoZoom,
+                                                                         speed: pose.speed, unit: k),
+                                anchor: CGPoint(x: r.midX, y: north ? r.midY : r.minY + r.height * CGFloat(MapCorridor.puckY)))
+            ctx.saveGState()
+            ctx.clip(to: r)
+            guard drawOSMBase(map, cam, night: s.night, r, ctx) > 0 else {
+                // Fuera del mapa guardado (otro país o sin calles cerca): el mapa simple.
+                ctx.restoreGState()
+                return false
+            }
+            return drawMapOverlay(s, p, now, r, ctx, compass: compass, pose: pose, view: { cam.screen($0) }, osm: (map, cam))
+        }
+        guard let base = s.map, let image = base.cgImage() else { return false }
         // La imagen cubre el rectángulo sin deformarse (si la proporción no coincide, se recorta).
         let iw = CGFloat(base.pixelWidth)
         let ih = CGFloat(base.pixelHeight)
@@ -52,7 +69,6 @@ extension HUDRenderer {
             guard let q = base.project(g) else { return nil }
             return CGPoint(x: ox + q.x * dw, y: oy + q.y * dh)
         }
-        let u = k
 
         ctx.saveGState()
         ctx.clip(to: r)
@@ -76,7 +92,16 @@ extension HUDRenderer {
         } else {
             paint(image, base, alpha: 1)
         }
+        return drawMapOverlay(s, p, now, r, ctx, compass: compass, pose: pose, view: view, osm: nil)
+    }
 
+    /// Lo que va encima del mapa (de Apple o propio): ruta, alternativas, maniobra, destino,
+    /// posición y norte. `view` pasa de coordenadas a la pantalla. Cierra el `saveGState` de quien
+    /// llama y devuelve true.
+    func drawMapOverlay(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, compass: CGRect?,
+                        pose: MapPose, view: (GeoPoint) -> CGPoint?, osm: (map: OSMMapData, cam: OSMCamera)?) -> Bool {
+        let u = k
+        var routeScreen: [CGPoint] = []
         let n = s.nav
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
@@ -186,8 +211,10 @@ extension HUDRenderer {
                 ctx.setLineWidth(11 * u)
                 ctx.strokePath()
             }
-            if let ahead = path(stretch(progress, to)) {
+            let aheadPoints = stretch(progress, to)
+            if let ahead = path(aheadPoints) {
                 strokeRoute(ahead, fade: CGFloat(min(1, max(0, s.routeFade))))
+                if osm != nil { routeScreen = aheadPoints.compactMap(view) }
             }
             // Próxima maniobra: flecha blanca sobre la ruta que dibuja el giro (cuando se acerca).
             if let at = n.maneuverAt, at > progress + 4, at - progress < 700 {
@@ -247,13 +274,22 @@ extension HUDRenderer {
             }
             if n.previewRoutes.indices.contains(n.previewSelected) {
                 let chosen = n.previewRoutes[n.previewSelected]
-                if let line = path(chosen) { strokeRoute(line, fade: 1) }
+                if let line = path(chosen) {
+                    strokeRoute(line, fade: 1)
+                    if osm != nil { routeScreen = chosen.compactMap(view) }
+                }
                 if let last = chosen.last, let d = view(last), r.contains(d) { drawFlag(at: d, u: u, p, ctx) }
             }
         }
         // Guía en otra app: solo el destino.
         if let ext = s.external, !n.navigating, let d = view(ext.destination), r.contains(d) {
             drawFlag(at: d, u: u, p, ctx)
+        }
+
+        // 0.7: nombres de las calles (sin tapar la ruta ni las tarjetas) y el aviso de la licencia.
+        if let o = osm {
+            drawOSMLabels(o.map, o.cam, night: s.night, r, avoid: routeScreen, cards: mapAvoid, ctx)
+            drawOSMAttribution(night: s.night, r, ctx)
         }
 
         // Posición: flecha si se conoce el rumbo, punto si no.

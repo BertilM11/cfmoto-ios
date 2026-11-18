@@ -52,7 +52,7 @@ jobs:
           # Si alguna prueba falla, no se publica la versión.
           set -o pipefail
           mkdir -p paquete/CFMotoLink_0.6.5/docs/laminas
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift -o dashcheck
           ./dashcheck paquete/CFMotoLink_0.6.5/docs/laminas | tee resultados.txt
           D=paquete/CFMotoLink_0.6.5
           cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md CHANGELOG.md LICENSE .github "$D"/ 2>/dev/null || true

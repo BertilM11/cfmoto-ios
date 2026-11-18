@@ -29,7 +29,7 @@ jobs:
         if: always()
         run: |
           mkdir -p shots
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
           tail -n 40 hud.log
       - name: Recorrido de demostración
         if: always()

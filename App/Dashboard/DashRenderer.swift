@@ -393,7 +393,9 @@ extension HUDRenderer {
         let o = s.layout.overlay
         let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty)
         let compass = cards.first { $0.item == .compass }?.rect
+        mapAvoid = cards.map { $0.rect } + (statusReserve.map { [$0] } ?? [])
         var streets = drawStreetMap(s, p, now, area, ctx, compass: compass)
+        mapAvoid = []
         if !streets {
             streets = false
             miniCompass = false
@@ -709,7 +711,9 @@ extension HUDRenderer {
         let o = s.layout.overlay
         let showTrip = n.navigating && !n.arrived
         let L = NavZoneLayout.make(r, o, k: k, reserve: statusReserve, trip: showTrip)
+        mapAvoid = [L.card, L.compass] + (showTrip ? [L.trip] : []) + (statusReserve.map { [$0] } ?? [])
         dashMap(s, p, now, r, ctx, anchorX: 0.5, compassRect: L.compass)
+        mapAvoid = []
         let zoneBox = textBox
         textBox = L.card
         drawManeuverCard(s, p, now, L.card, top: o.maneuverSpot.isTop, ctx)
