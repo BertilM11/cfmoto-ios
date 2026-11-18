@@ -923,26 +923,32 @@ struct MusicStageLayout: Equatable {
     /// ¿Cabe esta distribución? Si no (columna estrecha), se usa la tarjeta de siempre.
     static func fits(_ r: CGRect, k: CGFloat) -> Bool { r.width >= 520 * k && r.height >= 220 * k }
 
-    /// `reserve`: la hora actual, si cae dentro de la zona (la cabecera la deja libre).
+    /// `reserve`: la hora actual, si cae dentro de la zona (la cabecera la deja libre y la
+    /// portada empieza debajo).
     static func make(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, reserve: CGRect?) -> MusicStageLayout {
         let pad = 26 * k
-        var header = CGRect(x: r.minX + pad, y: r.minY + 16 * k, width: r.width - 2 * pad, height: 26 * k)
-        if let c = reserve, c.intersects(header.insetBy(dx: 0, dy: -8 * k)) {
+        var header = CGRect(x: r.minX + pad, y: r.minY + 14 * k, width: r.width - 2 * pad, height: 26 * k)
+        let clock = reserve.flatMap { $0.intersects(r) ? $0 : nil }
+        if let c = clock, c.intersects(header.insetBy(dx: 0, dy: -8 * k)) {
             header.size.width = max(0, c.minX - 12 * k - header.minX)
         }
         let progressH = 28 * k
-        let progress = CGRect(x: r.minX + pad, y: r.maxY - 22 * k - progressH, width: r.width - 2 * pad, height: progressH)
-        let bandTop = header.maxY + 12 * k
-        let bandH = max(0, progress.minY - 16 * k - bandTop)
+        let progress = CGRect(x: r.minX + pad, y: r.maxY - 18 * k - progressH, width: r.width - 2 * pad, height: progressH)
+        // La portada usa todo el alto libre de la derecha: de la hora (o del borde) a la barra.
+        var artTop = r.minY + 16 * k
+        if let c = clock { artTop = max(artTop, c.maxY + 6 * k) }
+        let artH = max(0, progress.minY - 12 * k - artTop)
         var art = CGRect.zero
         var textRight = r.maxX - pad
         if artwork {
-            let f: CGFloat = size == .small ? 0.75 : (size == .large ? 1 : 0.92)
-            let side = (min(bandH, r.width * 0.36) * f).rounded()
-            art = CGRect(x: r.maxX - pad - side, y: (bandTop + bandH / 2 - side / 2).rounded(), width: side, height: side)
+            let f: CGFloat = size == .small ? 0.8 : (size == .large ? 1 : 0.95)
+            let side = (min(artH, r.width * 0.37) * f).rounded()
+            art = CGRect(x: r.maxX - pad - side, y: (artTop + (artH - side) / 2).rounded(), width: side, height: side)
             textRight = art.minX - 30 * k
         }
-        let text = CGRect(x: r.minX + pad, y: bandTop, width: max(0, textRight - r.minX - pad), height: bandH)
+        let textTop = header.maxY + 10 * k
+        let text = CGRect(x: r.minX + pad, y: textTop, width: max(0, textRight - r.minX - pad),
+                          height: max(0, progress.minY - 12 * k - textTop))
         return MusicStageLayout(header: header, artwork: art, text: text, progress: progress)
     }
 }
