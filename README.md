@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.3 — Rediseño premium
+# CFMoto Link 0.6.4 — Acabado premium del reproductor
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,6 +9,11 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
+- **Reproductor premium con botones** (0.6.4): anterior, reproducir/pausar (grande, en un círculo)
+  y siguiente en todos los modos con música, como en la referencia, con el estado real (❚❚ o ▶).
+  Son solo dibujo: en la moto no se pueden pulsar (la música se controla desde el iPhone). Fondo
+  con la luz de la portada, portada con sombra y barra de progreso nueva. **Sin mover ni agrandar
+  nada.** Detalles: [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md).
 - **Rediseño premium** (0.6.3): todas las tarjetas con el mismo vidrio azul oscuro (blanco de día),
   borde luminoso, brillo y sombra, como en la referencia; maniobra con mosaico azul, datos del viaje
   en bloques «Distancia · Restante · Llegada», hora actual con su reloj, avisos con remitente y
@@ -23,8 +28,8 @@ destino, la música y el panel antes de arrancar.
   [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md).
 - **Música completa al estilo de CarPlay** (0.6.2): portada grande, título, artista y álbum
   centrados, estado de la reproducción, barra de progreso con el tiempo transcurrido y la
-  duración, fondo con los colores de la portada y un fundido corto al cambiar de canción. No
-  dibuja botones: la pantalla de la moto no es táctil para la app.
+  duración, fondo con los colores de la portada y un fundido corto al cambiar de canción. Desde
+  la 0.6.4 lleva los botones de la referencia (solo dibujo: la moto no es táctil para la app).
 - **Instrucciones compactas** (0.6.2): en los modos con mapa, la tarjeta del próximo giro es un
   30 % más pequeña por lado (flecha, distancia y calle) y deja libre el centro para la ruta.
 - **Hora actual fija** (0.6.2): siempre arriba a la derecha, en todos los modos y con o sin
@@ -73,11 +78,11 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.3_Correcciones.zip` trae el código, la documentación, las láminas
+El paquete `CFMotoLink_0.6.4_AcabadoPremium.zip` trae el código, la documentación, las láminas
 de las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
-Volver a la 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.3:
-[docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md) (y el de la 0.6.2 en
-[docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md)).
+Volver a la 0.6.3, 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.4:
+[docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md) (y los de la 0.6.3 y la 0.6.2 en
+[docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md) y [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md)).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
 ejecuta en un iPhone con iOS 16 o posterior.
 
@@ -118,7 +123,8 @@ firmar en *Releases*.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
-- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.3, 0.6.2 y 0.6.1).
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.4, 0.6.3, 0.6.2 y 0.6.1).
+- [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md): botones y acabado del reproductor de la 0.6.4 (cada modo, estados, pruebas).
 - [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md): rediseño premium de la 0.6.3 (sistema visual, cada modo, lo que no se puede llevar a la moto).
 - [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md): mapa con el iPhone bloqueado (qué permite Apple, cobertura y alternativas).
 - [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md): diseño de la 0.6.2 (música, instrucciones y hora) con capturas.

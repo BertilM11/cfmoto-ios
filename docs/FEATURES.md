@@ -1,4 +1,4 @@
-# Estado real de cada función (0.6.3)
+# Estado real de cada función (0.6.4)
 
 "Verificado en la moto" significa que el propietario lo vio funcionar en su CFMOTO 450NK.
 "Verificado en pruebas" significa que pasa las pruebas automáticas o se vio en el simulador de
@@ -12,6 +12,8 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
+| **0.6.4** Botones del reproductor (anterior, reproducir/pausar grande, siguiente) en todos los modos con música, con el estado real; solo dibujo | Verificado en pruebas (10 sitios, día y noche, sonando y en pausa: dentro de su sitio, sin tocar textos ni la hora, proporciones, ❚❚/▶, contraste ≥ 3:1) y capturas; **falta verlo en la TFT** (pruebas U y V) |
+| **0.6.4** Acabado premium: luz de la portada en el fondo, sombra difuminada, barra con degradado, portadas no cuadradas sin estirar, fundido entre canciones | Verificado en pruebas y capturas (el mismo tiempo por fotograma que la 0.6.3, medido en la misma máquina); **falta en la TFT** (pruebas U y W) |
 | **0.6.3** Rediseño premium: tarjetas de vidrio con borde luminoso en todos los modos, maniobra con mosaico, bloques Distancia · Restante · Llegada, hora con reloj, avisos con remitente, ruta con resplandor y posición nueva, sin mover nada | Verificado en pruebas (posiciones iguales a la 0.6.2, mismo vidrio en todas las tarjetas, textos sin cortar, < 8 ms por fotograma) y capturas de los 8 modos; **falta verlo en la TFT** (prueba T) |
 | **0.6.3** El mismo reproductor en todos los modos (completa, columna, zonas y tarjetas) | Verificado en pruebas (forma, contraste ≥ 4,5, fondo de la portada, estado) y capturas; **falta en la TFT** con Spotify y Apple Music |
 | **0.6.3** Maniobra compacta en la Dividida y zonas con mapa, con tamaño y esquina del iPhone | Verificado en pruebas (20 combinaciones sin tapar hora, viaje, brújula ni ruta) y capturas; **falta en la TFT** |
@@ -74,7 +76,7 @@ iPhone, pero no en la moto.
 | Notificaciones de WhatsApp, Telegram, llamadas | **No es posible.** iOS no deja que una app lea las notificaciones de otras apps. |
 | YouTube Music y otras apps de música | **No es posible** leer lo que suena en otra app; no ofrecen SDK. |
 | Leer velocidad, marcha o combustible de la moto | No disponible en el protocolo conocido. La app no dibuja indicadores falsos; los de la moto siguen en su franja. |
-| Controles en la TFT | La pantalla no es táctil para la app y el protocolo no envía botones: la música se controla desde el iPhone (o el intercomunicador). |
+| Controles en la TFT | La pantalla no es táctil para la app y el protocolo no envía botones: la música se controla desde el iPhone (o el intercomunicador). Desde la 0.6.4 la moto **muestra** los botones (solo dibujo). |
 | Ampliar la imagen más allá de 800×400 | La resolución la pide la moto. |
 | Nombre de la calle por la que vas | MapKit no lo da de forma continua; la tarjeta muestra la calle del próximo giro. |
 | Idioma | Solo español. |

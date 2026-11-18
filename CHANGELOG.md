@@ -1,5 +1,57 @@
 # Registro de cambios
 
+## 0.6.4 — Acabado premium del reproductor (18 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.6.3`, etiqueta `v0.6.3`, publicación `build-14`
+(el mismo código que la `build-12`) y carpeta `BACKUP_ORIGINAL_0.6.3` con sus huellas SHA-256
+(ver `docs/ROLLBACK.md`). No cambian la conexión Wi-Fi Direct, el vídeo H.264, el protocolo con la
+moto ni sus indicadores, la navegación, la hora, el modo día/noche ni el mapa guardado. Ningún
+módulo cambia de sitio ni de tamaño.
+
+### Botones de la referencia en todos los modos con música
+- **Anterior, reproducir/pausar y siguiente**, como en la referencia: iconos de barra y triángulo
+  y un **círculo grande** con ❚❚ (sonando) o ▶ (en pausa). Van donde estaba el estado
+  («Reproduciendo»), en **Música completa**, **Dividida**, **Música + Avisos** (con y sin ruta),
+  las tarjetas de **Nav + Música**, **Completo** y **Personalizado** (compacta y grande) y la zona
+  lateral de los diseños por zonas.
+- **Proporcionales al sitio**: círculo de 62 px en Música completa, 44 px en las columnas, 40 px en
+  Música + Avisos con ruta, 26 px en la tarjeta grande y 22 px en la compacta. Los tres botones
+  caben en todos los tamaños.
+- **Solo dibujo**: la moto no envía toques ni teclas a la app, así que en la TFT no se pueden
+  pulsar. No se tocó el protocolo. La música se sigue controlando con los botones del iPhone
+  (Más > Música), que no cambian, o con el intercomunicador.
+- **Estado real**: ❚❚ mientras suena y ▶ en pausa, con un fundido corto (0,25 s) al cambiar. Sin
+  música se ven apagados.
+- De noche, iconos blancos y círculo blanco con el símbolo oscuro; de día, al revés (iconos y
+  círculo oscuros), para que se vean sobre el fondo claro.
+
+### Acabado premium
+- **Luz de la portada** en el fondo, como en CarPlay: sus colores, difuminados, sobre el degradado
+  de la portada, con el resplandor detrás de ella y, de noche, un velo algo más oscuro abajo.
+- **Portada** con sombra difuminada y un filo fino que la separa del fondo; las que no son
+  cuadradas se ven enteras, sin estirarse.
+- **Barra de progreso** con degradado del color de la barra y el punto con halo; en la tarjeta
+  compacta, fina al pie, y en la grande con los tiempos a los lados.
+- **Tarjeta compacta**: título y artista; debajo, los botones con el nombre del servicio a la
+  derecha. **Tarjeta grande**: servicio, título, artista, botones y barra con tiempos.
+- **Cambio de canción**: el fondo de cada canción se dibuja una vez y se guarda; al cambiar, se
+  funden el anterior y el nuevo sin volver a dibujarlos.
+- **Mismo rendimiento que la 0.6.3**, medido en la misma máquina (mediana de 3 pasadas): 17,3 ms
+  por fotograma en plena transición (0.6.3: 17,0) y 9,8 ms sin transición (0.6.3: 10,1). La moto
+  pide un fotograma cada 100 ms.
+
+### En el iPhone
+- Más > Música explica que en la moto los botones se ven pero no se pueden pulsar. El ajuste
+  «Nombre del servicio y estado» pasa a llamarse «Nombre del servicio» (el estado lo muestra ahora
+  el botón central).
+
+### Pruebas
+- 200 pruebas automáticas del panel: las de antes y las nuevas de los botones (en todos los
+  sitios, dentro de su tarjeta o zona, sin tocar textos ni la hora, proporciones, estado
+  ❚❚/▶, contraste de los iconos ≥ 3:1, apagados sin música, fundido, tarjetas del mismo tamaño
+  y portadas que no son cuadradas). Resultados en `docs/TEST_RESULTS.md`.
+- Falta verlo en la moto: pruebas U, V y W de `docs/TESTING.md`.
+
 ## 0.6.3 — Rediseño premium y correcciones de navegación (18 de noviembre de 2026)
 
 Respaldo de la versión anterior: etiqueta `v0.6.2`, rama `backup/v0.6.2`, publicación

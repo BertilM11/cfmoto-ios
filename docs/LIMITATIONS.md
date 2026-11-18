@@ -1,6 +1,6 @@
-# Limitaciones pendientes — CFMoto Link 0.6.3
+# Limitaciones pendientes — CFMoto Link 0.6.4
 
-Lo que la 0.6.3 no puede resolver (por iOS, Apple Maps o la moto) y lo que falta comprobar.
+Lo que la 0.6.4 no puede resolver (por iOS, Apple Maps o la moto) y lo que falta comprobar.
 
 ## 1. Mapa con el iPhone bloqueado
 
@@ -29,9 +29,13 @@ aparte).
 
 ## 2. Diseño de la referencia que no se puede llevar a la moto
 
-- **Botones de reproducción** (anterior, pausa, siguiente, aleatorio, repetir) y **botones del
-  mapa** (+, −, capas): la moto no envía toques ni teclas a la app, así que no funcionarían. Se
-  muestra el estado de la música; el zoom es automático y se elige en el iPhone.
+- **Pulsar los botones de reproducción en la TFT**: desde la 0.6.4 la moto **muestra** anterior,
+  reproducir/pausar y siguiente, como en la referencia, pero son solo dibujo: la moto no envía
+  toques ni teclas a la app y no se tocó el protocolo. La música se controla desde el iPhone
+  (Más > Música), el intercomunicador o la app de música. El botón central sí muestra el estado
+  real (❚❚ o ▶).
+- **Aleatorio, repetir y botones del mapa** (+, −, capas): no se dibujan; tampoco funcionarían en
+  la moto. El zoom es automático y se elige en el iPhone.
 - **Avisos de WhatsApp u otras apps**: iOS no deja que una app lea las notificaciones de otras. La
   moto muestra los avisos de CFMoto Link (ruta, conexión con la moto, batería del iPhone).
 - **Colores propios del mapa** (el azul de la referencia): MapKit solo ofrece sus estilos (claro,

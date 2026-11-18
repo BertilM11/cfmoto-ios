@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.6.3 (y anteriores)
+# Resultados de las pruebas — CFMoto Link 0.6.4 (y anteriores)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,7 +6,64 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **ni la 0.6.1, ni la 0.6.2, ni la 0.6.3 se han probado todavía en la moto.**
+3. **Moto** (manual, con la 450NK): **la 0.6.3 y la 0.6.4 no se han probado todavía en la moto.**
+   Las fotos de la TFT que enviaste muestran el diseño de la 0.6.2 (Música + Avisos con ruta y
+   Spotify) y otra pantalla con solo música.
+
+## 0.6.4 — Acabado premium del reproductor
+
+### Resumen
+
+| Nivel | Qué se probó | Resultado |
+| --- | --- | --- |
+| Automáticas | 200 pruebas: las 193 de la 0.6.3 y 7 nuevas de los botones, más las del reproductor ampliadas | **Todas pasan** (pruebas rápidas 10 y 11 y prueba 34 del simulador; se repiten en la compilación que produce el IPA) |
+| Rendimiento | La 0.6.3 y la 0.6.4 en la **misma máquina** (Apple M1 de GitHub), mediana de 3 pasadas | Iguales: diferencias de ±1 ms, todo por debajo de 12 ms (tabla abajo) |
+| Simulador | Compilación de la app, recorrido de demostración en los modos, día y noche, y prueba en segundo plano (prueba 34) | `BUILD SUCCEEDED`; capturas en `CAPTURAS/4_SIMULADOR_IPHONE` |
+| Moto | — | **Sin probar** (pruebas U, V y W de `TESTING.md`) |
+
+### Pruebas nuevas de los botones
+
+| Prueba | Resultado |
+| --- | --- |
+| Anterior, reproducir/pausar y siguiente en todos los modos con música, dentro de su sitio y sin tocar textos ni la hora | Pasa: 10 sitios, día y noche, sonando y en pausa |
+| Círculo central proporcional a cada sitio y laterales menores, alineados | Pasa: 62 px (Música completa, con y sin ruta), 44 (Dividida, Música + Avisos), 40 (Música + Avisos con ruta), 26 (tarjeta grande y zona lateral), 22 (Nav + Música, Completo, Personalizado) |
+| El círculo muestra el estado real | Pasa: ❚❚ sonando, ▶ en pausa |
+| Iconos con contraste sobre su fondo (≥ 3:1, día y noche) | Pasa: el peor, 4,9:1 (Nav + Música de día, en pausa) |
+| Sin música, botones apagados | Pasa (con ▶) |
+| El cambio ▶/❚❚ se funde | Pasa: centro del círculo 1,00 sonando, 0,25 a mitad, 0,01 en pausa |
+| Las tarjetas de música miden lo mismo que en la 0.6.3 | Pasa: 250×84 y 300×124 |
+| Portada que no es cuadrada | Pasa: se ve entera, sin estirarse |
+| Ningún texto cortado, montado ni encima de la hora | Pasa: 68 composiciones (todos los modos, día y noche, con y sin ruta) |
+| Portada proporcional al espacio | Pasa: Música completa 274 px (209 con el giro abajo), Dividida 162, Música + Avisos 155 (181 con ruta), tarjetas 64 y 100 |
+| Título y artista legibles sobre el fondo de la portada (≥ 4,5:1) | Pasa: el peor, 8,3:1 |
+
+### Rendimiento: 0.6.3 frente a 0.6.4 en la misma máquina
+
+Milisegundos por fotograma (la moto pide uno cada 100 ms; el límite de las pruebas es 25 ms).
+
+| Medida | 0.6.3 | 0.6.4 |
+| --- | --- | --- |
+| Música completa en plena transición de canción | 17,0 | 17,3 |
+| Música completa sin transición | 10,1 | 9,8 |
+| 1 · Navegación completa | 5,4 | 5,2 |
+| 2 · Navegación + música compacta | 6,9 | 6,2 |
+| 3 · Pantalla dividida | 11,6 | 10,6 |
+| 4 · Música completa | 8,2 | 8,3 |
+| 5 · Personalizado | 6,8 | 6,9 |
+| Panel completo | 6,9 | 6,8 |
+| Navegación + Avisos | 5,7 | 4,5 |
+| Música + Avisos | 8,9 | 8,8 |
+
+### Simulador (prueba 34)
+
+- La app compila y recorre los modos de día y de noche con mapas reales de Apple.
+- **Mapa guardado** (el código del mapa es el de la 0.6.3: ningún archivo del mapa cambió). Apple
+  devolvió esta vez una ruta de 8,8 km con 8 giros (en la prueba 33, 8,2 km con 10 giros). Con la
+  app al frente, en 73 s se guardaron 41 imágenes (0,56 por segundo; en la prueba 33, 0,55) y el
+  mapa seguido llegaba a 3,3 de los 6,6 km que quedaban. En segundo plano la moto usó las imágenes
+  guardadas y los km bajaron sin saltos (3,1 → 2,7 km).
+- Lo que no prueba: el simulador no tiene moto (ritmo de envío 0), ni GPS real, ni bloquea la
+  pantalla.
 
 ## 0.6.3 — Rediseño premium y correcciones
 

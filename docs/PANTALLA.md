@@ -31,7 +31,8 @@ que hay un mapa, solo muestra los fotogramas. Por eso:
 
 - todo el diseño (mapa, tarjetas, música) se compone en el iPhone en una sola imagen;
 - la pantalla de la moto no es táctil para la app y el protocolo conocido no envía botones,
-  así que los controles de música están en el iPhone;
+  así que los controles de música están en el iPhone (desde la 0.6.4 la moto dibuja los mismos
+  botones, pero solo se ven: no se pueden pulsar);
 - la app no puede leer la velocidad, las rpm ni la marcha de la moto, ni ocultarlas.
 
 ## 4. ¿Se puede ampliar la región?

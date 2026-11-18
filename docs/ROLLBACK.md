@@ -1,8 +1,25 @@
 # Volver a una versión anterior
 
-La 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.3 falla o no te gusta el diseño
-nuevo, se puede volver en un par de minutos. La 0.6.3 cambia el dibujo de la pantalla y el mapa
-guardado: la conexión con la moto, el vídeo y el protocolo son los de la 0.6.2.
+La 0.6.3, la 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.4 falla o no te gusta,
+se puede volver en un par de minutos. La 0.6.4 solo cambia el dibujo de la música: la conexión
+con la moto, el vídeo, el protocolo, la navegación y el mapa guardado son los de la 0.6.3.
+
+## Dónde está la 0.6.3
+
+| Dónde | Qué |
+| --- | --- |
+| Entrega de la 0.6.4: `BACKUP_ORIGINAL_0.6.3\` | `CFMotoLink_0.6.3.ipa`, el paquete original, `SHA256SUMS.txt`, `MANIFEST_0.6.3.txt` y `VERSION.txt` |
+| Tu PC: `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.3\` | Los mismos archivos |
+| Tu PC: `Descargas\CFMotoLink_entrega_0.6.3\` y `CFMotoLink_0.6.3.ipa` en la carpeta del proyecto | La entrega completa de la 0.6.3 |
+| GitHub, publicación `build-14` | El IPA y el paquete de la 0.6.3 tal como se compilaron (la `build-12` es el mismo código) |
+| GitHub, rama `backup/v0.6.3` (commit `85222c8`) y etiqueta `v0.6.3` (commit `bcee4ef`, el mismo código; solo cambian 2 líneas de documentación) | El código exacto |
+
+Huellas SHA-256 de la copia de la 0.6.3:
+
+```
+e72fb781aa521840a82f33f5c77b4ff40f50db3d68d890a78fd217e5ab8b7497  CFMotoLink_0.6.3.ipa
+2a27a8ca92b022adad5edac8976e50eceb113daa21e854df8caa75d2c1f855b7  CFMotoLink_0.6.3_Correcciones.zip
+```
 
 ## Dónde está la 0.6.2
 
@@ -53,19 +70,19 @@ Huellas SHA-256 de la copia de la 0.6.1:
 Comprobar una huella en Windows (PowerShell o CMD, dentro de la carpeta del respaldo):
 
 ```
-certutil -hashfile CFMotoLink_0.6.2.ipa SHA256
+certutil -hashfile CFMotoLink_0.6.3.ipa SHA256
 ```
 
-## Reinstalar la 0.6.2 (o una anterior) en el iPhone
+## Reinstalar la 0.6.3 (o una anterior) en el iPhone
 
 1. Abre Sideloadly y conecta el iPhone con el cable.
-2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.2\CFMotoLink_0.6.2.ipa`
-   (o el de la 0.6.1 o la 0.6.0).
+2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.3\CFMotoLink_0.6.3.ipa`
+   (o el de la 0.6.2, la 0.6.1 o la 0.6.0).
 3. Pulsa **Start**. Se instala encima (mismo identificador `io.github.cfmotolink.app`).
 
-Los ajustes se conservan: la 0.6.3 no cambia el formato guardado (sigue siendo la versión 3 de
-la configuración; el tamaño y el lugar de la maniobra ya existían). El Client ID de Spotify también; el permiso de Spotify hay que pedirlo otra
-vez (dura una hora y vive en memoria).
+Los ajustes se conservan: la 0.6.4 no cambia el formato guardado (el interruptor «Nombre del
+servicio» es el mismo ajuste de antes con otro nombre). El Client ID de Spotify también; el
+permiso de Spotify hay que pedirlo otra vez (dura una hora y vive en memoria).
 
 ## Volver al código anterior
 
@@ -73,16 +90,16 @@ Con Git:
 
 ```sh
 git fetch origin
-git checkout v0.6.2          # o: git checkout backup/v0.6.2   (v0.6.1 / backup/v0.6.1, v0.6.0 / backup/v0.6.0)
+git checkout v0.6.3          # o: git checkout backup/v0.6.3   (también v0.6.2, v0.6.1, v0.6.0 y sus ramas backup/)
 ```
 
-Con GitHub Desktop: *Branch > backup/v0.6.2*.
+Con GitHub Desktop: *Branch > backup/v0.6.3*.
 
-Para que la rama `main` vuelva a ser la 0.6.1 (solo si se decide abandonar la 0.6.2):
+Para que la rama `main` vuelva a ser la 0.6.3 (solo si se decide abandonar la 0.6.4):
 
 ```sh
 git checkout main
-git revert --no-edit v0.6.1..HEAD   # deshace los cambios sin borrar el historial
+git revert --no-edit backup/v0.6.3..HEAD   # deshace los cambios sin borrar el historial
 git push
 ```
 
@@ -90,7 +107,7 @@ Cada envío a `main` vuelve a compilar y publica un IPA nuevo en *Releases*.
 
 ## Cuándo volver
 
-- La moto no recibe imagen con la 0.6.2 y sí con la 0.6.1 (misma moto, mismo Wi-Fi).
+- La moto no recibe imagen con la 0.6.4 y sí con la 0.6.3 (misma moto, mismo Wi-Fi).
 - La app se cierra sola de forma repetida.
-- El diseño nuevo no se lee bien en la TFT y prefieres el anterior.
+- El reproductor nuevo no se lee bien en la TFT y prefieres el anterior.
 - Antes de volver, si puedes: **Más > Diagnóstico > Exportar informe**, para saber qué falló.

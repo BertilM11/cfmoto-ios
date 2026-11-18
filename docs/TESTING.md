@@ -181,4 +181,12 @@ Igual que antes: al terminar cada una, **Más > Diagnóstico > Exportar informe*
 | S | Vista previa de Mi pantalla y Personalización frente a la moto | Lo mismo en el iPhone y en la TFT | — |
 | T | Rediseño premium en la TFT, de día (al sol) y de noche, en los 8 modos | Tarjetas de vidrio legibles, bordes visibles sin deslumbrar, hora y «Llegada» claras; nada fuera de su sitio respecto a la 0.6.2 | Foto de la TFT en cada modo |
 
+## 6. Pruebas en la moto de la 0.6.4
+
+| Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el informe |
+| --- | --- | --- | --- |
+| U | Música en Música completa, Dividida, Música + Avisos, Nav + Música, Completo y Personalizado, de día (al sol) y de noche | Anterior, el círculo de reproducir/pausar y siguiente se ven nítidos y del tamaño de cada sitio; nada cortado; nada se movió respecto a la 0.6.3 | Foto de la TFT en cada modo |
+| V | Pausar y reanudar desde el iPhone (o el intercomunicador) | El círculo pasa de ❚❚ a ▶ y vuelve, sin saltos | `envio≈10fps` |
+| W | Cambiar de canción varias veces con la ruta activa | La portada, su luz en el fondo y los textos se funden en menos de medio segundo; el mapa no da tirones | `envio≈10fps` |
+
 Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.

@@ -1,4 +1,4 @@
-# Instalación y primer uso (0.6.3)
+# Instalación y primer uso (0.6.4)
 
 ## Lo que hace falta
 
@@ -9,8 +9,8 @@
 
 ## Instalar
 
-1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.3 en GitHub (*Releases*) o usa el
-   que viene en la entrega (`CFMotoLink_0.6.3.ipa`).
+1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.4 en GitHub (*Releases*) o usa el
+   que viene en la entrega (`CFMotoLink_0.6.4.ipa`).
 2. Conecta el iPhone al PC con el cable y desbloquéalo. Si pregunta, toca **Confiar**.
 3. En Sideloadly: toca el icono del IPA, elige el archivo, comprueba tu Apple ID y pulsa
    **Start**. Escribe tu contraseña solo en la ventana de Sideloadly.
@@ -18,7 +18,7 @@
 5. Abre CFMoto Link y permite la ubicación (**Al usar la app**) y, si usas Apple Music, el
    acceso a la música.
 
-La 0.6.3 se instala encima de la 0.6.2 (o de una anterior) y conserva los ajustes y perfiles.
+La 0.6.4 se instala encima de la 0.6.3 (o de una anterior) y conserva los ajustes y perfiles.
 
 ## Usar con la moto
 
