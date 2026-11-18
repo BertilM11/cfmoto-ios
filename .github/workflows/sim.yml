@@ -23,7 +23,7 @@ jobs:
           set -o pipefail
           xcodebuild -project CFMotoLink.xcodeproj -scheme CFMotoLink -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath buildsim \
-            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || true
+            ARCHS=$(uname -m) ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || true
           grep -E "error:|BUILD SUCCEEDED|BUILD FAILED" build.log | sort -u | head -n 120 || true
       - name: Dibujar la pantalla de la moto
         if: always()
