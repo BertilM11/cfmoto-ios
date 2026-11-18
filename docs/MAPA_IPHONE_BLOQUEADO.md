@@ -70,7 +70,7 @@ de la 0.6.1 midió unos 4,5 s por imagen; en un iPhone real se espera menos, **s
 | Ruta de 15 km, parado, 2 s por imagen: guardado en 40 s | ver `TEST_RESULTS.md` | ver `TEST_RESULTS.md` |
 | Ruta de 15 km: tiempo hasta «Ruta completa guardada» | — | poco más de 1 min (2 s por imagen) |
 | Memoria máxima | 64 MB | 96 MB (y 1/5 de la libre como mucho) |
-| Simulador de GitHub (prueba en segundo plano), ruta de 8,8 km | — | 31 imágenes en el primer minuto (unos 6 s por imagen y por petición: el simulador es más lento que un iPhone); al pasar a segundo plano la moto usó las guardadas |
+| Simulador de GitHub (prueba en segundo plano, ruta de 8,8 km con la moto avanzando) | — | En el primer minuto, 5,5 de los 6,0 km que quedaban (37 imágenes). En segundo plano la moto usó las guardadas y los km bajaron sin saltos (5,6 → 5,1 km); al volver al frente: «Ruta completa guardada» |
 
 ## 4. Cómo usarlo
 
