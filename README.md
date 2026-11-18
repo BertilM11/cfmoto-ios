@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.2 — Diseño de la pantalla
+# CFMoto Link 0.6.3 — Rediseño premium
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,6 +9,18 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
+- **Rediseño premium** (0.6.3): todas las tarjetas con el mismo vidrio azul oscuro (blanco de día),
+  borde luminoso, brillo y sombra, como en la referencia; maniobra con mosaico azul, datos del viaje
+  en bloques «Distancia · Restante · Llegada», hora actual con su reloj, avisos con remitente y
+  hora, ruta con resplandor y una marca de posición nueva. **Sin mover nada**: mismas posiciones y
+  tamaños que la 0.6.2. Detalles: [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md).
+- **El mismo reproductor en todos los modos** (0.6.3): música completa, columna, zonas y tarjetas
+  comparten fondo con los colores de la portada, portada, letra, estado y barra.
+- **Instrucciones compactas también en la pantalla dividida** (0.6.3), con el tamaño y la esquina
+  elegidos en el iPhone.
+- **Mapa guardado con más cobertura** (0.6.3): hasta 800 imágenes y 96 MB (unos 140 km), tres a la
+  vez, y el aviso «Ruta completa guardada / Guardando / Mapa parcial» con los km reales. Informe:
+  [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md).
 - **Música completa al estilo de CarPlay** (0.6.2): portada grande, título, artista y álbum
   centrados, estado de la reproducción, barra de progreso con el tiempo transcurrido y la
   duración, fondo con los colores de la portada y un fundido corto al cambiar de canción. No
@@ -16,7 +28,7 @@ destino, la música y el panel antes de arrancar.
 - **Instrucciones compactas** (0.6.2): en los modos con mapa, la tarjeta del próximo giro es un
   30 % más pequeña por lado (flecha, distancia y calle) y deja libre el centro para la ruta.
 - **Hora actual fija** (0.6.2): siempre arriba a la derecha, en todos los modos y con o sin
-  ruta; la barra de viaje dice «Llegada 7:22 p.m. | 18 min | 7.4 km».
+  ruta; la llegada va en su bloque con la palabra «Llegada».
 - **Mapa con el iPhone bloqueado** (0.6.1): la app guarda la ruta entera por delante mientras
   está abierta y la usa al bloquear; Navegación avisa cuándo ya se puede bloquear. Con la
   **Pantalla negra** el mapa sigue en vivo sin bloquear.
@@ -61,10 +73,11 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.2_Interfaz.zip` trae el código, la documentación, las láminas de
-las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
-Volver a la 0.6.1 o a la 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.2:
-[docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md).
+El paquete `CFMotoLink_0.6.3_Correcciones.zip` trae el código, la documentación, las láminas
+de las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
+Volver a la 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.3:
+[docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md) (y el de la 0.6.2 en
+[docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md)).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
 ejecuta en un iPhone con iOS 16 o posterior.
 
@@ -105,7 +118,9 @@ firmar en *Releases*.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
-- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.2 y 0.6.1).
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.3, 0.6.2 y 0.6.1).
+- [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md): rediseño premium de la 0.6.3 (sistema visual, cada modo, lo que no se puede llevar a la moto).
+- [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md): mapa con el iPhone bloqueado (qué permite Apple, cobertura y alternativas).
 - [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md): diseño de la 0.6.2 (música, instrucciones y hora) con capturas.
 - [docs/LIMITATIONS.md](docs/LIMITATIONS.md): limitaciones pendientes y qué haría falta.
 

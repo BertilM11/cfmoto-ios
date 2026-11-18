@@ -405,15 +405,21 @@ enum CorridorCoverage {
                      northUp: Bool, style: String? = nil, sample: Double = 25) -> Result {
         guard !route.isEmpty, end > progress else { return Result(continuous: 0, covered: 0, checked: 0, gaps: 0) }
         let sorted = entries.sorted { $0.anchor < $1.anchor }
-        var continuous = 0.0
-        var stillContinuous = true
-        var covered = 0.0
-        var gaps = 0
-        var inGap = false
-        var lower = 0
-        var d = progress
         let last = min(end, route.length)
-        while d <= last {
+        // 0.6.3: la posición y puntos fijos de la ruta (cada `sample` metros desde el inicio).
+        // Antes los puntos se movían con la moto: un hueco de pocos metros entre dos imágenes
+        // aparecía o no según el instante y los km guardados saltaban (en el simulador, 4,0 →
+        // 1,8 → 3,9 km en 20 s sin imágenes nuevas).
+        var points: [Double] = [progress]
+        var g = ((progress / sample).rounded(.down) + 1) * sample
+        while g <= last {
+            points.append(g)
+            g += sample
+        }
+        var lower = 0
+        var ok: [Bool] = []
+        ok.reserveCapacity(points.count)
+        for d in points {
             // Solo las imágenes cercanas a este punto de la ruta.
             while lower < sorted.count && sorted[lower].anchor < d - 1500 { lower += 1 }
             var near: [CorridorEntry] = []
@@ -422,16 +428,29 @@ enum CorridorCoverage {
                 near.append(sorted[i])
                 i += 1
             }
-            if usable(near, route: route, at: d, northUp: northUp, style: style) {
-                covered += sample
-                if stillContinuous { continuous = d - progress + sample }
+            ok.append(usable(near, route: route, at: d, northUp: northUp, style: style))
+        }
+        var continuous = 0.0
+        var stillContinuous = true
+        var covered = 0.0
+        var gaps = 0
+        var inGap = false
+        for j in points.indices {
+            let next = j + 1 < points.count ? points[j + 1] : min(last, points[j] + sample)
+            let length = max(0, next - points[j])
+            // Un solo punto sin imagen entre dos con imagen (hueco de menos de dos puntos) no corta
+            // lo seguido: lo cubre la imagen vecina (el dibujo acepta también imágenes con la moto
+            // cerca del borde).
+            let good = ok[j] || (j > 0 && j + 1 < points.count && ok[j - 1] && ok[j + 1])
+            if good {
+                covered += length
+                if stillContinuous { continuous = next - progress }
                 inGap = false
             } else {
                 stillContinuous = false
                 if !inGap { gaps += 1 }
                 inGap = true
             }
-            d += sample
         }
         let checked = last - progress
         return Result(continuous: min(continuous, checked), covered: min(covered, checked), checked: checked, gaps: gaps)

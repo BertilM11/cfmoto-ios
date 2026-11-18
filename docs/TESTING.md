@@ -171,7 +171,7 @@ Igual que antes: al terminar cada una, **Más > Diagnóstico > Exportar informe*
 
 | Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el informe |
 | --- | --- | --- | --- |
-| L | Modo 3 · Dividida con una ruta | Tarjeta del giro pequeña (como en el mapa completo) arriba a la izquierda; se ve el mapa por delante; la barra «Llegada · min · km» abajo | — |
+| L | Modo 3 · Dividida con una ruta | Tarjeta del giro pequeña (como en el mapa completo) arriba a la izquierda; se ve el mapa por delante; los bloques «Distancia · Restante · Llegada» abajo a la derecha | — |
 | M | En Personalización, «Tarjeta de maniobra: Grande» y «Lugar de la maniobra: Arriba der.» con la Dividida | La moto cambia al momento (pasa a modo 5) y nada tapa la hora | — |
 | N | Música en Música sola, Nav + Música, Dividida, Completo y Música + Avisos (Spotify y Apple Music) | El mismo reproductor en todos: fondo con los colores de la portada, portada, título, artista, estado y barra; nada cortado; legible de día y de noche | — |
 | O | Cambiar de canción varias veces con la ruta activa | Fundido corto, sin tirones en el mapa | `envio≈10fps` |
@@ -179,5 +179,6 @@ Igual que antes: al terminar cada una, **Más > Diagnóstico > Exportar informe*
 | Q | Moto encendida y el iPhone bloqueado 10 minutos (con y sin ruta) | **La TFT sigue recibiendo imagen** (la hora avanza cada minuto). Que el GPS siga no basta | `envio≈10fps` y edad del último fotograma < 1 s durante todo el bloqueo |
 | R | Ruta muy larga (> 140 km) | En el iPhone, aviso naranja «Mapa parcial»; en la moto, al final de lo guardado, «MAPA GUARDADO: x KM» y después MAPA SIMPLE | `[MAPA] Mapa parcial…`, memoria (`mem=`) |
 | S | Vista previa de Mi pantalla y Personalización frente a la moto | Lo mismo en el iPhone y en la TFT | — |
+| T | Rediseño premium en la TFT, de día (al sol) y de noche, en los 8 modos | Tarjetas de vidrio legibles, bordes visibles sin deslumbrar, hora y «Llegada» claras; nada fuera de su sitio respecto a la 0.6.2 | Foto de la TFT en cada modo |
 
 Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.

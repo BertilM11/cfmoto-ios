@@ -1,4 +1,4 @@
-# Estado real de cada función (0.6.1)
+# Estado real de cada función (0.6.3)
 
 "Verificado en la moto" significa que el propietario lo vio funcionar en su CFMOTO 450NK.
 "Verificado en pruebas" significa que pasa las pruebas automáticas o se vio en el simulador de
@@ -12,6 +12,10 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
+| **0.6.3** Rediseño premium: tarjetas de vidrio con borde luminoso en todos los modos, maniobra con mosaico, bloques Distancia · Restante · Llegada, hora con reloj, avisos con remitente, ruta con resplandor y posición nueva, sin mover nada | Verificado en pruebas (posiciones iguales a la 0.6.2, mismo vidrio en todas las tarjetas, textos sin cortar, < 8 ms por fotograma) y capturas de los 8 modos; **falta verlo en la TFT** (prueba T) |
+| **0.6.3** El mismo reproductor en todos los modos (completa, columna, zonas y tarjetas) | Verificado en pruebas (forma, contraste ≥ 4,5, fondo de la portada, estado) y capturas; **falta en la TFT** con Spotify y Apple Music |
+| **0.6.3** Maniobra compacta en la Dividida y zonas con mapa, con tamaño y esquina del iPhone | Verificado en pruebas (20 combinaciones sin tapar hora, viaje, brújula ni ruta) y capturas; **falta en la TFT** |
+| **0.6.3** Mapa guardado: 3 a la vez, 800 imágenes / 96 MB, aviso completa/guardando/parcial y MAPA GUARDADO en la moto | Verificado en pruebas (ruta de 15 km completa en 70 s con 2 s por imagen) y en el simulador; **falta en el iPhone y la moto** (pruebas P, Q y R) |
 | **0.6.2** Música completa al estilo de CarPlay (portada grande, textos centrados, estado, barra con tiempos, fondo con los colores de la portada, fundido al cambiar de canción) | Verificado en pruebas y capturas; **falta verla en la TFT** |
 | **0.6.2** Maniobra compacta (200×96) con flecha, distancia y calle | Verificado en pruebas y capturas; **falta verla en la TFT** con una ruta real |
 | **0.6.2** Hora actual fija arriba a la derecha y «Llegada» en la barra de viaje | Verificado en pruebas (8 modos, día y noche, con y sin ruta) y capturas; **falta en la TFT** |

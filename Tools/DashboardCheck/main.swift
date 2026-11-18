@@ -697,6 +697,15 @@ let holed = fullCorridor.filter { $0.anchor < 3900 || $0.anchor > 5100 }
 let holedCoverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: holed, northUp: false)
 check("Se detecta el tramo sin imagen", holedCoverage.gaps == 1 && holedCoverage.continuous > 3800 && holedCoverage.continuous < 4400,
       String(format: "seguido %.1f km, %d huecos", holedCoverage.continuous / 1000, holedCoverage.gaps))
+// 0.6.3: los km guardados no saltan al avanzar unos metros (antes los puntos de revisión se
+// movían con la moto y un hueco pequeño aparecía o no según el instante).
+var holedEnds: [Double] = []
+for offset in stride(from: 0.0, through: 210.0, by: 7.0) {
+    holedEnds.append(500 + offset + CorridorCoverage.scan(route: corridorRoute, from: 500 + offset, to: corridorRoute.length, entries: holed, northUp: false).continuous)
+}
+let holedSpread = (holedEnds.max() ?? 0) - (holedEnds.min() ?? 0)
+check("Cobertura estable: al avanzar, el final del mapa guardado no salta", holedSpread <= 30,
+      String(format: "el final se mueve %.0f m en 31 posiciones", holedSpread))
 
 // Recálculo: la ruta nueva comparte los primeros 6 km y luego va por otro lado.
 let rerouted = RoutePath(points: legs(corridorStart, [(6000, 35), (5000, 300)]))

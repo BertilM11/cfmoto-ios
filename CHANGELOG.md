@@ -1,11 +1,34 @@
 # Registro de cambios
 
-## 0.6.3 — Correcciones de diseño y navegación (18 de noviembre de 2026)
+## 0.6.3 — Rediseño premium y correcciones de navegación (18 de noviembre de 2026)
 
 Respaldo de la versión anterior: etiqueta `v0.6.2`, rama `backup/v0.6.2`, publicación
 `build-11` y carpeta `BACKUP_ORIGINAL_0.6.2` con sus huellas SHA-256 (ver `docs/ROLLBACK.md`).
 No cambian la conexión Wi-Fi Direct, el vídeo H.264, el protocolo con la moto ni sus
 indicadores (velocidad, RPM, marcha, combustible y testigos).
+
+### Rediseño premium (referencia 01), sin mover nada
+- **Un solo sistema visual** para todas las tarjetas y zonas: vidrio azul oscuro (blanco de día)
+  con degradado, borde luminoso más claro arriba, brillo interior, halo azul suave de noche y
+  sombra. Iconos en mosaicos con degradado y brillo. Ver `docs/DISENO_0.6.3.md`.
+- **Mismas posiciones y tamaños que la 0.6.2** en todos los modos (prueba automática con las
+  medidas exactas); la hora sigue fija arriba a la derecha.
+- **Maniobra** como en la referencia: mosaico azul con la flecha, distancia en grande y la calle;
+  la tarjeta grande añade la instrucción completa y «Luego» con la maniobra siguiente.
+- **Datos del viaje** en tres bloques, como en la referencia: **Distancia · Restante · Llegada**,
+  cada cifra sobre su nombre, y el avance en el borde de abajo.
+- **Hora actual** con un pequeño reloj, para que no se confunda con la de llegada.
+- **Avisos**: icono propio por remitente (navegación, moto, iPhone), remitente, título, mensaje y
+  «Ahora / 2 min»; la zona de avisos tiene campana y contador, y **sin avisos muestra un estado
+  vacío centrado** en vez de la zona en blanco.
+- **Mapa**: ruta con resplandor y brillo central, marca de posición nueva (disco de vidrio con la
+  flecha azul), destino rojo, brújula de vidrio y el mapa simple en azul oscuro.
+- **Música**: el mismo vidrio (sombra y borde, del color de la portada), nombre del servicio con
+  su punto de color, punto en la barra de progreso y píldora del estado de vidrio, en todos los
+  tamaños.
+- Sin botones de reproducción ni de zoom: en la moto no funcionarían (no envía toques ni teclas).
+- Los fondos de las tarjetas se dibujan una vez y se reutilizan: menos de 8 ms por fotograma en
+  todos los modos en las pruebas.
 
 ### Música: el mismo reproductor en todos los modos
 - Un solo reproductor en tres formas que comparten fondo (degradado con los colores de la
@@ -17,8 +40,9 @@ indicadores (velocidad, RPM, marcha, combustible y testigos).
   - **Nav + Música**, **Completo** y zonas bajas: tarjeta con la portada a la izquierda, el
     servicio con el símbolo del estado, título, artista y barra (con tiempos en la tarjeta
     grande). Antes la tarjeta tenía otro diseño.
-- Los textos se ajustan al sitio: si no caben, primero se quita lo secundario y se reduce la letra
-  un poco; un título muy largo termina en «…», nunca cortado por el borde.
+- Los textos se ajustan al sitio: si no caben, primero se reduce la letra y se quita lo
+  secundario; en la tarjeta compacta el título puede pasar a dos líneas (sin el artista). Solo un
+  título muy largo termina en «…», nunca cortado por el borde.
 - Sin botones: el protocolo de la moto no envía teclas, así que solo se muestran el estado y el
   progreso (la música se controla desde el iPhone o el intercomunicador).
 - El fundido al cambiar de canción funciona en todas las formas.
@@ -42,8 +66,9 @@ indicadores (velocidad, RPM, marcha, combustible y testigos).
 - Informe completo de lo que permite Apple y de las alternativas: `docs/MAPA_IPHONE_BLOQUEADO.md`.
 
 ### Hora actual y llegada
-- Se mantienen: hora actual fija arriba a la derecha y «Llegada 7:22 p. m. | 18 min | 7.4 km».
-  Las pruebas comprueban que ningún texto la tapa en ningún modo.
+- Se mantiene la hora actual fija arriba a la derecha (ahora con su reloj); la llegada va en su
+  bloque con la palabra «Llegada». Las pruebas comprueban que ningún texto tapa la hora en ningún
+  modo y que la hora de llegada nunca aparece en el sitio de la hora actual.
 
 ### Pruebas
 - Nuevas pruebas automáticas: textos cortados, montados o sobre la hora en todos los modos (día,
