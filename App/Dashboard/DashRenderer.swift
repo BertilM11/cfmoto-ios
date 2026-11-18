@@ -222,12 +222,15 @@ extension HUDRenderer {
         if shadow { paintShadow(r, radius: rad, color: p.shadow, blur: 9 * k, drop: 3 * k, g) }
         guard body else { return }
         if p.halo.alpha > 0.001 {
-            g.saveGState()
-            g.addPath(CGPath(roundedRect: r.insetBy(dx: -1.25 * k, dy: -1.25 * k), cornerWidth: rad + 1.25 * k, cornerHeight: rad + 1.25 * k, transform: nil))
-            g.setStrokeColor(p.halo)
-            g.setLineWidth(2.5 * k)
-            g.strokePath()
-            g.restoreGState()
+            // Halo azul muy suave alrededor (el brillo de las tarjetas de la referencia).
+            for (out, width, a) in [(CGFloat(1.5), CGFloat(3), CGFloat(1)), (CGFloat(3.5), CGFloat(3), CGFloat(0.45))] {
+                g.saveGState()
+                g.addPath(CGPath(roundedRect: r.insetBy(dx: -out * k, dy: -out * k), cornerWidth: rad + out * k, cornerHeight: rad + out * k, transform: nil))
+                g.setStrokeColor(p.halo.copy(alpha: p.halo.alpha * a) ?? p.halo)
+                g.setLineWidth(width * k)
+                g.strokePath()
+                g.restoreGState()
+            }
         }
         g.saveGState()
         g.addPath(CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil))
@@ -235,6 +238,10 @@ extension HUDRenderer {
         fillVertical(r, p.cardTop, p.cardBottom, g)
         g.restoreGState()
         glassEdge(r, radius: rad, top: p.edgeTop, bottom: p.edgeBottom, width: 1.25 * k, g)
+        // Brillo interior junto al borde: da el grosor del vidrio.
+        let inner = 1.25 * k
+        glassEdge(r.insetBy(dx: inner, dy: inner), radius: max(0, rad - inner), top: p.edgeTop.copy(alpha: p.edgeTop.alpha * 0.28) ?? p.edgeTop,
+                  bottom: p.edgeBottom.copy(alpha: 0) ?? p.edgeBottom, width: 2 * k, g)
     }
 
     /// Tarjeta de vidrio (la pieza común de todo el panel). `body: false` dibuja solo la sombra
@@ -462,12 +469,15 @@ extension HUDRenderer {
         return mid.luminance < 0.4 ? RGB(1, 1, 1).cg : RGB(0, 0, 0).cg
     }
 
-    /// Guía en otra app: la tarjeta dice cuál, el destino y la distancia en línea recta.
+    /// Guía en otra app: la tarjeta dice cuál, el destino y la distancia en línea recta. 0.6.3:
+    /// el mosaico se ajusta al tamaño de la tarjeta y el destino puede ocupar dos líneas.
     func dashExternalCard(_ ext: ExternalGuide, _ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let pad = 10 * k
-        let t = min(r.height - 2 * pad, 64 * k, r.width * 0.26)
+        let t = min(r.height - 2 * pad, 64 * k, r.width * 0.2)
         let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
         iconTile(tile, tileColors(.blue, p), ctx)
+        let tx = tile.maxX + 11 * k
+        let tw = r.maxX - pad - tx
         // Flecha hacia el destino, en el sentido del mapa (arriba = hacia donde vas).
         if let here = s.nav.here {
             let dy = (ext.destination.lat - here.lat) * 110_574.0
@@ -488,15 +498,18 @@ extension HUDRenderer {
             ctx.fillPath()
             ctx.restoreGState()
             let km = hypot(dx, dy)
-            let tx = tile.maxX + 12 * k
-            let tw = r.maxX - pad - tx
-            wrapped("Guía en \(ext.provider.title)", sizes: [13 * k, 11.5 * k], color: p.accent, x: tx, top: r.minY + pad, width: tw, maxLines: 1, ctx)
-            wrapped(ext.name, sizes: [20 * k, 17 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad + 18 * k, width: tw, maxLines: 1, ctx)
-            wrapped("A \(HUDFormat.distance(km)) en línea recta", sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 46 * k, width: tw, maxLines: 1, ctx)
+            var y = paragraph("Guía en \(ext.provider.title)", sizes: [12.5 * k, 11.5 * k], bold: true, color: p.accent, x: tx, top: r.minY + pad - 1 * k,
+                              width: tw, maxLines: 1, ctx)
+            y = paragraph(ext.name, sizes: [17 * k, 15.5 * k, 14 * k], bold: true, color: p.text, x: tx, top: y + 2 * k, width: tw,
+                          maxLines: r.height >= 90 * k ? 2 : 1, ctx)
+            if r.maxY - pad - y >= 12 * k {
+                paragraph("A \(HUDFormat.distance(km)) en línea recta", sizes: [12.5 * k, 11.5 * k, 10.5 * k], bold: false, color: p.dim,
+                          x: tx, top: y + 2 * k, width: tw, maxLines: 1, ctx)
+            }
         } else {
-            let tx = tile.maxX + 12 * k
-            wrapped("Guía en \(ext.provider.title)", sizes: [18 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad, width: r.maxX - pad - tx, maxLines: 1, ctx)
-            wrapped(ext.name, sizes: [15 * k, 13 * k], color: p.dim, x: tx, top: r.minY + pad + 26 * k, width: r.maxX - pad - tx, maxLines: 1, ctx)
+            let y = paragraph("Guía en \(ext.provider.title)", sizes: [16 * k, 14 * k], bold: true, color: p.text, x: tx, top: r.minY + pad,
+                              width: tw, maxLines: 1, ctx)
+            paragraph(ext.name, sizes: [14 * k, 12.5 * k], bold: false, color: p.dim, x: tx, top: y + 3 * k, width: tw, maxLines: 2, ctx)
         }
     }
 
@@ -1330,14 +1343,23 @@ extension HUDRenderer {
             options.append((scale, false, true, true))
             options.append((scale, false, false, true))
         }
+        // Último recurso antes de cortar: el título en dos líneas sin el artista.
+        options.append((0.9, true, false, false))
+        options.append((0.82, true, false, false))
         options.append((0.82, false, false, false))
+        // 0.6.3: antes de cortar un texto con «…» se prueba con letra algo más pequeña (como
+        // mucho un 30 % menos); solo si ni así cabe, se corta.
         var last: [PlayerBlock] = []
+        var firstFit: ([PlayerBlock], CGFloat)?
         for o in options {
             let b = build(scale: o.0, twoLines: o.1, album: o.2, artist: o.3)
             last = b
             let h = playerHeight(b, L)
-            if h <= L.text.height + 0.5 { return (b, h) }
+            guard h <= L.text.height + 0.5 else { continue }
+            if !b.contains(where: { $0.lines.contains { $0.truncated } }) { return (b, h) }
+            if firstFit == nil { firstFit = (b, h) }
         }
+        if let f = firstFit { return f }
         return (last, playerHeight(last, L))
     }
 

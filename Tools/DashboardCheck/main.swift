@@ -1676,9 +1676,18 @@ if let q = base?.project(center.moved(250, bearing: heading + 180).moved(380, be
           sides.map { String(format: "%.2f,%.2f,%.2f", $0.r, $0.g, $0.b) }.joined(separator: " | "))
 }
 if let q = base?.project(center.moved(250, bearing: heading + 180)) {
-    let puck = rgbAt(check1, q.x * W, q.y * H)
-    check("Rediseño: la posición se marca con la flecha azul en su disco", puck.b > 0.75 && puck.r < 0.5,
-          String(format: "%.2f,%.2f,%.2f", puck.r, puck.g, puck.b))
+    // La posición dibujada avanza un poco con la velocidad: se busca alrededor.
+    var arrow = 0
+    var disk = 0
+    for dy in -30...30 {
+        for dx in -30...30 {
+            let c = rgbAt(check1, min(W - 1, max(0, q.x * W + CGFloat(dx))), min(H - 1, max(0, q.y * H + CGFloat(dy))))
+            if c.b > 0.75 && c.r < 0.45 { arrow += 1 }
+            if c.b > 0.15 && c.b < 0.3 && c.r < 0.1 { disk += 1 }
+        }
+    }
+    check("Rediseño: la posición se marca con la flecha azul en su disco de vidrio", arrow > 80 && disk > 300,
+          "flecha \(arrow) px, disco \(disk) px")
 }
 
 // Rendimiento de todos los modos con el rediseño.
