@@ -1,10 +1,27 @@
-# Limitaciones pendientes — CFMoto Link 0.6.4
+# Limitaciones pendientes — CFMoto Link 0.7
 
-Lo que la 0.6.4 no puede resolver (por iOS, Apple Maps o la moto) y lo que falta comprobar.
+Lo que la 0.7 no puede resolver (por iOS, los mapas o la moto) y lo que falta comprobar.
 
-## 1. Mapa con el iPhone bloqueado
+## 0. Mapa propio de OpenStreetMap (0.7)
 
-Informe completo, con fuentes: `MAPA_IPHONE_BLOQUEADO.md`.
+Con el mapa propio no hay que guardar nada antes de bloquear: el mapa, la búsqueda, la ruta y el
+recálculo funcionan sin internet y con el iPhone bloqueado. Lo que no hace:
+
+- **Tráfico en vivo**: los tiempos son estimados por el tipo de calle.
+- **Datos incompletos**: lo que falte o esté mal en OpenStreetMap para Guatemala (calles sin
+  nombre, sentidos sin marcar, lugares que no están) falta o está mal en la app. Una dirección
+  exacta («6a avenida 12-34») no se puede buscar: se busca la calle y la zona.
+- **Giros**: la ruta no penaliza los giros; entre dos caminos de tiempo parecido puede elegir el de
+  más cruces.
+- **Ferris** (Sayaxché, por ejemplo) no entran en las rutas.
+- **3D, carriles, límites de velocidad y señales**: no.
+- **Solo Guatemala**, con la fecha de los datos de cuando se compiló la app.
+- **Sin probar en la moto todavía** (ver `TESTING.md`, sección 8).
+
+## 1. Mapa con el iPhone bloqueado (modo Apple Maps)
+
+Informe completo, con fuentes: `MAPA_IPHONE_BLOQUEADO.md`. Desde la 0.7 esto solo afecta al modo
+Apple Maps.
 
 **Qué hace:** al elegir el destino guarda la ruta entera por delante (hasta 800 imágenes de Apple
 Maps y 96 MB de memoria, unos 140 km con el zoom por defecto), tres imágenes a la vez, de cerca a
@@ -22,10 +39,9 @@ memoria)»**; en la moto, con el iPhone bloqueado y menos de 2 km guardados, **M
 - **Usar los mapas sin conexión de la app Mapas**: no hay forma para otras apps.
 - **Desvíos con el iPhone bloqueado**: fuera de la ruta guardada, MAPA SIMPLE hasta desbloquear.
 
-**Alternativas:** esperar «Ruta completa guardada» antes de bloquear, o la **pantalla negra** (la
-app sigue al frente con el brillo al mínimo y el mapa en vivo). Para tener calles nuevas con el
-iPhone bloqueado haría falta un sistema propio con OpenStreetMap dibujado por la CPU (proyecto
-aparte).
+**Alternativas:** esperar «Ruta completa guardada» antes de bloquear, la **pantalla negra** (la
+app sigue al frente con el brillo al mínimo y el mapa en vivo) o, desde la 0.7, el **mapa propio
+de OpenStreetMap**, que dibuja la CPU y no necesita a Apple.
 
 ## 2. Diseño de la referencia que no se puede llevar a la moto
 

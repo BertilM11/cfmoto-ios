@@ -1,8 +1,26 @@
 # Volver a una versión anterior
 
-La 0.6.4, la 0.6.3, la 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.5 falla, se
-puede volver en un par de minutos. La 0.6.5 solo cambia el mapa guardado y el tema de la moto: la
-conexión con la moto, el vídeo, el protocolo, la navegación y la música son los de la 0.6.4.
+La 0.6.5, la 0.6.4, la 0.6.3, la 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.7
+falla, se puede volver en un par de minutos. Antes de reinstalar, prueba a elegir **Apple Maps** en
+Personalizar > Mapa y navegación: es el modo de la 0.6.5. La 0.7 no cambia la conexión con la moto,
+el vídeo, el protocolo ni la música.
+
+## Dónde está la 0.6.5
+
+| Dónde | Qué |
+| --- | --- |
+| Entrega de la 0.7: `BACKUP_ORIGINAL_0.6.5\` | `CFMotoLink_0.6.5.ipa`, el paquete original, `SHA256SUMS.txt` y `VERSION.txt` |
+| Tu PC: `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.5\` | Los mismos archivos |
+| Tu PC: `Descargas\CFMotoLink_entrega_0.6.5\` y `CFMotoLink_0.6.5.ipa` en la carpeta del proyecto | La entrega completa de la 0.6.5 |
+| GitHub, publicación `build-16` | El IPA y el paquete de la 0.6.5 tal como se compilaron |
+| GitHub, rama `backup/v0.6.5` y etiqueta `v0.6.5` (commit `112ef5d`) | El código exacto |
+
+Huellas SHA-256 de la copia de la 0.6.5:
+
+```
+2f69f5df224c8c401139f8c230bf0fb3fc67a3c08ec38d78209af6aa800a11eb  CFMotoLink_0.6.5.ipa
+1e67a167ec71b3f09b4de98e3fe6fb661ee9e3625f7f07b78397eed0468caccf  CFMotoLink_0.6.5_MapaGuardado.zip
+```
 
 ## Dónde está la 0.6.4
 

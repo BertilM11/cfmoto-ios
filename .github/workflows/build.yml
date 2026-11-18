@@ -12,7 +12,7 @@ jobs:
   build:
     # Intel: los equipos macOS arm64 de GitHub a veces no tienen capacidad y el trabajo no
     # arranca. La compilación para iPhone (arm64) no depende del procesador del equipo.
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

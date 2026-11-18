@@ -24,7 +24,7 @@ enum Demo {
     /// imagen del fondo del mapa propio y no la rehace en cada fotograma).
     private static var renderers: [String: HUDRenderer] = [:]
 
-    private static func renderer(_ key: String, _ width: Int, _ height: Int) -> HUDRenderer {
+    private static func dashRenderer(_ key: String, _ width: Int, _ height: Int) -> HUDRenderer {
         if let r = renderers[key] { return r }
         let r = HUDRenderer(width: width, height: height)
         renderers[key] = r
@@ -82,7 +82,7 @@ enum Demo {
         let now = Date()
         let image = renderer.image { context in
             // UIKit ya entrega el contexto con el origen arriba a la izquierda.
-            renderer("hud", width, height).drawDashboard(DashState.shared.snapshot(now: now), now: now, in: context.cgContext)
+            dashRenderer("hud", width, height).drawDashboard(DashState.shared.snapshot(now: now), now: now, in: context.cgContext)
         }
         try? image.pngData()?.write(to: folder.appendingPathComponent("hud.png"))
 
@@ -92,7 +92,7 @@ enum Demo {
             s.layout = DashLayout.preset(mode)
             if s.map == nil && s.layout.showsMap && s.mapSettings.provider == .apple { s.map = TFTMap.shared.base(for: s.nav, now: now) }
             let frame = renderer.image { context in
-                renderer(mode.rawValue, width, height).drawDashboard(s, now: now, in: context.cgContext)
+                dashRenderer(mode.rawValue, width, height).drawDashboard(s, now: now, in: context.cgContext)
             }
             try? frame.pngData()?.write(to: folder.appendingPathComponent("hud-\(mode.rawValue).png"))
         }

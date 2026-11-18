@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.5 — Mapa guardado y tema
+# CFMoto Link 0.7 — Mapa propio de OpenStreetMap
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,7 +9,12 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
-- **Mapa guardado más fiable** (0.6.5): la moto usa siempre el tema del mapa que se ve (nunca
+- **Mapa de Guatemala dentro de la app** (0.7): el mapa de la moto, la búsqueda, la ruta, las
+  indicaciones y el recálculo salen de OpenStreetMap y se hacen en el iPhone, **sin internet y con
+  el iPhone bloqueado**. Apple Maps sigue como opción en Personalizar > Mapa y navegación.
+  Detalles: [docs/DISENO_0.7.md](docs/DISENO_0.7.md). Datos © colaboradores de OpenStreetMap
+  (ODbL).
+- **Mapa guardado más fiable** (0.6.5, modo Apple Maps): la moto usa siempre el tema del mapa que se ve (nunca
   tarjetas claras con el mapa oscuro); si Apple no entrega imágenes, el guardado espera y sigue,
   y el iPhone lo dice; si queda un hueco que no se volvía a pedir, se pide una imagen ahí.
 - **Reproductor premium con botones** (0.6.4): anterior, reproducir/pausar (grande, en un círculo)
@@ -77,13 +82,17 @@ Requisitos: macOS con Xcode 16 o posterior y [XcodeGen](https://github.com/yonas
 
 ```sh
 brew install xcodegen
+# El mapa de Guatemala no está en el repositorio: se descarga de la versión «mapa-guatemala»
+# (el archivo cuya huella está en Tools/OSM/Guatemala.cfmap.sha256) y va en App/Map/.
 xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.5_MapaGuardado.zip` trae el código, la documentación, las láminas
-de las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
-Volver a la 0.6.4, 0.6.3, 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.4:
+El paquete `CFMotoLink_0.7_MapaPropio.zip` trae el código, el mapa de Guatemala
+(`App/Map/Guatemala.cfmap`), la documentación, las láminas de las pruebas y los resultados.
+Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
+Volver a la 0.6.5, 0.6.4, 0.6.3, 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Mapa
+propio de la 0.7: [docs/DISENO_0.7.md](docs/DISENO_0.7.md). Diseño de la 0.6.4:
 [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md) (y los de la 0.6.3 y la 0.6.2 en
 [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md) y [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md)).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
@@ -102,16 +111,18 @@ firmar en *Releases*.
 ## Usarla con la moto
 
 1. En la moto abre la pantalla del código QR y déjala abierta.
-2. En el iPhone conéctate al Wi-Fi `DIRECT-…-CFMOTO` (clave `12345678`). Deja los datos
-   móviles activos: ese Wi-Fi no da internet y el mapa lo necesita.
+2. En el iPhone conéctate al Wi-Fi `DIRECT-…-CFMOTO` (clave `12345678`). Ese Wi-Fi no da
+   internet: con el mapa propio (de serie desde la 0.7) no hace falta para el mapa, la búsqueda ni
+   la ruta; deja los datos móviles activos para Spotify, Apple Music o el modo Apple Maps.
 3. En **Inicio** pulsa **Conectar y enviar el panel**.
 4. Elige el modo (1 a 5) en Inicio o en Más > Personalización del tablero; el cambio va en la
    siguiente imagen, sin reconectar.
 5. Busca el destino en **Navegación**. En la tarjeta de la ruta, "Guiar con" elige quién da la
    guía: con CFMoto Link pulsa **Iniciar**; con Waze, Google Maps o Mapas de Apple pulsa
    **Abrir en …** y vuelve a CFMoto Link si quieres cambiar algo.
-6. Al iniciar una ruta, deja CFMoto Link abierta unos segundos: así guarda las calles del
-   recorrido para cuando bloquees el iPhone. Con la app abierta, el mapa se actualiza en vivo.
+6. Con el mapa propio puedes bloquear el iPhone en cuanto empieza la ruta. En el modo Apple Maps,
+   deja CFMoto Link abierta unos segundos: así guarda las calles del recorrido para cuando
+   bloquees el iPhone.
 7. Spotify: Música > Spotify y sigue los cuatro pasos (necesitas una app registrada en
    developer.spotify.com; desde 2026 Spotify pide Premium a la cuenta dueña).
 
@@ -126,7 +137,8 @@ firmar en *Releases*.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
-- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.5, 0.6.4, 0.6.3, 0.6.2 y 0.6.1).
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.7, 0.6.5, 0.6.4, 0.6.3, 0.6.2 y 0.6.1).
+- [docs/DISENO_0.7.md](docs/DISENO_0.7.md): mapa propio de OpenStreetMap (datos, dibujo, rutas, búsqueda, licencias y límites).
 - [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md): botones y acabado del reproductor de la 0.6.4 (cada modo, estados, pruebas).
 - [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md): rediseño premium de la 0.6.3 (sistema visual, cada modo, lo que no se puede llevar a la moto).
 - [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md): mapa con el iPhone bloqueado (qué permite Apple, cobertura y alternativas).

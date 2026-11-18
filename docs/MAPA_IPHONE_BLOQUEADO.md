@@ -1,5 +1,10 @@
 # Mapa con el iPhone bloqueado — informe de la 0.6.3
 
+> **Desde la 0.7** hay un mapa propio de OpenStreetMap dentro de la app (`DISENO_0.7.md`): con él,
+> el mapa, la búsqueda, la ruta y los desvíos funcionan con el iPhone bloqueado y sin internet, y
+> nada de este informe hace falta. Este informe sigue valiendo para el modo Apple Maps.
+
+
 Qué se puede hacer y qué no para que la moto siga viendo calles cuando el iPhone está bloqueado,
 qué cambió en la 0.6.3 y cómo usarlo. Todo lo que dice "verificado" se comprobó con las pruebas
 automáticas o en el simulador; **nada de esto se ha probado todavía en la 450NK**.

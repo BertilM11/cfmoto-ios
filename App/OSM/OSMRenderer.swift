@@ -375,8 +375,18 @@ extension HUDRenderer {
             guard !text.isEmpty else { continue }
             let label = cache.label(text, size: size, night: night, pal: pal)
             let radius = label.width / 2 + 8 * u
-            if cards.contains(where: { $0.insetBy(dx: -radius, dy: -12 * u).contains(cand.at) }) { continue }
-            if cand.at.x - radius < r.minX + 4 * u || cand.at.x + radius > r.maxX - 4 * u { continue }
+            // El nombre ocupa una línea girada: se comprueban cinco puntos a lo largo de ella, para
+            // que ningún extremo quede debajo de una tarjeta ni fuera de la pantalla.
+            let reach = label.width / 2 + 4 * u
+            let dx = cos(cand.angle) * reach
+            let dy = sin(cand.angle) * reach
+            let along = [-1.0, -0.5, 0, 0.5, 1.0].map { CGPoint(x: cand.at.x + dx * CGFloat($0), y: cand.at.y + dy * CGFloat($0)) }
+            if cards.contains(where: { card in
+                let near = card.insetBy(dx: -8 * u, dy: -8 * u)
+                return along.contains { near.contains($0) }
+            }) { continue }
+            let inside = r.insetBy(dx: 4 * u, dy: 6 * u)
+            if !along.allSatisfy({ inside.contains($0) }) { continue }
             if placed.contains(where: { hypot($0.at.x - cand.at.x, $0.at.y - cand.at.y) < $0.radius + radius }) { continue }
             placed.append((cand.at, radius, cand.name))
             drawRotatedLabel(label, at: cand.at, angle: cand.angle, size: size, ctx)

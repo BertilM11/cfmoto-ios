@@ -197,3 +197,18 @@ Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone 
 | --- | --- | --- | --- |
 | X | Ruta larga (20 km o más) con el iPhone al frente hasta «Ruta completa guardada» | Que el aviso no se quede parado; si aparece «Apple no entregó la última imagen… Reintento», que después siga subiendo | `Fallos seguidos de Apple`, `Imágenes extra para huecos`, líneas `[MAPA] guardado en pausa` |
 | Y | Bloquear el iPhone al atardecer o al amanecer, o cambiar el tema y bloquear enseguida | Las tarjetas y el mapa siempre del mismo tema (nunca tarjetas claras con mapa oscuro) | `Tema de la moto`, líneas `[TEMA]` |
+
+## 8. Pruebas en la moto de la 0.7 (mapa propio)
+
+Antes: Personalizar > Mapa y navegación > **OpenStreetMap (sin internet)**. Para Z1 y Z2, apaga
+los datos móviles (o pon el iPhone en modo avión con el Wi-Fi de la moto encendido).
+
+| Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el iPhone o el informe |
+| --- | --- | --- | --- |
+| Z1 | Sin datos móviles: buscar un destino («gasolinera», una zona o una calle) e iniciar la ruta | Mapa con calles y nombres, la ruta, el giro con su calle y «© OpenStreetMap» | La búsqueda responde sin internet; «Mapa de Guatemala en el iPhone · sin internet» |
+| Z2 | Bloquear el iPhone nada más salir y hacer toda la ruta | El mapa se mueve con la moto todo el camino, de día o de noche según el tema | `Mapa elegido`, `Última ruta propia` |
+| Z3 | Con el iPhone bloqueado, salirse de la ruta a propósito | En pocos segundos aparece la ruta nueva desde donde vas, sin pedir dar la vuelta si puedes seguir | Líneas `[RUTA] OpenStreetMap: … recálculo` |
+| Z4 | Ruta larga (Antigua, Xela…) | Giros correctos y el tiempo de llegada razonable | `Última ruta propia` (tiempo de cálculo) |
+| Z5 | Cambiar a Apple Maps con una ruta en pantalla y volver | La ruta se vuelve a calcular con cada mapa; nunca una ruta de Apple sobre el mapa propio | Líneas `[RUTA] mapa elegido` |
+| Z6 | Mirar la fluidez | El mapa sin saltos ni retrasos (10 imágenes por segundo) | Más > Diagnóstico: «Ritmo de envío» (unos 10 por segundo) y «Dibujo del panel» (ms por imagen) |
+

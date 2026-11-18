@@ -1,5 +1,49 @@
 # Registro de cambios
 
+## 0.7 — Mapa propio de OpenStreetMap (18 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.6.5`, etiqueta `v0.6.5`, publicación `build-16` y
+carpeta `BACKUP_ORIGINAL_0.6.5` con sus huellas SHA-256 (ver `docs/ROLLBACK.md`). No cambian la
+conexión Wi-Fi Direct, el vídeo H.264, el protocolo con la moto ni sus indicadores, la música, la
+distribución de los modos ni el modo día/noche. Detalles: `docs/DISENO_0.7.md`.
+
+### Mapa de Guatemala dentro de la app (modo nuevo, el de serie)
+- **Todo con OpenStreetMap**: el mapa de la moto, la búsqueda, la ruta, las indicaciones y el
+  recálculo salen del mapa de Guatemala que viene en la app (unos 25 MB). **No descarga nada**:
+  funciona sin internet y con el iPhone bloqueado, también al desviarse.
+- **El mapa de la moto** se dibuja en el teléfono como en el vídeo de muestra: calles con borde
+  según su tipo, parques y agua, nombres de las calles y «© OpenStreetMap». Día o noche según el
+  tema elegido, siempre (no hay imágenes de otro tema que esperar).
+- **Rutas calculadas en el iPhone**: la principal y hasta dos alternativas, con indicaciones en
+  español y el nombre de la calle («Gira a la derecha por 12 Calle», «En la rotonda, toma la 3.ª
+  salida hacia…»). Rutas largas también (Quetzaltenango, Flores); las que dan un rodeo grande se
+  calculan con las carreteras principales de todo el país.
+- **Búsqueda sin internet**: ciudades, pueblos, zonas y colonias, calles, gasolineras, hospitales,
+  centros comerciales, hoteles, aeropuertos… sin acentos, «6a» = «6», «z10» = «zona 10», otros
+  nombres («Xela») y por tipo de lugar («gasolinera» da la más cercana aunque se llame Texaco).
+  Cada resultado dice dónde está (zona, municipio, departamento).
+- En el iPhone, el aviso del mapa dice «Mapa de Guatemala en el iPhone · sin internet».
+
+### Apple Maps sigue como opción
+- **Personalizar > Mapa y navegación**: OpenStreetMap (sin internet) o Apple Maps (lo de la 0.6.5,
+  con internet). La vista 3D es solo de Apple Maps.
+- Por las condiciones de Apple, en el modo OpenStreetMap no se usa nada de Apple Maps (sus rutas o
+  resultados no pueden ir sobre otro mapa). Si se cambia de mapa con una ruta en pantalla, la ruta
+  se vuelve a calcular con el mapa nuevo.
+
+### Diagnóstico
+- Más > Diagnóstico muestra el mapa elegido, la fecha y el tamaño del mapa de Guatemala y la
+  última ruta propia (distancia y tiempo de cálculo).
+
+### Pruebas
+- Nuevas pruebas con el mapa completo: búsquedas, rutas largas, maniobras en su cruce, recálculo,
+  tiempos de dibujo y de cálculo. El simulador se compila optimizado (como en el iPhone). Ver
+  `docs/TEST_RESULTS.md`.
+
+### Licencia de los datos
+- Datos © colaboradores de OpenStreetMap, licencia ODbL 1.0. El mapa armado se publica en la
+  versión `mapa-guatemala` del repositorio con su origen y su fecha.
+
 ## 0.6.5 — Mapa guardado y tema (18 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.6.4`, etiqueta `v0.6.4`, publicación `build-15` y
