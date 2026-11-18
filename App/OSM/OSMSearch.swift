@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // 0.7: búsqueda de lugares sin internet en el mapa de Guatemala que viene con la app
-// (pueblos, zonas y colonias, gasolineras, hospitales, centros comerciales, calles…).
-// Datos © OpenStreetMap (ODbL).
+// (ciudades y pueblos, zonas y colonias, gasolineras, hospitales, centros comerciales, calles…).
+// Cada resultado dice dónde está (zona, municipio o departamento, de los límites de
+// OpenStreetMap). Datos © colaboradores de OpenStreetMap (ODbL).
 import Foundation
 
 /// Un lugar encontrado.
 struct OSMSearchResult {
     let title: String
-    /// Tipo y zona: «Calle · Zona 10, Guatemala».
+    /// Tipo y lugar: «Calle · Zona 10, Ciudad de Guatemala».
     let subtitle: String
     let point: GeoPoint
     let kind: Int
@@ -16,27 +17,39 @@ struct OSMSearchResult {
 
 final class OSMSearch {
     private struct Entry {
-        let place: Int
-        let name: String
-        let folded: [UInt8]
+        /// Nombre que se muestra (el principal, aunque se haya encontrado por otro nombre).
+        let title: UInt32
+        /// El otro nombre con el que se encontró (alt_name…), o `noName`.
+        let alias: UInt32
         let tokens: [[UInt8]]
-        let area: Int32
+        let folded: [UInt8]
+        let zone: Int32
+        let admin: Int32
         let point: GeoPoint
         let kind: Int
+        /// El lugar principal (para no repetirlo con cada uno de sus nombres).
+        let main: Int32
     }
 
-    private struct Area {
-        let name: String
+    private struct Zone {
+        let name: UInt32
         let tokens: [[UInt8]]
-        /// Ciudad o pueblo al que pertenece la zona o colonia (-1 si no hay).
-        var town: Int32
         let point: GeoPoint
+        let admin: Int32
+    }
+
+    private struct Admin {
+        let name: UInt32
+        let tokens: [[UInt8]]
+        let parent: Int32
         let kind: Int
     }
 
     let map: OSMMapData
     private var entries: [Entry] = []
-    private var areas: [Area] = []
+    private var zones: [Zone] = []
+    private var admins: [Int32: Admin] = [:]
+    private var tokenCache: [UInt32: [[UInt8]]] = [:]
     /// Lugares del índice (las calles partidas en varios tramos cuentan una vez por zona).
     var count: Int { entries.count }
 
@@ -52,7 +65,20 @@ final class OSMSearch {
     private static let synonyms: [String: String] = [
         "av": "avenida", "ave": "avenida", "avda": "avenida", "avenue": "avenida",
         "calz": "calzada", "blvd": "bulevar", "boulevard": "bulevar", "bulevard": "bulevar", "blv": "bulevar",
-        "col": "colonia", "carr": "carretera", "cc": "centro", "hosp": "hospital", "gas": "gasolinera",
+        "col": "colonia", "carr": "carretera", "hosp": "hospital",
+    ]
+    /// Palabras que nombran un tipo de lugar: «gasolinera» encuentra las gasolineras aunque se
+    /// llamen Texaco o Puma.
+    private static let categories: [String: [Int]] = [
+        "gasolinera": [10], "gasolineras": [10], "gasolina": [10], "combustible": [10],
+        "hospital": [11], "hospitales": [11], "clinica": [11], "clinicas": [11], "sanatorio": [11],
+        "policia": [12], "universidad": [13], "escuela": [14], "colegio": [14], "instituto": [14], "mercado": [15],
+        "banco": [16], "bancos": [16], "cajero": [16], "restaurante": [17], "restaurantes": [17], "comida": [17],
+        "cafe": [17], "cafeteria": [17], "farmacia": [18], "farmacias": [18], "parqueo": [19], "parqueadero": [19],
+        "estacionamiento": [19], "iglesia": [20], "templo": [20], "mall": [21], "comercial": [21],
+        "supermercado": [22], "super": [22], "motos": [23], "moto": [23], "taller": [24], "mecanico": [24],
+        "ferreteria": [25], "hotel": [26], "hoteles": [26], "hostal": [26], "museo": [27], "mirador": [27],
+        "terminal": [28], "buses": [28], "estadio": [29], "municipalidad": [31], "aeropuerto": [32],
     ]
 
     /// Palabras normalizadas: sin acentos ni mayúsculas, «6a» y «6» iguales, «z10» como «zona 10».
@@ -114,171 +140,251 @@ final class OSMSearch {
         return true
     }
 
+    private func tokens(of name: UInt32) -> [[UInt8]] {
+        if let t = tokenCache[name] { return t }
+        let t = OSMSearch.bytes(OSMSearch.tokens(map.name(name)))
+        tokenCache[name] = t
+        return t
+    }
+
+    private static func weight(_ kind: Int) -> Double {
+        switch kind {
+        case 1: return 14
+        case 2: return 11
+        case 3: return 7
+        case 4, 5: return 9
+        case 6: return 3
+        case 10: return 6
+        case 11: return 7
+        case 12: return 5
+        case 13: return 6
+        case 15: return 5
+        case 18: return 3
+        case 19: return 0
+        case 21: return 8
+        case 22: return 6
+        case 23: return 4
+        case 24, 25: return 3
+        case 26: return 4
+        case 27: return 5
+        case 28, 29: return 6
+        case 30, 31: return 5
+        case 32: return 12
+        default: return 2
+        }
+    }
+
     // MARK: - Índice
 
     private func build() {
         let n = map.placeCount
-        var raw: [(place: Int, name: UInt32, point: GeoPoint, kind: Int)] = []
+        var raw: [(index: Int32, place: OSMPlace, point: GeoPoint)] = []
         raw.reserveCapacity(n)
         for i in 0..<n {
             let p = map.place(i)
             guard p.name != OSMMapData.noName else { continue }
-            raw.append((place: i, name: p.name, point: p.point.geo, kind: p.kind))
+            raw.append((index: Int32(i), place: p, point: p.point.geo))
         }
-        // Zonas, colonias, ciudades, pueblos y aldeas: dan el «dónde» de cada resultado.
-        var areaIndex: [Int: Int32] = [:]
-        for r in raw where r.kind >= 1 && r.kind <= 6 {
-            let name = map.name(r.name)
-            areaIndex[r.place] = Int32(areas.count)
-            areas.append(Area(name: name, tokens: OSMSearch.bytes(OSMSearch.tokens(name)), town: -1, point: r.point, kind: r.kind))
+        // Departamentos y municipios (formato 2): el «dónde» de cada lugar.
+        for r in raw where r.place.kind == 40 || r.place.kind == 41 {
+            admins[r.index] = Admin(name: r.place.name, tokens: tokens(of: r.place.name), parent: Int32(r.place.admin), kind: r.place.kind)
         }
-        // Rejilla de 0,05° para buscar la zona más cercana rápido.
-        func key(_ g: GeoPoint) -> Int {
-            Int(floor(g.lat / 0.05)) * 100_000 + Int(floor(g.lon / 0.05))
-        }
+        // Zonas y colonias, en una rejilla de 0,05° para buscar la más cercana rápido.
         var grid: [Int: [Int32]] = [:]
-        for (i, a) in areas.enumerated() {
-            grid[key(a.point), default: []].append(Int32(i))
+        func key(_ row: Int, _ col: Int) -> Int { row * 100_000 + col }
+        for r in raw where (r.place.kind == 4 || r.place.kind == 5) && !r.place.alias {
+            grid[key(Int(floor(r.point.lat / 0.05)), Int(floor(r.point.lon / 0.05))), default: []].append(Int32(zones.count))
+            zones.append(Zone(name: r.place.name, tokens: tokens(of: r.place.name), point: r.point, admin: Int32(r.place.admin)))
         }
-        func nearest(_ g: GeoPoint, kinds: ClosedRange<Int>, within: Double) -> Int32 {
+        func nearestZone(_ g: GeoPoint, admin: Int32) -> Int32 {
             var best: Int32 = -1
-            var bestD = within
+            var bestD = 2_500.0
             let r0 = Int(floor(g.lat / 0.05))
             let c0 = Int(floor(g.lon / 0.05))
-            for dr in -2...2 {
-                for dc in -2...2 {
-                    guard let list = grid[(r0 + dr) * 100_000 + (c0 + dc)] else { continue }
-                    for i in list {
-                        let a = areas[Int(i)]
-                        guard kinds.contains(a.kind) else { continue }
-                        let d = g.distance(to: a.point)
+            for dr in -1...1 {
+                for dc in -1...1 {
+                    guard let list = grid[key(r0 + dr, c0 + dc)] else { continue }
+                    for z in list {
+                        let zone = zones[Int(z)]
+                        // Una zona de otro municipio no sirve («Zona 10» de Mixco no es la de la capital).
+                        if admin >= 0 && zone.admin >= 0 && zone.admin != admin { continue }
+                        let d = g.distance(to: zone.point)
                         if d < bestD {
                             bestD = d
-                            best = i
+                            best = z
                         }
                     }
                 }
             }
             return best
         }
-        // La ciudad o el pueblo de cada zona o colonia.
-        for i in areas.indices where areas[i].kind >= 4 {
-            areas[i].town = nearest(areas[i].point, kinds: 1...3, within: 12_000)
-        }
 
-        var seen: [String: Int] = [:]
-        entries.reserveCapacity(raw.count / 2)
+        var seen = Set<String>()
+        var mainIndex: Int32 = -1
+        var mainName = OSMMapData.noName
+        entries.reserveCapacity(raw.count * 3 / 4)
         for r in raw {
-            let isArea = r.kind >= 1 && r.kind <= 6
-            let area: Int32
-            if isArea {
-                area = areaIndex[r.place].map { areas[Int($0)].town } ?? -1
-            } else {
-                let zone = nearest(r.point, kinds: 4...5, within: 2_500)
-                area = zone >= 0 ? zone : nearest(r.point, kinds: 1...6, within: 12_000)
+            let p = r.place
+            if p.kind == 40 || p.kind == 41 { continue }
+            if !p.alias {
+                mainIndex = r.index
+                mainName = p.name
             }
-            // Una calle partida en muchos tramos aparece una vez por zona (o por cada 2 km si no hay zona).
-            if r.kind == 30 {
-                let cell = area >= 0 ? "z\(area)" : "c\(Int(floor(r.point.lat / 0.02)))_\(Int(floor(r.point.lon / 0.02)))"
-                let k = "\(r.name)|\(cell)"
-                if seen[k] != nil { continue }
-                seen[k] = entries.count
+            let zone: Int32 = (1...5).contains(p.kind) ? -1 : nearestZone(r.point, admin: Int32(p.admin))
+            // Una calle partida en muchos tramos aparece una vez por zona (o cada 2 km si no hay).
+            if p.kind == 30 {
+                let cell = zone >= 0 ? "z\(zone)" : "m\(p.admin)_\(Int(floor(r.point.lat / 0.02)))_\(Int(floor(r.point.lon / 0.02)))"
+                guard seen.insert("\(p.name)|\(cell)").inserted else { continue }
             }
-            let name = map.name(r.name)
-            let tokens = OSMSearch.tokens(name)
-            guard !tokens.isEmpty else { continue }
-            entries.append(Entry(place: r.place, name: name, folded: Array(tokens.joined(separator: " ").utf8),
-                                 tokens: OSMSearch.bytes(tokens), area: area, point: r.point, kind: r.kind))
+            let t = tokens(of: p.name)
+            guard !t.isEmpty else { continue }
+            let isAlias = p.alias && mainIndex >= 0
+            let folded = Array(t.map { String(decoding: $0, as: UTF8.self) }.joined(separator: " ").utf8)
+            entries.append(Entry(title: isAlias ? mainName : p.name, alias: isAlias ? p.name : OSMMapData.noName,
+                                 tokens: t, folded: folded, zone: zone, admin: Int32(p.admin), point: r.point, kind: p.kind,
+                                 main: isAlias ? mainIndex : r.index))
         }
     }
 
     // MARK: - Búsqueda
 
+    private func areaTokens(_ e: Entry) -> [[UInt8]] {
+        var out: [[UInt8]] = []
+        if e.zone >= 0 { out += zones[Int(e.zone)].tokens }
+        if let a = admins[e.admin] {
+            out += a.tokens
+            if let parent = admins[a.parent] { out += parent.tokens }
+        }
+        return out
+    }
+
     /// Hasta `limit` lugares que contienen todas las palabras escritas (la última puede estar a
     /// medias), los más parecidos y cercanos primero.
     func search(_ query: String, near: GeoPoint?, limit: Int = 7) -> [OSMSearchResult] {
-        var words = OSMSearch.tokens(query)
-        let meaningful = words.filter { !OSMSearch.stopWords.contains($0) }
-        if !meaningful.isEmpty { words = meaningful }
+        let all = OSMSearch.tokens(query)
+        var words = all.filter { !OSMSearch.stopWords.contains($0) }
+        if words.isEmpty { words = all }
         guard !words.isEmpty else { return [] }
         let typing = !(query.last.map { $0 == " " } ?? false)
         let q = OSMSearch.bytes(words)
         let joined = Array(words.joined(separator: " ").utf8)
-
-        func matches(_ token: [UInt8], _ word: [UInt8], last: Bool) -> Bool {
-            if OSMSearch.isNumber(word) {
-                // «1» no debe encontrar «14 Calle», salvo mientras se escribe el número.
-                return token == word || (last && typing && OSMSearch.hasPrefix(token, word))
+        let joinedAll = Array(all.joined(separator: " ").utf8)
+        // Qué tipos de lugar nombra cada palabra (la última, también a medio escribir).
+        var wordKinds: [Set<Int>] = []
+        for (wi, w) in words.enumerated() {
+            var kinds = Set(OSMSearch.categories[w] ?? [])
+            if wi == words.count - 1 && typing && w.count >= 4 {
+                for (c, ks) in OSMSearch.categories where c.hasPrefix(w) { kinds.formUnion(ks) }
             }
-            return OSMSearch.hasPrefix(token, word)
+            wordKinds.append(kinds)
         }
 
         var scored: [(score: Double, entry: Int)] = []
         for (ei, e) in entries.enumerated() {
+            var text = 0.0
             var inName = 0
             var ok = true
+            var onlyKind = true
+            var area: [[UInt8]]?
             for (wi, w) in q.enumerated() {
                 let last = wi == q.count - 1
-                if e.tokens.contains(where: { matches($0, w, last: last) }) {
+                let prefixOK = !OSMSearch.isNumber(w) || (last && typing)
+                // La palabra es el tipo de lugar: cuenta como tipo aunque el nombre también la diga,
+                // así manda la cercanía y no los lugares que se llaman igual.
+                if wordKinds[wi].contains(e.kind) {
+                    text += 10
                     inName += 1
                     continue
                 }
-                // La palabra puede ser de la zona o del pueblo («14 calle zona 10»).
-                var found = false
-                if e.area >= 0 {
-                    let a = areas[Int(e.area)]
-                    found = a.tokens.contains(where: { matches($0, w, last: last) })
-                    if !found, a.town >= 0 {
-                        found = areas[Int(a.town)].tokens.contains(where: { matches($0, w, last: last) })
-                    }
+                onlyKind = false
+                if e.tokens.contains(w) {
+                    text += 12
+                    inName += 1
+                    continue
                 }
-                if !found {
-                    ok = false
-                    break
+                if prefixOK && e.tokens.contains(where: { OSMSearch.hasPrefix($0, w) }) {
+                    text += 8
+                    inName += 1
+                    continue
                 }
+                // La palabra puede ser de la zona, el municipio o el departamento.
+                if area == nil { area = areaTokens(e) }
+                if area!.contains(where: { $0 == w || (prefixOK && OSMSearch.hasPrefix($0, w)) }) {
+                    text += 3
+                    continue
+                }
+                ok = false
+                break
             }
             guard ok, inName > 0 else { continue }
-            var score = Double(inName) * 10
-            if e.folded == joined { score += 40 } else if OSMSearch.hasPrefix(e.folded, joined) { score += 18 }
-            if inName == q.count && e.tokens.count == q.count { score += 8 }
-            switch e.kind {
-            case 1: score += 14
-            case 2: score += 11
-            case 4, 5: score += 9
-            case 3: score += 7
-            case 6: score += 3
-            case 30: score += 0
-            default: score += 5
+            if !onlyKind {
+                if e.folded == joined || e.folded == joinedAll {
+                    text += 14
+                } else if OSMSearch.hasPrefix(e.folded, joinedAll) || OSMSearch.hasPrefix(e.folded, joined) {
+                    text += 6
+                }
+                if e.tokens.allSatisfy({ t in q.contains { $0 == t || OSMSearch.hasPrefix(t, $0) } }) { text += 8 }
             }
+            var score = text + OSMSearch.weight(e.kind)
             if let here = near {
-                let km = here.distance(to: e.point) / 1000
-                score -= log10(km + 1) * 9
+                score -= log10(here.distance(to: e.point) / 1000 + 1) * 12
             }
             scored.append((score, ei))
         }
         scored.sort { $0.score > $1.score }
         var out: [OSMSearchResult] = []
-        var shown: Set<String> = []
+        var shownMain = Set<Int32>()
+        var shownText = Set<String>()
         for s in scored {
             let e = entries[s.entry]
-            let subtitle = describe(e)
-            let key = e.name + "|" + subtitle
-            if shown.contains(key) { continue }
-            shown.insert(key)
-            out.append(OSMSearchResult(title: e.name, subtitle: subtitle, point: e.point, kind: e.kind))
+            if shownMain.contains(e.main) { continue }
+            let title = map.name(e.title)
+            let place = describe(e, title: title)
+            let key = title + "|" + place
+            if shownText.contains(key) { continue }
+            shownMain.insert(e.main)
+            shownText.insert(key)
+            var subtitle = place
+            if e.alias != OSMMapData.noName { subtitle += " · «" + map.name(e.alias) + "»" }
+            out.append(OSMSearchResult(title: title, subtitle: subtitle, point: e.point, kind: e.kind))
             if out.count >= limit { break }
         }
         return out
     }
 
-    private func describe(_ e: Entry) -> String {
-        let what = OSMPlace(point: OSMPoint(e.point), name: 0, kind: e.kind).kindTitle
-        guard e.area >= 0 else { return what }
-        let a = areas[Int(e.area)]
-        var whereText = a.name
-        if a.town >= 0, areas[Int(a.town)].name != a.name {
-            whereText += ", " + areas[Int(a.town)].name
+    private static func departmentName(_ n: String) -> String {
+        for prefix in ["Departamento de ", "Departamento del "] where n.hasPrefix(prefix) {
+            return String(n.dropFirst(prefix.count))
         }
-        return what + " · " + whereText
+        return n
+    }
+
+    /// Tipo y dónde: zona y municipio para calles y lugares; municipio y departamento para
+    /// pueblos; municipio para zonas y colonias.
+    private func describe(_ e: Entry, title: String) -> String {
+        let what = OSMPlace(point: OSMPoint(e.point), name: 0, kind: e.kind).kindTitle
+        var muni: Admin?
+        var dept: Admin?
+        if let a = admins[e.admin] {
+            if a.kind == 40 {
+                muni = a
+                dept = admins[a.parent]
+            } else {
+                dept = a
+            }
+        }
+        let m = muni.map { map.name($0.name) }
+        let d = dept.map { OSMSearch.departmentName(map.name($0.name)) }
+        var parts: [String?]
+        switch e.kind {
+        case 4, 5, 6: parts = [m ?? d]
+        case 1, 2, 3: parts = [m, d]
+        default: parts = e.zone >= 0 ? [map.name(zones[Int(e.zone)].name), m] : [m, d]
+        }
+        var list: [String] = []
+        for p in parts {
+            if let p = p, !p.isEmpty, p != title, !list.contains(p) { list.append(p) }
+        }
+        return list.isEmpty ? what : what + " · " + list.joined(separator: ", ")
     }
 }

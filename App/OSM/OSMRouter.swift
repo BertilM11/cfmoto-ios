@@ -22,8 +22,9 @@ struct OSMRoute {
 
 final class OSMRouter {
     let map: OSMMapData
-    /// Tamaño del último grafo (para el diagnóstico y las pruebas de rendimiento).
-    private(set) var lastStats = (tiles: 0, nodes: 0, edges: 0)
+    /// Tamaño del último grafo (para el diagnóstico y las pruebas de rendimiento). `wide`: hizo
+    /// falta el grafo amplio (la ruta da un rodeo grande, como a Petén).
+    private(set) var lastStats = (tiles: 0, nodes: 0, edges: 0, wide: false)
 
     init(map: OSMMapData) {
         self.map = map
@@ -45,23 +46,33 @@ final class OSMRouter {
 
     // MARK: - Grafo
 
+    /// Un tramo entre dos nudos. Compacto: en rutas largas hay cientos de miles.
     struct Edge {
         var a: Int32
         var b: Int32
-        var length: Double
-        var cls: Int
+        var len: Float
         var name: UInt32
+        var clsByte: UInt8
         var roundabout: Bool
         var link: Bool
         var forward: Bool
         var backward: Bool
+
+        var cls: Int { Int(clsByte) }
+        var length: Double {
+            get { Double(len) }
+            set { len = Float(newValue) }
+        }
     }
 
     final class Graph {
         var index: [OSMPoint: Int32] = [:]
         var nodes: [OSMPoint] = []
         var edges: [Edge] = []
-        var adj: [[Int32]] = []
+        /// Tramos de cada nudo como lista enlazada (sin un arreglo por nudo: menos memoria).
+        var head: [Int32] = []
+        var nextInc: [Int32] = []
+        var incEdge: [Int32] = []
         private var seen = Set<Int64>()
 
         func node(_ p: OSMPoint) -> Int32 {
@@ -69,8 +80,38 @@ final class OSMRouter {
             let i = Int32(nodes.count)
             index[p] = i
             nodes.append(p)
-            adj.append([])
+            head.append(-1)
             return i
+        }
+
+        private func link(_ n: Int32, _ edge: Int32) {
+            incEdge.append(edge)
+            nextInc.append(head[Int(n)])
+            head[Int(n)] = Int32(incEdge.count - 1)
+        }
+
+        private func unlink(_ n: Int32, _ edge: Int32) {
+            var prev: Int32 = -1
+            var i = head[Int(n)]
+            while i >= 0 {
+                if incEdge[Int(i)] == edge {
+                    if prev < 0 { head[Int(n)] = nextInc[Int(i)] } else { nextInc[Int(prev)] = nextInc[Int(i)] }
+                    return
+                }
+                prev = i
+                i = nextInc[Int(i)]
+            }
+        }
+
+        /// Los tramos que tocan el nudo `n` (para las maniobras; la búsqueda recorre la lista).
+        func incident(_ n: Int32) -> [Int32] {
+            var out: [Int32] = []
+            var i = head[Int(n)]
+            while i >= 0 {
+                out.append(incEdge[Int(i)])
+                i = nextInc[Int(i)]
+            }
+            return out
         }
 
         func add(_ p: OSMPoint, _ q: OSMPoint, road: OSMRoad) {
@@ -79,13 +120,12 @@ final class OSMRouter {
             let b = node(q)
             let key = Int64(min(a, b)) << 32 | Int64(max(a, b))
             guard seen.insert(key).inserted else { return }
-            let len = p.geo.distance(to: q.geo)
-            let e = Edge(a: a, b: b, length: len, cls: road.cls, name: road.name, roundabout: road.roundabout, link: road.link,
-                         forward: road.oneway != 2, backward: road.oneway != 1)
+            let e = Edge(a: a, b: b, len: Float(p.geo.distance(to: q.geo)), name: road.name, clsByte: UInt8(max(0, min(255, road.cls))),
+                         roundabout: road.roundabout, link: road.link, forward: road.oneway != 2, backward: road.oneway != 1)
             let id = Int32(edges.count)
             edges.append(e)
-            adj[Int(a)].append(id)
-            adj[Int(b)].append(id)
+            link(a, id)
+            link(b, id)
         }
 
         /// Parte el tramo `e` en el punto `p` (que queda como nudo nuevo) y devuelve el nudo.
@@ -101,21 +141,23 @@ final class OSMRouter {
             second.a = m
             second.length = p.geo.distance(to: nodes[Int(e.b)].geo)
             edges[id] = first
-            adj[Int(m)].append(Int32(id))
-            adj[Int(e.b)].removeAll { $0 == Int32(id) }
+            link(m, Int32(id))
+            unlink(e.b, Int32(id))
             let id2 = Int32(edges.count)
             edges.append(second)
-            adj[Int(m)].append(id2)
-            adj[Int(e.b)].append(id2)
+            link(m, id2)
+            link(e.b, id2)
             return m
         }
     }
 
-    /// Arma el grafo para ir de `a` a `b`.
-    func graph(from a: GeoPoint, to b: GeoPoint) -> Graph {
+    /// Arma el grafo para ir de `a` a `b`. Normal: una caja con hasta 25 km de margen y las calles
+    /// terciarias o mayores en medio. Amplio: casi todo el país con las carreteras principales en
+    /// medio, para rutas que dan un rodeo grande (de la capital a Petén se va por Río Dulce).
+    func graph(from a: GeoPoint, to b: GeoPoint, wide: Bool = false) -> Graph {
         let g = Graph()
         let direct = a.distance(to: b)
-        let margin = max(2500, min(25_000, direct * 0.25))
+        let margin = wide ? max(60_000, min(260_000, direct * 0.9)) : max(2500, min(25_000, direct * 0.25))
         let pa = OSMPoint(a)
         let pb = OSMPoint(b)
         let dLat = Int(margin / 110_574 * 1e6)
@@ -126,17 +168,21 @@ final class OSMRouter {
         let maxY = Int(max(pa.y, pb.y)) + dLat
         // Cerca de los extremos (o en rutas cortas) van todas las calles; en medio, las principales.
         let detail = max(4000, min(12_000, direct * 0.3))
-        let r0 = Int(floor(Double(minY) / Double(map.step)))
-        let r1 = Int(floor(Double(maxY) / Double(map.step)))
-        let c0 = Int(floor(Double(minX) / Double(map.step)))
-        let c1 = Int(floor(Double(maxX) / Double(map.step)))
-        guard r1 >= r0, c1 >= c0, (r1 - r0 + 1) * (c1 - c0 + 1) <= 160_000 else { return g }
+        // Solo dentro del mapa (fuera no hay cuadros).
+        let rowMin = Int(floor(Double(map.lat0) / Double(map.step)))
+        let colMin = Int(floor(Double(map.lon0) / Double(map.step)))
+        let r0 = max(rowMin, Int(floor(Double(minY) / Double(map.step))))
+        let r1 = min(rowMin + map.rows - 1, Int(floor(Double(maxY) / Double(map.step))))
+        let c0 = max(colMin, Int(floor(Double(minX) / Double(map.step))))
+        let c1 = min(colMin + map.cols - 1, Int(floor(Double(maxX) / Double(map.step))))
+        let middle = wide ? 4 : 3
+        guard r1 >= r0, c1 >= c0, (r1 - r0 + 1) * (c1 - c0 + 1) <= 400_000 else { return g }
         let half = Double(map.step) / 2
         for r in r0...r1 {
             for c in c0...c1 {
                 let center = GeoPoint(lat: (Double(r * map.step) + half) / 1e6, lon: (Double(c * map.step) + half) / 1e6)
                 let near = direct < 15_000 || center.distance(to: a) < detail || center.distance(to: b) < detail
-                guard let t = map.tileUncached(row: r, col: c, minClass: near ? 1 : 3) else { continue }
+                guard let t = map.tileUncached(row: r, col: c, minClass: near ? 1 : middle) else { continue }
                 lastStats.tiles += 1
                 for road in t.roads {
                     for i in 0..<(road.points.count - 1) {
@@ -152,9 +198,18 @@ final class OSMRouter {
 
     /// Hasta 1 + `alternatives` rutas, la más rápida primero. `heading`: rumbo actual (para no
     /// proponer dar la vuelta al recalcular).
-    func routes(from a: GeoPoint, to b: GeoPoint, alternatives: Int = 2, heading: Double? = nil) -> [OSMRoute] {
-        lastStats = (0, 0, 0)
-        let g = graph(from: a, to: b)
+    func routes(from a: GeoPoint, to b: GeoPoint, alternatives: Int = 2, heading: Double? = nil, wide: Bool = false) -> [OSMRoute] {
+        let found = attempt(from: a, to: b, alternatives: alternatives, heading: heading, wide: wide)
+        if found.isEmpty && !wide && a.distance(to: b) > 20_000 {
+            // En la caja normal no hay camino (el que hay da un rodeo): con el grafo amplio.
+            return attempt(from: a, to: b, alternatives: alternatives, heading: heading, wide: true)
+        }
+        return found
+    }
+
+    private func attempt(from a: GeoPoint, to b: GeoPoint, alternatives: Int, heading: Double?, wide: Bool) -> [OSMRoute] {
+        lastStats = (0, 0, 0, wide)
+        let g = graph(from: a, to: b, wide: wide)
         lastStats.nodes = g.nodes.count
         lastStats.edges = g.edges.count
         guard !g.edges.isEmpty, let s = snap(g, a), let t = snap(g, b) else { return [] }
@@ -233,7 +288,10 @@ final class OSMRouter {
             if closed[ui] { continue }
             closed[ui] = true
             if u == to { break }
-            for eid in g.adj[ui] {
+            var inc = g.head[ui]
+            while inc >= 0 {
+                let eid = g.incEdge[Int(inc)]
+                inc = g.nextInc[Int(inc)]
                 let e = g.edges[Int(eid)]
                 let forward = e.a == u
                 if forward ? !e.forward : !e.backward { continue }
@@ -306,7 +364,7 @@ final class OSMRouter {
         func bearing(_ d0: Double, _ d1: Double) -> Double { point(at: d0).bearing(to: point(at: d1)) }
         func degree(_ node: Int32) -> Int {
             var others = Set<Int32>()
-            for eid in g.adj[Int(node)] {
+            for eid in g.incident(node) {
                 let e = g.edges[Int(eid)]
                 others.insert(e.a == node ? e.b : e.a)
             }
@@ -329,7 +387,7 @@ final class OSMRouter {
                     j += 1
                     if j < path.count && j < nodes.count {
                         let n = nodes[j]
-                        let outs = g.adj[Int(n)].filter { id in
+                        let outs = g.incident(n).filter { id in
                             let e = g.edges[Int(id)]
                             return !e.roundabout && (e.a == n ? e.forward : e.backward)
                         }

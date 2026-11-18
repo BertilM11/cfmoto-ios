@@ -93,6 +93,51 @@ struct OSMPalette {
     }
 }
 
+/// Nombres de calle ya preparados (CoreText es caro de crear y el mismo nombre se dibuja en
+/// muchos fotogramas seguidos).
+final class OSMLabelCache {
+    static let shared = OSMLabelCache()
+
+    struct Label {
+        let halo: CTLine
+        let fill: CTLine
+        let width: CGFloat
+    }
+
+    private var items: [String: Label] = [:]
+    private var fonts: [CGFloat: CTFont] = [:]
+    private let lock = NSLock()
+
+    func label(_ text: String, size: CGFloat, night: Bool, pal: OSMPalette) -> Label {
+        let key = "\(night ? 1 : 0)|\(size)|\(text)"
+        lock.lock()
+        defer { lock.unlock() }
+        if let l = items[key] { return l }
+        if items.count > 700 { items.removeAll(keepingCapacity: true) }
+        let f: CTFont
+        if let cached = fonts[size] {
+            f = cached
+        } else {
+            f = CTFontCreateUIFontForLanguage(.emphasizedSystem, size, nil) ?? CTFontCreateWithName("Helvetica-Bold" as CFString, size, nil)
+            fonts[size] = f
+        }
+        let haloAttrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): f,
+            NSAttributedString.Key(kCTStrokeColorAttributeName as String): pal.halo,
+            NSAttributedString.Key(kCTStrokeWidthAttributeName as String): NSNumber(value: Double(3.2 * 100 / size)),
+        ]
+        let fillAttrs: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): f,
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): pal.label,
+        ]
+        let halo = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: haloAttrs))
+        let fill = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: fillAttrs))
+        let l = Label(halo: halo, fill: fill, width: CGFloat(CTLineGetTypographicBounds(fill, nil, nil, nil)))
+        items[key] = l
+        return l
+    }
+}
+
 extension HUDRenderer {
     /// Ancho de cada clase de calle (en el tablero de 800 px).
     static let osmWidths: [CGFloat] = [3, 7, 9, 11, 13, 15, 15]
@@ -243,45 +288,34 @@ extension HUDRenderer {
         }
         candidates.sort { $0.cls != $1.cls ? $0.cls > $1.cls : $0.order < $1.order }
         var placed: [(at: CGPoint, radius: CGFloat, name: UInt32)] = []
+        let cache = OSMLabelCache.shared
         for cand in candidates {
             if placed.count >= 11 { break }
+            // Primero lo barato (sin medir el texto): junto a la ruta o el mismo nombre cerca.
+            if placed.contains(where: { $0.name == cand.name && hypot($0.at.x - cand.at.x, $0.at.y - cand.at.y) < 380 * u }) { continue }
+            if avoid.contains(where: { abs($0.x - cand.at.x) < 16 * u && abs($0.y - cand.at.y) < 16 * u && hypot($0.x - cand.at.x, $0.y - cand.at.y) < 16 * u }) { continue }
             let size = (cand.cls >= 4 ? 12.5 : 11.5) * u
             let text = map.name(cand.name)
             guard !text.isEmpty else { continue }
-            let m = measure(text, size: size, bold: true, color: pal.label)
-            let radius = m.width / 2 + 8 * u
+            let label = cache.label(text, size: size, night: night, pal: pal)
+            let radius = label.width / 2 + 8 * u
             if cards.contains(where: { $0.insetBy(dx: -radius, dy: -12 * u).contains(cand.at) }) { continue }
             if cand.at.x - radius < r.minX + 4 * u || cand.at.x + radius > r.maxX - 4 * u { continue }
             if placed.contains(where: { hypot($0.at.x - cand.at.x, $0.at.y - cand.at.y) < $0.radius + radius }) { continue }
-            if placed.contains(where: { $0.name == cand.name && hypot($0.at.x - cand.at.x, $0.at.y - cand.at.y) < 380 * u }) { continue }
-            if avoid.contains(where: { hypot($0.x - cand.at.x, $0.y - cand.at.y) < 16 * u }) { continue }
             placed.append((cand.at, radius, cand.name))
-            drawRotatedLabel(text, at: cand.at, angle: cand.angle, size: size, pal, ctx)
+            drawRotatedLabel(label, at: cand.at, angle: cand.angle, size: size, ctx)
         }
     }
 
-    private func drawRotatedLabel(_ text: String, at p: CGPoint, angle: CGFloat, size: CGFloat, _ pal: OSMPalette, _ ctx: CGContext) {
-        let f = font(size, bold: true)
-        let haloAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(kCTFontAttributeName as String): f,
-            NSAttributedString.Key(kCTStrokeColorAttributeName as String): pal.halo,
-            NSAttributedString.Key(kCTStrokeWidthAttributeName as String): NSNumber(value: Double(3.2 * 100 / size)),
-        ]
-        let fillAttrs: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(kCTFontAttributeName as String): f,
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): pal.label,
-        ]
-        let halo = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: haloAttrs))
-        let fill = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: fillAttrs))
-        let width = CGFloat(CTLineGetTypographicBounds(fill, nil, nil, nil))
+    private func drawRotatedLabel(_ label: OSMLabelCache.Label, at p: CGPoint, angle: CGFloat, size: CGFloat, _ ctx: CGContext) {
         ctx.saveGState()
         ctx.translateBy(x: p.x, y: p.y)
         ctx.rotate(by: angle)
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
-        ctx.textPosition = CGPoint(x: -width / 2, y: size * 0.35)
-        CTLineDraw(halo, ctx)
-        ctx.textPosition = CGPoint(x: -width / 2, y: size * 0.35)
-        CTLineDraw(fill, ctx)
+        ctx.textPosition = CGPoint(x: -label.width / 2, y: size * 0.35)
+        CTLineDraw(label.halo, ctx)
+        ctx.textPosition = CGPoint(x: -label.width / 2, y: size * 0.35)
+        CTLineDraw(label.fill, ctx)
         ctx.restoreGState()
     }
 

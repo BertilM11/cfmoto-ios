@@ -68,6 +68,10 @@ struct OSMPlace {
     var point: OSMPoint
     var name: UInt32
     var kind: Int
+    /// Otro nombre (alt_name…) del lugar anterior de la lista.
+    var alias = false
+    /// Índice del municipio (o departamento) al que pertenece; -1 si no se sabe.
+    var admin = -1
 
     var kindTitle: String {
         switch kind {
@@ -99,6 +103,8 @@ struct OSMPlace {
         case 30: return "Calle"
         case 31: return "Municipalidad"
         case 32: return "Aeropuerto"
+        case 40: return "Municipio"
+        case 41: return "Departamento"
         default: return "Lugar"
         }
     }
@@ -116,6 +122,8 @@ final class OSMMapData {
     static var current: OSMMapData? { override ?? shared }
 
     let data: Data
+    /// 1 o 2 (la 2 trae departamentos, municipios y el municipio de cada lugar).
+    let version: Int
     let tileCount: Int
     let nameCount: Int
     let placeCount: Int
@@ -151,7 +159,8 @@ final class OSMMapData {
         func u32(_ o: Int) -> Int { Int(d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) }.littleEndian) }
         func i32(_ o: Int) -> Int { Int(d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: Int32.self) }.littleEndian) }
         func u64(_ o: Int) -> Int { Int(d.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt64.self) }.littleEndian) }
-        guard u32(8) == 1 else { return nil }
+        version = u32(8)
+        guard version == 1 || version == 2 else { return nil }
         tileCount = u32(12)
         nameCount = u32(16)
         placeCount = u32(20)
@@ -189,7 +198,12 @@ final class OSMMapData {
         let y = Int32(bitPattern: u32(o + 4))
         let n = u32(o + 8)
         let k = Int(data[data.startIndex + o + 12])
-        return OSMPlace(point: OSMPoint(x: x, y: y), name: n, kind: k)
+        var owner = -1
+        if version >= 2 {
+            let v = Int(data[data.startIndex + o + 14]) | Int(data[data.startIndex + o + 15]) << 8
+            if v != 0xFFFF { owner = v }
+        }
+        return OSMPlace(point: OSMPoint(x: x, y: y), name: n, kind: k & 0x7F, alias: k & 0x80 != 0, admin: owner)
     }
 
     /// Fila y columna absolutas (en cuadros desde 0°) de un punto.
@@ -238,10 +252,12 @@ final class OSMMapData {
         lock.lock()
         let cached = cache[r * cols + c]
         lock.unlock()
-        let t = cached ?? load(key: r * cols + c, row: row, col: col)
-        guard let tile = t else { return nil }
-        if minClass <= 1 { return tile }
-        return OSMTile(row: row, col: col, roads: tile.roads.filter { $0.cls >= minClass }, areas: [], lines: [])
+        if let tile = cached {
+            if minClass <= 1 { return tile }
+            return OSMTile(row: row, col: col, roads: tile.roads.filter { $0.cls >= minClass }, areas: [], lines: [])
+        }
+        // Solo las calles que sirven (sin parques, agua ni las calles menores): más rápido.
+        return load(key: r * cols + c, row: row, col: col, roadsFrom: max(1, minClass))
     }
 
     /// Los cuadros que tocan la caja (millonésimas de grado).
@@ -274,7 +290,7 @@ final class OSMMapData {
         return nil
     }
 
-    private func load(key: Int, row: Int, col: Int) -> OSMTile? {
+    private func load(key: Int, row: Int, col: Int, roadsFrom minClass: Int? = nil) -> OSMTile? {
         guard let e = entry(key), posData + e.offset + e.size <= data.count, e.raw > 6 else { return nil }
         var raw = [UInt8](repeating: 0, count: e.raw)
         let written = data.withUnsafeBytes { src -> Int in
@@ -283,10 +299,11 @@ final class OSMMapData {
                                              e.size, nil, COMPRESSION_ZLIB)
         }
         guard written == e.raw else { return nil }
-        return OSMMapData.parse(raw, row: row, col: col, step: step)
+        return OSMMapData.parse(raw, row: row, col: col, step: step, roadsFrom: minClass)
     }
 
-    static func parse(_ b: [UInt8], row: Int, col: Int, step: Int) -> OSMTile? {
+    /// Lee un cuadro descomprimido. Con `roadsFrom`, solo las calles de esa clase o más.
+    static func parse(_ b: [UInt8], row: Int, col: Int, step: Int, roadsFrom minClass: Int? = nil) -> OSMTile? {
         var p = 0
         func u8() -> Int {
             defer { p += 1 }
@@ -331,9 +348,17 @@ final class OSMMapData {
             let dir = u8()
             let name = u32()
             let n = u16()
+            if let least = minClass, flags & 0x0F < least {
+                guard p + 4 * n <= b.count else { return nil }
+                p += 4 * n
+                continue
+            }
             guard let pts = points(n) else { return nil }
             roads.append(OSMRoad(cls: flags & 0x0F, roundabout: flags & 0x10 != 0, link: flags & 0x20 != 0,
                                  oneway: dir & 3, bridge: dir & 4 != 0, tunnel: dir & 8 != 0, name: name, points: pts))
+        }
+        if minClass != nil {
+            return OSMTile(row: row, col: col, roads: roads, areas: [], lines: [])
         }
         var areas: [OSMArea] = []
         for _ in 0..<na {

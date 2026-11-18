@@ -74,6 +74,9 @@ final class NavEngine: ObservableObject {
     private var routeProvider: MapProvider?
     /// La última ruta calculada con el mapa propio (para el diagnóstico).
     static var lastOSMRoute: String?
+    /// La ruta a este destino necesitó el grafo amplio (rodeo grande): los recálculos lo usan
+    /// directamente, sin probar antes la caja normal.
+    private var osmNeedsWide = false
     private var pendingPlan = false
     private let voice = VoiceGuide()
     private var cancellables = Set<AnyCancellable>()
@@ -125,6 +128,7 @@ final class NavEngine: ObservableObject {
         destinationItem = item
         destinationName = item.name ?? "Destino"
         destinationCoordinate = item.placemark.coordinate
+        osmNeedsWide = false
         message = nil
         guard let here = LocationService.shared.last else {
             pendingPlan = true
@@ -154,6 +158,7 @@ final class NavEngine: ObservableObject {
         directions = nil
         osmToken += 1
         routeProvider = nil
+        osmNeedsWide = false
         pendingPlan = false
         stopSimulationTimer()
         simulating = false
@@ -243,8 +248,11 @@ final class NavEngine: ObservableObject {
         let a = GeoPoint(lat: origin.latitude, lon: origin.longitude)
         let b = GeoPoint(lat: target.latitude, lon: target.longitude)
         let started = Date()
+        let wide = reroute && osmNeedsWide
         osmQueue.async { [weak self] in
-            let found = OSMRouter(map: map).routes(from: a, to: b, alternatives: reroute ? 0 : 2, heading: heading)
+            let router = OSMRouter(map: map)
+            let found = router.routes(from: a, to: b, alternatives: reroute ? 0 : 2, heading: heading, wide: wide)
+            let usedWide = router.lastStats.wide
             let seconds = Date().timeIntervalSince(started)
             let planned = found.map { PlannedRoute(osm: $0) }
             DispatchQueue.main.async {
@@ -258,6 +266,7 @@ final class NavEngine: ObservableObject {
                 NavEngine.lastOSMRoute = String(format: "%@ · %.1f km · calculada en %.2f s · %@", reroute ? "recálculo" : "nueva",
                                                 planned[0].distance / 1000, seconds, AppRuntime.description)
                 self.routeProvider = .osm
+                self.osmNeedsWide = usedWide
                 if reroute {
                     self.applyReroute(planned[0])
                 } else {
