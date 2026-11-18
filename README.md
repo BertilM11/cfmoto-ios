@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.4 — Acabado premium del reproductor
+# CFMoto Link 0.6.5 — Mapa guardado y tema
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,6 +9,9 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
+- **Mapa guardado más fiable** (0.6.5): la moto usa siempre el tema del mapa que se ve (nunca
+  tarjetas claras con el mapa oscuro); si Apple no entrega imágenes, el guardado espera y sigue,
+  y el iPhone lo dice; si queda un hueco que no se volvía a pedir, se pide una imagen ahí.
 - **Reproductor premium con botones** (0.6.4): anterior, reproducir/pausar (grande, en un círculo)
   y siguiente en todos los modos con música, como en la referencia, con el estado real (❚❚ o ▶).
   Son solo dibujo: en la moto no se pueden pulsar (la música se controla desde el iPhone). Fondo
@@ -78,9 +81,9 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.4_AcabadoPremium.zip` trae el código, la documentación, las láminas
+El paquete `CFMotoLink_0.6.5_MapaGuardado.zip` trae el código, la documentación, las láminas
 de las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
-Volver a la 0.6.3, 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.4:
+Volver a la 0.6.4, 0.6.3, 0.6.2, 0.6.1 o 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.4:
 [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md) (y los de la 0.6.3 y la 0.6.2 en
 [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md) y [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md)).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
@@ -123,7 +126,7 @@ firmar en *Releases*.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
-- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.4, 0.6.3, 0.6.2 y 0.6.1).
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.5, 0.6.4, 0.6.3, 0.6.2 y 0.6.1).
 - [docs/DISENO_0.6.4.md](docs/DISENO_0.6.4.md): botones y acabado del reproductor de la 0.6.4 (cada modo, estados, pruebas).
 - [docs/DISENO_0.6.3.md](docs/DISENO_0.6.3.md): rediseño premium de la 0.6.3 (sistema visual, cada modo, lo que no se puede llevar a la moto).
 - [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md): mapa con el iPhone bloqueado (qué permite Apple, cobertura y alternativas).

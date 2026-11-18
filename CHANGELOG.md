@@ -1,5 +1,38 @@
 # Registro de cambios
 
+## 0.6.5 — Mapa guardado y tema (18 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.6.4`, etiqueta `v0.6.4`, publicación `build-15` y
+carpeta `BACKUP_ORIGINAL_0.6.4` con sus huellas SHA-256 (ver `docs/ROLLBACK.md`). No cambian la
+conexión Wi-Fi Direct, el vídeo H.264, el protocolo con la moto ni sus indicadores, la navegación,
+la música ni la distribución de los modos. Solo cambian el mapa guardado y el tema de la moto.
+
+### Tema claro con el mapa oscuro
+- **La moto usa el tema del mapa que se ve.** Con el iPhone bloqueado solo hay imágenes guardadas;
+  si la que tocaba era del otro tema (cambio de tema, o el amanecer o el atardecer llegó antes o
+  después de lo previsto), salían las tarjetas claras sobre el mapa oscuro. Ahora todo el tablero
+  toma el tema de esa imagen hasta que haya imágenes del tema elegido.
+- Diagnóstico: «Tema de la moto» dice si se está usando el del mapa guardado.
+
+### El guardado que se quedaba parado (10 de 21 km)
+- **Pausa tras los fallos de Apple**: antes, si Apple no entregaba una imagen, se volvía a pedir
+  enseguida; si Apple estaba limitando las peticiones, el guardado podía quedarse parado. Ahora se
+  espera 2, 4, 8… hasta 60 s y se sigue.
+- **El iPhone lo dice**: bajo «Guardando el mapa» aparece «Apple no entregó la última imagen (…).
+  Reintento en N s», en vez de parecer parado.
+- **Imágenes extra para huecos**: si una imagen llega cubriendo menos de lo previsto, queda un
+  hueco que la rejilla ya no volvía a pedir (su punto ya tenía imagen). Ahora se pide una imagen
+  justo en el hueco, como mucho dos veces por sitio.
+- **No está confirmada la causa** de lo que pasó en tu ruta de 21 km. Se probó la sospecha de las
+  curvas cerradas y no era: la rejilla las cubre enteras. Si vuelve a pasar, exporta el informe
+  (Más > Diagnóstico > Exportar informe): ahora incluye los fallos seguidos de Apple y las imágenes
+  extra para huecos.
+
+### Pruebas
+- 208 pruebas automáticas: las 200 de la 0.6.4 y 8 nuevas del mapa guardado (curvas cerradas, hueco
+  por una imagen que cubre menos, sin peticiones de más, sin bucles).
+- Falta probarlo en la moto: pruebas X e Y de `docs/TESTING.md`.
+
 ## 0.6.4 — Acabado premium del reproductor (18 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.6.3`, etiqueta `v0.6.3`, publicación `build-14`

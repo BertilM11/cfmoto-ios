@@ -190,3 +190,10 @@ Igual que antes: al terminar cada una, **Más > Diagnóstico > Exportar informe*
 | W | Cambiar de canción varias veces con la ruta activa | La portada, su luz en el fondo y los textos se funden en menos de medio segundo; el mapa no da tirones | `envio≈10fps` |
 
 Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.
+
+## 7. Pruebas en la moto de la 0.6.5
+
+| Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el informe |
+| --- | --- | --- | --- |
+| X | Ruta larga (20 km o más) con el iPhone al frente hasta «Ruta completa guardada» | Que el aviso no se quede parado; si aparece «Apple no entregó la última imagen… Reintento», que después siga subiendo | `Fallos seguidos de Apple`, `Imágenes extra para huecos`, líneas `[MAPA] guardado en pausa` |
+| Y | Bloquear el iPhone al atardecer o al amanecer, o cambiar el tema y bloquear enseguida | Las tarjetas y el mapa siempre del mismo tema (nunca tarjetas claras con mapa oscuro) | `Tema de la moto`, líneas `[TEMA]` |

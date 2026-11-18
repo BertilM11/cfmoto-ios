@@ -1,8 +1,25 @@
 # Volver a una versión anterior
 
-La 0.6.3, la 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.4 falla o no te gusta,
-se puede volver en un par de minutos. La 0.6.4 solo cambia el dibujo de la música: la conexión
-con la moto, el vídeo, el protocolo, la navegación y el mapa guardado son los de la 0.6.3.
+La 0.6.4, la 0.6.3, la 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.5 falla, se
+puede volver en un par de minutos. La 0.6.5 solo cambia el mapa guardado y el tema de la moto: la
+conexión con la moto, el vídeo, el protocolo, la navegación y la música son los de la 0.6.4.
+
+## Dónde está la 0.6.4
+
+| Dónde | Qué |
+| --- | --- |
+| Entrega de la 0.6.5: `BACKUP_ORIGINAL_0.6.4\` | `CFMotoLink_0.6.4.ipa`, el paquete original, `SHA256SUMS.txt` y `VERSION.txt` |
+| Tu PC: `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.4\` | Los mismos archivos |
+| Tu PC: `Descargas\CFMotoLink_entrega_0.6.4\` y `CFMotoLink_0.6.4.ipa` en la carpeta del proyecto | La entrega completa de la 0.6.4 |
+| GitHub, publicación `build-15` | El IPA y el paquete de la 0.6.4 tal como se compilaron |
+| GitHub, rama `backup/v0.6.4` y etiqueta `v0.6.4` (commit `397efb0`) | El código exacto |
+
+Huellas SHA-256 de la copia de la 0.6.4:
+
+```
+b313298a68b8e51c3cbaa83020b73d675b31db654b14325fdc34e80358afab1c  CFMotoLink_0.6.4.ipa
+e9755c42355bfb79489df3a3994997be1aa01528256ba83a16c52d93601ae5fe  CFMotoLink_0.6.4_AcabadoPremium.zip
+```
 
 ## Dónde está la 0.6.3
 
@@ -70,18 +87,17 @@ Huellas SHA-256 de la copia de la 0.6.1:
 Comprobar una huella en Windows (PowerShell o CMD, dentro de la carpeta del respaldo):
 
 ```
-certutil -hashfile CFMotoLink_0.6.3.ipa SHA256
+certutil -hashfile CFMotoLink_0.6.4.ipa SHA256
 ```
 
-## Reinstalar la 0.6.3 (o una anterior) en el iPhone
+## Reinstalar la 0.6.4 (o una anterior) en el iPhone
 
 1. Abre Sideloadly y conecta el iPhone con el cable.
-2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.3\CFMotoLink_0.6.3.ipa`
-   (o el de la 0.6.2, la 0.6.1 o la 0.6.0).
+2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.4\CFMotoLink_0.6.4.ipa`
+   (o el de la 0.6.3, la 0.6.2, la 0.6.1 o la 0.6.0).
 3. Pulsa **Start**. Se instala encima (mismo identificador `io.github.cfmotolink.app`).
 
-Los ajustes se conservan: la 0.6.4 no cambia el formato guardado (el interruptor «Nombre del
-servicio» es el mismo ajuste de antes con otro nombre). El Client ID de Spotify también; el
+Los ajustes se conservan: la 0.6.5 no cambia el formato guardado. El Client ID de Spotify también; el
 permiso de Spotify hay que pedirlo otra vez (dura una hora y vive en memoria).
 
 ## Volver al código anterior
@@ -90,16 +106,16 @@ Con Git:
 
 ```sh
 git fetch origin
-git checkout v0.6.3          # o: git checkout backup/v0.6.3   (también v0.6.2, v0.6.1, v0.6.0 y sus ramas backup/)
+git checkout v0.6.4          # o: git checkout backup/v0.6.4   (también v0.6.3, v0.6.2, v0.6.1, v0.6.0 y sus ramas backup/)
 ```
 
-Con GitHub Desktop: *Branch > backup/v0.6.3*.
+Con GitHub Desktop: *Branch > backup/v0.6.4*.
 
-Para que la rama `main` vuelva a ser la 0.6.3 (solo si se decide abandonar la 0.6.4):
+Para que la rama `main` vuelva a ser la 0.6.4 (solo si se decide abandonar la 0.6.5):
 
 ```sh
 git checkout main
-git revert --no-edit backup/v0.6.3..HEAD   # deshace los cambios sin borrar el historial
+git revert --no-edit backup/v0.6.4..HEAD   # deshace los cambios sin borrar el historial
 git push
 ```
 
@@ -107,7 +123,6 @@ Cada envío a `main` vuelve a compilar y publica un IPA nuevo en *Releases*.
 
 ## Cuándo volver
 
-- La moto no recibe imagen con la 0.6.4 y sí con la 0.6.3 (misma moto, mismo Wi-Fi).
+- La moto no recibe imagen con la 0.6.5 y sí con la 0.6.4 (misma moto, mismo Wi-Fi).
 - La app se cierra sola de forma repetida.
-- El reproductor nuevo no se lee bien en la TFT y prefieres el anterior.
 - Antes de volver, si puedes: **Más > Diagnóstico > Exportar informe**, para saber qué falló.

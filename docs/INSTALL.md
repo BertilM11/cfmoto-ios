@@ -1,4 +1,4 @@
-# Instalación y primer uso (0.6.4)
+# Instalación y primer uso (0.6.5)
 
 ## Lo que hace falta
 
@@ -9,8 +9,8 @@
 
 ## Instalar
 
-1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.4 en GitHub (*Releases*) o usa el
-   que viene en la entrega (`CFMotoLink_0.6.4.ipa`).
+1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.5 en GitHub (*Releases*) o usa el
+   que viene en la entrega (`CFMotoLink_0.6.5.ipa`).
 2. Conecta el iPhone al PC con el cable y desbloquéalo. Si pregunta, toca **Confiar**.
 3. En Sideloadly: toca el icono del IPA, elige el archivo, comprueba tu Apple ID y pulsa
    **Start**. Escribe tu contraseña solo en la ventana de Sideloadly.
