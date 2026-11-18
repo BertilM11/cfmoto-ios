@@ -1,0 +1,36 @@
+name: Datos OSM para la demostración
+on:
+  push:
+    branches: ['wip/osm-**']
+permissions:
+  contents: write
+jobs:
+  osm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Herramientas
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
+      - name: Descargar Guatemala (Geofabrik)
+        run: curl -sSfL -o gt.osm.pbf https://download.geofabrik.de/central-america/guatemala-latest.osm.pbf && ls -la gt.osm.pbf
+      - name: Filtrar y recortar
+        run: |
+          mkdir -p out
+          osmium fileinfo -e gt.osm.pbf | grep -E "Timestamp|Number of (nodes|ways)" > out/info.txt || true
+          # Todo el país: solo lo que dibujaría la app (calles, agua, parques).
+          osmium tags-filter gt.osm.pbf w/highway w/waterway w/natural=water r/natural=water w/leisure=park w/landuse=grass,forest,recreation_ground -o out/guatemala-filtrado.osm.pbf
+          ls -la gt.osm.pbf out/guatemala-filtrado.osm.pbf | awk '{print $5, $9}' >> out/info.txt
+          # Zona de la demostración (ciudad de Guatemala).
+          osmium extract -b -90.565,14.555,-90.465,14.655 out/guatemala-filtrado.osm.pbf -o zona.osm.pbf
+          osmium export zona.osm.pbf -f geojsonseq --geometry-types=linestring,polygon -a type,id -o out/zona.geojsonseq
+          gzip -9 out/zona.geojsonseq
+          ls -la out >> out/info.txt
+          cat out/info.txt
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out
+          git init -q -b ci-osm
+          git add .
+          git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -qm "OSM ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-osm
