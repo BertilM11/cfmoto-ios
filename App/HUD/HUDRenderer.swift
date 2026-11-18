@@ -308,6 +308,8 @@ final class HUDRenderer {
     var cardImages: [String: CGImage] = [:]
     /// 0.7: rectángulos de las tarjetas que tapan el mapa, para no poner nombres de calles debajo.
     var mapAvoid: [CGRect] = []
+    /// 0.7: imagen del fondo del mapa propio que se reutiliza entre fotogramas.
+    let osmBaseCache = OSMBaseCache()
     static var cacheCards = true
     /// 0.6.4: «luz» de las últimas portadas (sus colores reducidos a 4×4 y ampliados), para el
     /// fondo de la música. Se calcula una vez por portada y tema.

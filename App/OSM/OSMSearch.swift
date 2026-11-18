@@ -248,16 +248,6 @@ final class OSMSearch {
 
     // MARK: - Búsqueda
 
-    private func areaTokens(_ e: Entry) -> [[UInt8]] {
-        var out: [[UInt8]] = []
-        if e.zone >= 0 { out += zones[Int(e.zone)].tokens }
-        if let a = admins[e.admin] {
-            out += a.tokens
-            if let parent = admins[a.parent] { out += parent.tokens }
-        }
-        return out
-    }
-
     /// Hasta `limit` lugares que contienen todas las palabras escritas (la última puede estar a
     /// medias), los más parecidos y cercanos primero.
     func search(_ query: String, near: GeoPoint?, limit: Int = 7) -> [OSMSearchResult] {
@@ -269,29 +259,43 @@ final class OSMSearch {
         let q = OSMSearch.bytes(words)
         let joined = Array(words.joined(separator: " ").utf8)
         let joinedAll = Array(all.joined(separator: " ").utf8)
-        // Qué tipos de lugar nombra cada palabra (la última, también a medio escribir).
-        var wordKinds: [Set<Int>] = []
+        // Por cada palabra, una sola vez: qué tipos de lugar nombra (la última, también a medio
+        // escribir) y qué zonas, municipios y departamentos la contienen.
+        var kindTable = [Bool](repeating: false, count: words.count * 128)
+        var zoneHits: [Set<Int32>] = []
+        var adminHits: [Set<Int32>] = []
         for (wi, w) in words.enumerated() {
-            var kinds = Set(OSMSearch.categories[w] ?? [])
+            var kinds = OSMSearch.categories[w] ?? []
             if wi == words.count - 1 && typing && w.count >= 4 {
-                for (c, ks) in OSMSearch.categories where c.hasPrefix(w) { kinds.formUnion(ks) }
+                for (c, ks) in OSMSearch.categories where c.hasPrefix(w) { kinds += ks }
             }
-            wordKinds.append(kinds)
+            for k in kinds where k >= 0 && k < 128 { kindTable[wi * 128 + k] = true }
+            let wb = q[wi]
+            let prefixOK = !OSMSearch.isNumber(wb) || (wi == words.count - 1 && typing)
+            func has(_ tokens: [[UInt8]]) -> Bool {
+                tokens.contains { $0 == wb || (prefixOK && OSMSearch.hasPrefix($0, wb)) }
+            }
+            var zs = Set<Int32>()
+            for (i, z) in zones.enumerated() where has(z.tokens) { zs.insert(Int32(i)) }
+            var ads = Set<Int32>()
+            for (i, a) in admins where has(a.tokens) { ads.insert(i) }
+            zoneHits.append(zs)
+            adminHits.append(ads)
         }
 
         var scored: [(score: Double, entry: Int)] = []
-        for (ei, e) in entries.enumerated() {
+        for ei in entries.indices {
+            let e = entries[ei]
             var text = 0.0
             var inName = 0
             var ok = true
             var onlyKind = true
-            var area: [[UInt8]]?
             for (wi, w) in q.enumerated() {
                 let last = wi == q.count - 1
                 let prefixOK = !OSMSearch.isNumber(w) || (last && typing)
                 // La palabra es el tipo de lugar: cuenta como tipo aunque el nombre también la diga,
                 // así manda la cercanía y no los lugares que se llaman igual.
-                if wordKinds[wi].contains(e.kind) {
+                if e.kind >= 0 && e.kind < 128 && kindTable[wi * 128 + e.kind] {
                     text += 10
                     inName += 1
                     continue
@@ -308,8 +312,8 @@ final class OSMSearch {
                     continue
                 }
                 // La palabra puede ser de la zona, el municipio o el departamento.
-                if area == nil { area = areaTokens(e) }
-                if area!.contains(where: { $0 == w || (prefixOK && OSMSearch.hasPrefix($0, w)) }) {
+                if (e.zone >= 0 && zoneHits[wi].contains(e.zone)) || adminHits[wi].contains(e.admin)
+                    || (admins[e.admin].map { adminHits[wi].contains($0.parent) } ?? false) {
                     text += 3
                     continue
                 }

@@ -52,7 +52,7 @@ extension HUDRenderer {
                                 anchor: CGPoint(x: r.midX, y: north ? r.midY : r.minY + r.height * CGFloat(MapCorridor.puckY)))
             ctx.saveGState()
             ctx.clip(to: r)
-            guard drawOSMBase(map, cam, night: s.night, r, ctx) > 0 else {
+            guard drawOSMBaseCached(map, cam, night: s.night, r, ctx) > 0 else {
                 // Fuera del mapa guardado (otro país o sin calles cerca): el mapa simple.
                 ctx.restoreGState()
                 return false

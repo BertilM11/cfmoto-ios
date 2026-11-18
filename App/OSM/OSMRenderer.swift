@@ -69,6 +69,8 @@ struct OSMCamera {
 struct OSMPalette {
     let bgTop: CGColor
     let bgBottom: CGColor
+    /// El color de en medio del degradado (fondo de la imagen guardada del mapa).
+    let bgMid: CGColor
     let park: CGColor
     let water: CGColor
     let river: CGColor
@@ -83,11 +85,11 @@ struct OSMPalette {
             CGColor(srgbRed: CGFloat(h >> 16 & 255) / 255, green: CGFloat(h >> 8 & 255) / 255, blue: CGFloat(h & 255) / 255, alpha: a)
         }
         if night {
-            return OSMPalette(bgTop: c(0x111C30), bgBottom: c(0x080F1C), park: c(0x14301F), water: c(0x10284A), river: c(0x173A63),
+            return OSMPalette(bgTop: c(0x111C30), bgBottom: c(0x080F1C), bgMid: c(0x0D1626), park: c(0x14301F), water: c(0x10284A), river: c(0x173A63),
                               casing: c(0x070C16), roads: [0x232E44, 0x2E3A52, 0x3A4762, 0x44526E, 0x506080, 0x5D6E93, 0x6A7CA3].map { c($0) },
                               label: c(0xB9C4D6), halo: c(0x070C16, 0.9), attribution: c(0xFFFFFF, 0.55))
         }
-        return OSMPalette(bgTop: c(0xF1F4F8), bgBottom: c(0xE4E9F0), park: c(0xCFE8D3), water: c(0xA9CDF1), river: c(0x8EBDEB),
+        return OSMPalette(bgTop: c(0xF1F4F8), bgBottom: c(0xE4E9F0), bgMid: c(0xEBEFF4), park: c(0xCFE8D3), water: c(0xA9CDF1), river: c(0x8EBDEB),
                           casing: c(0xC3CCD9), roads: [0xF6F8FB, 0xFFFFFF, 0xFFFFFF, 0xFFFFFF, 0xFFF7DF, 0xFFE9A8, 0xFFE08A].map { c($0) },
                           label: c(0x3B4657), halo: c(0xFFFFFF, 0.92), attribution: c(0x0A1220, 0.55))
     }
@@ -104,9 +106,55 @@ final class OSMLabelCache {
         let width: CGFloat
     }
 
+    /// Un sitio posible para el nombre de una calle (uno cada 170 m de cada calle con nombre).
+    struct Anchor {
+        let name: UInt32
+        let cls: Int
+        let at: GeoPoint
+        /// Extremos del tramo, para girar el nombre como la calle.
+        let a: GeoPoint
+        let b: GeoPoint
+    }
+
     private var items: [String: Label] = [:]
     private var fonts: [CGFloat: CTFont] = [:]
+    private var anchorTiles: [Int64: [Anchor]] = [:]
     private let lock = NSLock()
+
+    /// Los sitios para nombres de un cuadro (se calculan una vez por cuadro, no en cada fotograma).
+    func anchors(_ t: OSMTile) -> [Anchor] {
+        let key = Int64(t.row) << 32 | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: t.col)))
+        lock.lock()
+        if let cached = anchorTiles[key] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+        var out: [Anchor] = []
+        for road in t.roads where road.name != OSMMapData.noName && road.cls >= 2 && road.points.count >= 2 {
+            // Un ancla cada 170 m de la pieza, empezando a 85 m (estables: dependen solo de la calle).
+            var acc = 85.0
+            for i in 0..<(road.points.count - 1) {
+                let a = road.points[i].geo
+                let bb = road.points[i + 1].geo
+                let len = a.distance(to: bb)
+                var pos = 0.0
+                while acc <= len - pos + 1e-9 && len > 0 {
+                    pos += acc
+                    acc = 170
+                    let f = pos / len
+                    out.append(Anchor(name: road.name, cls: road.cls,
+                                      at: GeoPoint(lat: a.lat + (bb.lat - a.lat) * f, lon: a.lon + (bb.lon - a.lon) * f), a: a, b: bb))
+                }
+                acc -= (len - pos)
+            }
+        }
+        lock.lock()
+        if anchorTiles.count > 400 { anchorTiles.removeAll(keepingCapacity: true) }
+        anchorTiles[key] = out
+        lock.unlock()
+        return out
+    }
 
     func label(_ text: String, size: CGFloat, night: Bool, pal: OSMPalette) -> Label {
         let key = "\(night ? 1 : 0)|\(size)|\(text)"
@@ -142,17 +190,32 @@ extension HUDRenderer {
     /// Ancho de cada clase de calle (en el tablero de 800 px).
     static let osmWidths: [CGFloat] = [3, 7, 9, 11, 13, 15, 15]
 
-    /// Fondo del mapa propio: degradado, áreas, ríos y calles. Devuelve cuántas calles dibujó.
+    /// Fondo del mapa propio dibujado directamente: degradado, áreas, ríos y calles. Devuelve
+    /// cuántas calles dibujó. (La app usa `drawOSMBaseCached`, que reutiliza una imagen.)
     @discardableResult
     func drawOSMBase(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, _ r: CGRect, _ ctx: CGContext) -> Int {
+        HUDRenderer.paintOSMBase(map, cam, night: night, r, ctx, unit: k, gradient: true)
+    }
+
+    /// Fondo del mapa propio con la imagen guardada (girada y movida en cada fotograma).
+    @discardableResult
+    func drawOSMBaseCached(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, _ r: CGRect, _ ctx: CGContext) -> Int {
+        guard OSMBaseCache.enabled else { return drawOSMBase(map, cam, night: night, r, ctx) }
+        return osmBaseCache.draw(map, cam, night: night, unit: k, r, ctx)
+    }
+
+    static func paintOSMBase(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, _ r: CGRect, _ ctx: CGContext,
+                             unit u: CGFloat, gradient: Bool) -> Int {
         let pal = OSMPalette.make(night: night)
-        let u = k
-        // Degradado de fondo.
-        if let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [pal.bgTop, pal.bgBottom] as CFArray, locations: [0, 1]) {
+        if gradient, let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [pal.bgTop, pal.bgBottom] as CFArray, locations: [0, 1]) {
+            // Degradado de fondo.
             ctx.saveGState()
             ctx.clip(to: r)
             ctx.drawLinearGradient(g, start: CGPoint(x: r.midX, y: r.minY), end: CGPoint(x: r.midX, y: r.maxY), options: [])
             ctx.restoreGState()
+        } else {
+            ctx.setFillColor(pal.bgMid)
+            ctx.fill(r)
         }
         let b = cam.bounds(r)
         let tiles = map.tiles(minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY)
@@ -205,7 +268,7 @@ extension HUDRenderer {
                     pts.append(v)
                     if limit.contains(v) { any = true }
                 }
-                if !any && !segmentsCross(pts, limit) { continue }
+                if !any && !HUDRenderer.segmentsCross(pts, limit) { continue }
                 let path = paths[road.cls]
                 path.move(to: pts[0])
                 for v in pts.dropFirst() { path.addLine(to: v) }
@@ -230,7 +293,7 @@ extension HUDRenderer {
     }
 
     /// ¿Algún tramo de la polilínea cruza el rectángulo (aunque ningún punto caiga dentro)?
-    private func segmentsCross(_ pts: [CGPoint], _ r: CGRect) -> Bool {
+    private static func segmentsCross(_ pts: [CGPoint], _ r: CGRect) -> Bool {
         for i in 0..<(pts.count - 1) {
             let a = pts[i]
             let b = pts[i + 1]
@@ -257,33 +320,19 @@ extension HUDRenderer {
         }
         var candidates: [Candidate] = []
         var order = 0
+        let labelCache = OSMLabelCache.shared
         for t in tiles {
-            for road in t.roads where road.name != OSMMapData.noName && road.cls >= 2 && road.points.count >= 2 {
-                // Un ancla cada 170 m de la pieza, empezando a 85 m (estables: dependen solo de la calle).
-                var acc = 85.0
-                for i in 0..<(road.points.count - 1) {
-                    let a = road.points[i].geo
-                    let bb = road.points[i + 1].geo
-                    let len = a.distance(to: bb)
-                    var pos = 0.0
-                    while acc <= len - pos + 1e-9 && len > 0 {
-                        pos += acc
-                        acc = 170
-                        let f = pos / len
-                        let g = GeoPoint(lat: a.lat + (bb.lat - a.lat) * f, lon: a.lon + (bb.lon - a.lon) * f)
-                        let v = cam.screen(g)
-                        if v.x > r.minX + 30 * u && v.x < r.maxX - 30 * u && v.y > r.minY + 24 * u && v.y < r.maxY - 24 * u {
-                            let s0 = cam.screen(a)
-                            let s1 = cam.screen(bb)
-                            var ang = atan2(s1.y - s0.y, s1.x - s0.x)
-                            if ang > .pi / 2 { ang -= .pi }
-                            if ang < -.pi / 2 { ang += .pi }
-                            candidates.append(Candidate(name: road.name, cls: road.cls, at: v, angle: ang, order: order))
-                        }
-                        order += 1
-                    }
-                    acc -= (len - pos)
+            for an in labelCache.anchors(t) {
+                let v = cam.screen(an.at)
+                if v.x > r.minX + 30 * u && v.x < r.maxX - 30 * u && v.y > r.minY + 24 * u && v.y < r.maxY - 24 * u {
+                    let s0 = cam.screen(an.a)
+                    let s1 = cam.screen(an.b)
+                    var ang = atan2(s1.y - s0.y, s1.x - s0.x)
+                    if ang > .pi / 2 { ang -= .pi }
+                    if ang < -.pi / 2 { ang += .pi }
+                    candidates.append(Candidate(name: an.name, cls: an.cls, at: v, angle: ang, order: order))
                 }
+                order += 1
             }
         }
         candidates.sort { $0.cls != $1.cls ? $0.cls > $1.cls : $0.order < $1.order }
@@ -329,5 +378,139 @@ extension HUDRenderer {
         ctx.textPosition = CGPoint(x: r.minX + 8 * k, y: r.maxY - 7 * k)
         CTLineDraw(m.line, ctx)
         ctx.restoreGState()
+    }
+}
+
+/// 0.7: el fondo del mapa propio (parques, agua, ríos y calles) dibujado una vez en una imagen
+/// con el norte arriba, más grande que lo que se ve, y reutilizado girado y movido en cada
+/// fotograma. Se rehace en segundo plano antes de que la moto llegue a su borde, o si cambia el
+/// zoom; si cambia el tema o se salta lejos, se rehace en el momento. Así cada fotograma cuesta
+/// poco aunque haya muchas calles (los nombres se siguen dibujando en cada fotograma, derechos).
+final class OSMBaseCache {
+    struct Entry {
+        let image: CGImage
+        let center: GeoPoint
+        let mpp: Double
+        let night: Bool
+        let unit: CGFloat
+        /// Medio lado de la imagen, en puntos.
+        let half: CGFloat
+        let drawn: Int
+    }
+
+    /// Las pruebas pueden apagarlo para comparar con el dibujo directo.
+    static var enabled = true
+    /// Imágenes rehechas (para el diagnóstico y las pruebas).
+    private(set) var builds = 0
+    private var entry: Entry?
+    private var building = false
+    private let lock = NSLock()
+    private static let queue = DispatchQueue(label: "cfmoto.osm.fondo", qos: .userInitiated)
+
+    /// Dibuja el fondo en `r` para la cámara `cam`. Devuelve cuántas calles tiene la imagen.
+    func draw(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, unit: CGFloat, _ r: CGRect, _ ctx: CGContext) -> Int {
+        // Lo que tiene que cubrir la imagen: el rectángulo girado alrededor de la moto.
+        let corners = [CGPoint(x: r.minX, y: r.minY), CGPoint(x: r.maxX, y: r.minY),
+                       CGPoint(x: r.minX, y: r.maxY), CGPoint(x: r.maxX, y: r.maxY)]
+        let need = (corners.map { hypot($0.x - cam.anchor.x, $0.y - cam.anchor.y) }.max() ?? 0) + 6 * unit
+        lock.lock()
+        let current = entry
+        lock.unlock()
+        var use: Entry?
+        if let e = current, e.night == night, e.unit == unit {
+            let scale = e.mpp / cam.metersPerPixel
+            let off = OSMBaseCache.offset(of: cam.center, from: e.center, mpp: cam.metersPerPixel)
+            let reach = e.half * CGFloat(scale) - hypot(off.x, off.y)
+            if scale > 0.8 && scale < 1.25 && reach >= need {
+                use = e
+                // Queda poco margen o cambió el zoom: se prepara otra en segundo plano.
+                let margin = e.half * CGFloat(scale) - need
+                if reach < need + margin * 0.45 || abs(scale - 1) > 0.08 {
+                    rebuild(map, cam, night: night, unit: unit, need: need, ctx: ctx)
+                }
+            }
+        }
+        if use == nil {
+            use = OSMBaseCache.render(map, center: cam.center, mpp: cam.metersPerPixel, night: night, unit: unit,
+                                      half: (need * 1.35).rounded(.up), like: ctx)
+            lock.lock()
+            if let u = use { entry = u }
+            builds += 1
+            lock.unlock()
+        }
+        guard let e = use else {
+            return HUDRenderer.paintOSMBase(map, cam, night: night, r, ctx, unit: unit, gradient: true)
+        }
+        let off = OSMBaseCache.offset(of: cam.center, from: e.center, mpp: cam.metersPerPixel)
+        let scale = CGFloat(e.mpp / cam.metersPerPixel)
+        ctx.saveGState()
+        ctx.clip(to: r)
+        ctx.interpolationQuality = .medium
+        // Imagen (norte arriba, centrada en e.center) → pantalla (rumbo hacia arriba, la moto en anchor).
+        ctx.translateBy(x: cam.anchor.x, y: cam.anchor.y)
+        ctx.rotate(by: -CGFloat(cam.heading * .pi / 180))
+        ctx.translateBy(x: -off.x, y: off.y)
+        ctx.scaleBy(x: scale, y: scale)
+        ctx.translateBy(x: -e.half, y: -e.half)
+        // El contexto tiene la y hacia abajo: la imagen se voltea para verse derecha.
+        ctx.translateBy(x: 0, y: 2 * e.half)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(e.image, in: CGRect(x: 0, y: 0, width: 2 * e.half, height: 2 * e.half))
+        ctx.restoreGState()
+        return e.drawn
+    }
+
+    /// Metros al este y al norte de `p` desde `c`, en puntos de pantalla con `mpp`.
+    private static func offset(of p: GeoPoint, from c: GeoPoint, mpp: Double) -> CGPoint {
+        let east = (p.lon - c.lon) * 111_320 * cos(c.lat * .pi / 180)
+        let north = (p.lat - c.lat) * 110_574
+        return CGPoint(x: east / mpp, y: north / mpp)
+    }
+
+    private func rebuild(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, unit: CGFloat, need: CGFloat, ctx: CGContext) {
+        lock.lock()
+        if building {
+            lock.unlock()
+            return
+        }
+        building = true
+        lock.unlock()
+        // La imagen nueva se centra un poco por delante, hacia donde va la moto.
+        let half = (need * 1.35).rounded(.up)
+        let ahead = Double(half - need) * 0.45 * cam.metersPerPixel
+        let center = cam.heading != 0 ? cam.center.moved(ahead, bearing: cam.heading) : cam.center
+        let mpp = cam.metersPerPixel
+        let space = ctx.colorSpace
+        OSMBaseCache.queue.async { [weak self] in
+            let made = OSMBaseCache.render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: space)
+            guard let self = self else { return }
+            self.lock.lock()
+            if let made = made { self.entry = made }
+            self.builds += 1
+            self.building = false
+            self.lock.unlock()
+        }
+    }
+
+    private static func render(_ map: OSMMapData, center: GeoPoint, mpp: Double, night: Bool, unit: CGFloat, half: CGFloat,
+                               like ctx: CGContext) -> Entry? {
+        render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: ctx.colorSpace)
+    }
+
+    private static func render(_ map: OSMMapData, center: GeoPoint, mpp: Double, night: Bool, unit: CGFloat, half: CGFloat,
+                               space: CGColorSpace?) -> Entry? {
+        let side = Int(2 * half)
+        guard side > 0, side < 6000 else { return nil }
+        let info = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let c = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: space ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+        // Como el tablero: origen arriba a la izquierda y la y hacia abajo.
+        c.translateBy(x: 0, y: CGFloat(side))
+        c.scaleBy(x: 1, y: -1)
+        let cam = OSMCamera(center: center, heading: 0, metersPerPixel: mpp, anchor: CGPoint(x: half, y: half))
+        let drawn = HUDRenderer.paintOSMBase(map, cam, night: night, CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side)), c,
+                                             unit: unit, gradient: false)
+        guard let image = c.makeImage() else { return nil }
+        return Entry(image: image, center: center, mpp: mpp, night: night, unit: unit, half: half, drawn: drawn)
     }
 }

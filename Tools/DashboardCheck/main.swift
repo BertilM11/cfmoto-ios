@@ -2168,6 +2168,7 @@ if let osm = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/zona10.c
         check("0.7: un fotograma con el mapa propio tarda menos de 25 ms", osmMs < perfLimit, String(format: "%.1f ms (mediana)", osmMs) + perfNote)
         // Desglose (para saber qué cuesta): fondo y calles, y nombres de calles.
         var baseTimes: [Double] = []
+        var cachedTimes: [Double] = []
         var labelTimes: [Double] = []
         let routeShape = HUDRouteShape(points: r.points.map { frame.local($0) })
         var scratch = [UInt8](repeating: 0, count: 800 * 400 * 4)
@@ -2184,13 +2185,17 @@ if let osm = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/zona10.c
                 let t1 = Date()
                 perfRenderer.drawOSMLabels(osm, cam, night: true, rect, avoid: [], cards: [], bctx)
                 let t2 = Date()
+                perfRenderer.drawOSMBaseCached(osm, cam, night: true, rect, bctx)
+                let t3 = Date()
                 baseTimes.append(t1.timeIntervalSince(t0) * 1000)
                 labelTimes.append(t2.timeIntervalSince(t1) * 1000)
+                cachedTimes.append(t3.timeIntervalSince(t2) * 1000)
             }
         }
         if !baseTimes.isEmpty {
-            report.append(String(format: "nota: mapa propio por partes (mediana): fondo, parques y calles %.1f ms; nombres %.1f ms",
-                                 baseTimes.sorted()[baseTimes.count / 2], labelTimes.sorted()[labelTimes.count / 2]))
+            report.append(String(format: "nota: mapa propio por partes (mediana): fondo, parques y calles %.1f ms dibujados en el momento, %.1f ms con la imagen guardada (%d imágenes hechas); nombres %.1f ms",
+                                 baseTimes.sorted()[baseTimes.count / 2], cachedTimes.sorted()[cachedTimes.count / 2], perfRenderer.osmBaseCache.builds,
+                                 labelTimes.sorted()[labelTimes.count / 2]))
             print(report.last!)
         }
     }
