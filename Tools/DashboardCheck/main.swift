@@ -16,6 +16,16 @@ import ImageIO
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
 var failures = 0
 var report: [String] = []
+// Límite de tiempo por fotograma: 25 ms en un Mac con Apple Silicon (parecido a un iPhone). Las
+// máquinas Intel de GitHub son más lentas (la misma prueba tarda unas dos veces más): allí se
+// acepta hasta 40 ms y se dice en la prueba.
+#if arch(x86_64)
+let perfLimit = 40.0
+let perfNote = " · máquina Intel de las pruebas: límite 40 ms"
+#else
+let perfLimit = 25.0
+let perfNote = ""
+#endif
 
 func check(_ name: String, _ ok: Bool, _ detail: String = "") {
     if !ok { failures += 1 }
@@ -1212,7 +1222,7 @@ stagePerf.musicFade = 0.3
 let stageStart = Date()
 for _ in 0..<50 { _ = DashPreview.image(stagePerf, now: now, renderer: stageRenderer) }
 let stageMs = Date().timeIntervalSince(stageStart) * 1000 / 50
-check("Música completa en plena transición: menos de 25 ms por fotograma", stageMs < 25, String(format: "%.1f ms de media en esta máquina", stageMs))
+check("Música completa en plena transición: menos de 25 ms por fotograma", stageMs < perfLimit, String(format: "%.1f ms de media en esta máquina", stageMs) + perfNote)
 let steady = stageSnapshot(.dark, art: neon, source: "Spotify")
 let steadyStart = Date()
 for _ in 0..<50 { _ = DashPreview.image(steady, now: now, renderer: stageRenderer) }
@@ -1833,7 +1843,7 @@ for mode in DashMode.allCases {
     perfMax = max(perfMax, ms)
     perfAll.append(String(format: "%@ %.1f", mode.label, ms))
 }
-check("Rediseño: ningún modo tarda más de 25 ms por fotograma (la moto recibe 10 por segundo)", perfMax < 25, perfAll.joined(separator: ", ") + " ms")
+check("Rediseño: ningún modo tarda más de 25 ms por fotograma (la moto recibe 10 por segundo)", perfMax < perfLimit, perfAll.joined(separator: ", ") + " ms" + perfNote)
 
 // 10g. Versión 0.6.4: botones del reproductor (solo dibujo) y acabado premium.
 let musicPlaces: [(name: String, layout: DashLayout, route: Bool, minButton: CGFloat)] = [
@@ -2059,7 +2069,7 @@ for (name, snap) in [("Dividida", musicSnap(.preset(.split), .dark, art: neon)),
     perfWorst = max(perfWorst, ms)
     perfCases.append(String(format: "%@ %.1f ms", name, ms))
 }
-check("Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma", perfWorst < 25, perfCases.joined(separator: ", "))
+check("Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma", perfWorst < perfLimit, perfCases.joined(separator: ", ") + perfNote)
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
@@ -2070,7 +2080,7 @@ snap.paletteFade = 0.5
 let start = Date()
 for _ in 0..<100 { _ = DashPreview.image(snap, now: now, renderer: renderer) }
 let ms = Date().timeIntervalSince(start) * 10
-check("Dibujar un fotograma con mapa y tarjetas tarda menos de 25 ms", ms < 25, String(format: "%.1f ms de media en esta máquina", ms))
+check("Dibujar un fotograma con mapa y tarjetas tarda menos de 25 ms", ms < perfLimit, String(format: "%.1f ms de media en esta máquina", ms) + perfNote)
 
 let summary = failures == 0 ? "RESULTADO: \(report.count) pruebas, todas pasan" : "RESULTADO: \(failures) de \(report.count) pruebas fallan"
 print(summary)
