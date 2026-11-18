@@ -732,7 +732,7 @@ check("Decidir qué pedir (13 km ya guardados) tarda poco", missingMs < 40, Stri
 
 // Con la moto avanzando, como la app: cada 0,25 s se mira qué falta, dos imágenes a la vez,
 // y la calibración de Apple mueve un poco el alto visible con cada imagen.
-func driveCorridor(_ route: RoutePath, seconds: Double, speed: Double, imageSeconds: Double)
+func driveCorridor(_ route: RoutePath, seconds: Double, speed: Double, imageSeconds: Double, parallel: Int = 2, capacity: Int = 400)
     -> (entries: [CorridorEntry], requests: Int, repeated: Int, progress: Double) {
     let routeTurns = route.turns()
     var list: [CorridorEntry] = []
@@ -752,10 +752,10 @@ func driveCorridor(_ route: RoutePath, seconds: Double, speed: Double, imageSeco
         }
         flying.removeAll { $0.ready <= t }
         list.sort { $0.anchor < $1.anchor }
-        list = CorridorPlanner.trim(list, progress: progress, capacity: 400)
-        let free = 2 - flying.count
+        list = CorridorPlanner.trim(list, progress: progress, capacity: capacity)
+        let free = parallel - flying.count
         if free > 0 {
-            let horizon = CorridorPlanner.horizon(remaining: route.length - progress, capacity: 400, step: step)
+            let horizon = CorridorPlanner.horizon(remaining: route.length - progress, capacity: capacity, step: step)
             let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + horizon, step: step, turns: routeTurns)
             let wanted = CorridorPlanner.missing(anchors: anchors, route: route, existing: list, inFlight: flying.map { $0.request.anchor },
                                                  night: { _ in false }, styleKey: { _ in "dia" }, northUp: false, step: step, limit: free)
@@ -1109,6 +1109,524 @@ for _ in 0..<50 { _ = DashPreview.image(steady, now: now, renderer: stageRendere
 let steadyMs = Date().timeIntervalSince(steadyStart) * 1000 / 50
 check("Música completa sin transición (fondo reutilizado): menos de 15 ms por fotograma", steadyMs < 15,
       String(format: "%.1f ms de media en esta máquina", steadyMs))
+
+// 10e. Versión 0.6.3: el mismo reproductor en todos los modos, maniobra compacta en las zonas
+// con mapa, cobertura del mapa guardado y ningún texto cortado.
+
+/// Dibuja como la moto y apunta cada texto con su caja (zona o tarjeta en la que va).
+func render(_ s: DashSnapshot, width: Int = Int(W), height: Int = Int(H), hideText: Bool = false)
+    -> (px: (image: CGImage?, data: [UInt8], rowBytes: Int), marks: [HUDRenderer.TextMark]) {
+    let renderer = HUDRenderer(width: width, height: height)
+    HUDRenderer.recordText = true
+    HUDRenderer.hideText = hideText
+    defer {
+        HUDRenderer.recordText = false
+        HUDRenderer.hideText = false
+    }
+    var data = [UInt8](repeating: 0, count: width * height * 4)
+    let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    var image: CGImage?
+    data.withUnsafeMutableBytes { raw in
+        guard let ctx = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
+        ctx.translateBy(x: 0, y: CGFloat(height))
+        ctx.scaleBy(x: 1, y: -1)
+        renderer.drawDashboard(s, now: now, in: ctx)
+        image = ctx.makeImage()
+    }
+    return ((image, data, width * 4), renderer.textMarks)
+}
+
+/// Textos que se salen de la imagen o de su zona o tarjeta (también por las esquinas
+/// redondeadas), que se montan entre sí o que caen encima de la hora actual.
+func textProblems(_ marks: [HUDRenderer.TextMark], width: CGFloat = W, height: CGFloat = H, clock: CGRect?) -> [String] {
+    var out: [String] = []
+    let image = CGRect(x: 0, y: 0, width: width, height: height)
+    let shown = marks.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty && $0.rect.width > 0.5 }
+    for m in shown {
+        let r = m.rect.insetBy(dx: 0.5, dy: 0.5)
+        if !image.contains(r) {
+            out.append("«\(m.text)» se sale de la imagen")
+            continue
+        }
+        if !m.box.insetBy(dx: -0.5, dy: -0.5).contains(r) {
+            out.append("«\(m.text)» se sale de su zona o tarjeta")
+            continue
+        }
+        let rad = min(14 * width / 800, m.box.height / 2, m.box.width / 2)
+        let b = m.box
+        let corners: [(CGPoint, CGPoint, Bool)] = [
+            (CGPoint(x: r.minX, y: r.minY), CGPoint(x: b.minX + rad, y: b.minY + rad), r.minX < b.minX + rad && r.minY < b.minY + rad),
+            (CGPoint(x: r.maxX, y: r.minY), CGPoint(x: b.maxX - rad, y: b.minY + rad), r.maxX > b.maxX - rad && r.minY < b.minY + rad),
+            (CGPoint(x: r.minX, y: r.maxY), CGPoint(x: b.minX + rad, y: b.maxY - rad), r.minX < b.minX + rad && r.maxY > b.maxY - rad),
+            (CGPoint(x: r.maxX, y: r.maxY), CGPoint(x: b.maxX - rad, y: b.maxY - rad), r.maxX > b.maxX - rad && r.maxY > b.maxY - rad),
+        ]
+        if corners.contains(where: { $0.2 && hypot($0.0.x - $0.1.x, $0.0.y - $0.1.y) > rad + 0.5 }) {
+            out.append("«\(m.text)» cortado por la esquina redondeada")
+        }
+        if let c = clock, r.intersects(c), !c.insetBy(dx: -1, dy: -1).contains(r) {
+            out.append("«\(m.text)» tapa la hora")
+        }
+    }
+    for i in shown.indices {
+        for j in shown.indices where j > i {
+            if shown[i].rect.insetBy(dx: 0.5, dy: 0.5).intersects(shown[j].rect.insetBy(dx: 0.5, dy: 0.5)) {
+                out.append("«\(shown[i].text)» y «\(shown[j].text)» se montan")
+            }
+        }
+    }
+    return out
+}
+
+/// Datos como los de un viaje real (sin la etiqueta de demostración).
+func musicSnap(_ layout: DashLayout, _ theme: DashTheme, art: CGImage?, source: String = "Spotify", route: Bool = true) -> DashSnapshot {
+    var s = streetsSnapshot(layout, theme: theme)
+    s.demo = false
+    s.music.title = "Luces de la ciudad"
+    s.music.artist = "Banda de ejemplo"
+    s.music.album = "Ruta nocturna"
+    s.music.source = source
+    s.music.artwork = art
+    s.music.palette = art.flatMap { ArtPalette.extract($0) }
+    if !route {
+        s.nav.navigating = false
+        s.nav.shape = nil
+        s.nav.here = center.moved(90, bearing: heading + 180)
+        s.nav.course = heading
+    }
+    return s
+}
+
+// Las formas del reproductor según el sitio.
+let zoneArea = fullImage.insetBy(dx: 6, dy: 6)
+var stripArea = zoneArea
+stripArea.size.height -= 62 + 6
+func musicZone(_ layout: DashLayout, area: CGRect = zoneArea) -> CGRect? {
+    DashLayoutEngine.frames(layout, in: area, gap: 6).first { $0.module == .music }?.rect
+}
+func musicCard(_ o: OverlaySettings) -> CGRect? {
+    DashLayoutEngine.overlayCards(o, in: fullImage, k: 1).first { $0.item == .music }?.rect
+}
+var largeMusic = DashLayout.preset(.gpsMusic).overlay
+largeMusic.musicSize = .large
+let largeMusicLayout = DashLayout.overlay(largeMusic)
+let sideLayout = DashLayout(template: .mainSide, slots: [.nav, .music, .notices], split: 0.6)
+let playerCases: [(name: String, rect: CGRect?, card: CardSize?, style: MusicPlayerStyle)] = [
+    ("Música sola", musicZone(.preset(.music)), nil, .stage),
+    ("Dividida", musicZone(.preset(.split)), nil, .column),
+    ("Música + Avisos", musicZone(.preset(.musicNotices)), nil, .column),
+    ("Música + Avisos con ruta", musicZone(.preset(.musicNotices), area: stripArea), nil, .row),
+    ("Nav + Música", musicCard(DashLayout.preset(.gpsMusic).overlay), .compact, .row),
+    ("Completo", musicCard(DashLayout.preset(.full).overlay), .compact, .row),
+    ("Tarjeta grande", musicCard(largeMusic), .large, .row),
+    ("Principal + 2 (zona lateral)", musicZone(sideLayout), nil, .row),
+]
+func playerLayout(_ r: CGRect, _ card: CardSize?) -> MusicPlayerLayout {
+    MusicPlayerLayout.make(r, k: 1, artwork: true, size: .normal, reserve: card == nil ? clockSpot : nil, card: card)
+}
+var styleProblems: [String] = []
+var geometryProblems: [String] = []
+for pc in playerCases {
+    guard let r = pc.rect else {
+        styleProblems.append("\(pc.name): sin zona")
+        continue
+    }
+    let L = playerLayout(r, pc.card)
+    if L.style != pc.style { styleProblems.append("\(pc.name): \(L.style.rawValue) en vez de \(pc.style.rawValue)") }
+    var parts: [(String, CGRect)] = [("portada", L.artwork), ("textos", L.text), ("barra", L.progress)]
+    if !L.header.isEmpty { parts.append(("cabecera", L.header)) }
+    for (i, a) in parts.enumerated() {
+        if !r.insetBy(dx: -0.5, dy: -0.5).contains(a.1) { geometryProblems.append("\(pc.name): \(a.0) se sale") }
+        if pc.card == nil && a.1.intersects(clockSpot) { geometryProblems.append("\(pc.name): \(a.0) tapa la hora") }
+        for b in parts[(i + 1)...] where a.1.intersects(b.1) { geometryProblems.append("\(pc.name): \(a.0) y \(b.0) se montan") }
+    }
+}
+check("Música: el mismo reproductor en cada modo, con la forma que cabe", styleProblems.isEmpty,
+      styleProblems.isEmpty ? playerCases.map { "\($0.name): \($0.style.rawValue)" }.joined(separator: ", ") : styleProblems.joined(separator: "; "))
+check("Música: portada, textos y barra dentro de su sitio, sin montarse ni tapar la hora", geometryProblems.isEmpty, geometryProblems.joined(separator: "; "))
+func artSide(_ r: CGRect?, _ card: CardSize?) -> CGFloat { r.map { playerLayout($0, card).artwork.width } ?? 0 }
+let artSplit = artSide(musicZone(.preset(.split)), nil)
+let artMN = artSide(musicZone(.preset(.musicNotices)), nil)
+let artMNRoute = artSide(musicZone(.preset(.musicNotices), area: stripArea), nil)
+let artCard = artSide(musicCard(DashLayout.preset(.gpsMusic).overlay), .compact)
+let artLarge = artSide(musicCard(largeMusic), .large)
+check("Música: portada proporcional al espacio (Dividida al menos 167 px como en la 0.6.2)",
+      artSplit >= 167 && artMN >= 150 && artMNRoute >= 150 && artCard == 64 && artLarge == 100,
+      String(format: "Dividida %.0f px, Música + Avisos %.0f (con ruta %.0f), tarjeta compacta %.0f, grande %.0f", artSplit, artMN, artMNRoute, artCard, artLarge))
+
+// Las mismas piezas en todas las formas: fondo con los colores de la portada (el degradado de
+// MusicCardColors), resplandor detrás de la portada, texto legible y estado.
+let playerSnaps: [(name: String, layout: DashLayout, area: CGRect, rect: CGRect?, card: CardSize?)] = [
+    ("Música sola", .preset(.music), zoneArea, musicZone(.preset(.music)), nil),
+    ("Dividida", .preset(.split), zoneArea, musicZone(.preset(.split)), nil),
+    ("Música + Avisos", .preset(.musicNotices), zoneArea, musicZone(.preset(.musicNotices)), nil),
+    ("Nav + Música", .preset(.gpsMusic), zoneArea, musicCard(DashLayout.preset(.gpsMusic).overlay), .compact),
+    ("Completo", .preset(.full), zoneArea, musicCard(DashLayout.preset(.full).overlay), .compact),
+    ("Tarjeta grande", largeMusicLayout, zoneArea, musicCard(largeMusic), .large),
+    ("Principal + 2", sideLayout, zoneArea, musicZone(sideLayout), nil),
+]
+func colorDistance(_ a: RGB, _ b: RGB) -> Double {
+    ((a.r - b.r) * (a.r - b.r) + (a.g - b.g) * (a.g - b.g) + (a.b - b.b) * (a.b - b.b)).squareRoot()
+}
+func gradientAt(_ c: MusicCardColors, _ r: CGRect, _ q: CGPoint) -> RGB {
+    let t = ((q.x - r.minX) * r.width + (q.y - r.minY) * r.height) / (r.width * r.width + r.height * r.height)
+    return c.top.mixed(with: c.bottom, Double(max(0, min(1, t))))
+}
+var worstText = 99.0
+var worstSecondary = 99.0
+var worstText2 = ""
+var backgroundProblems: [String] = []
+var glowProblems: [String] = []
+var stateMissing: [String] = []
+for ps in playerSnaps {
+    guard let r = ps.rect else { continue }
+    for theme in [DashTheme.dark, .light] {
+        for (artName, art) in [("neón", neon), ("roja", redBlack), ("azul", blue)] {
+            let s = musicSnap(ps.layout, theme, art: art)
+            let shown = render(s)
+            let bare = render(s, hideText: true).px
+            let colorsNow = MusicCardColors.make(style: .dynamic, palette: s.music.palette, night: s.night, intensity: s.musicIntensity, spotify: true)
+            for m in shown.marks {
+                let primary = [s.music.title, s.music.artist, "Reproduciendo"].contains(m.text)
+                let secondary = m.text == s.music.album || m.text == "1:13" || m.text == "3:34"
+                guard primary || secondary, r.contains(m.rect) else { continue }
+                let q = m.rect.insetBy(dx: 1, dy: 1)
+                for pt in [CGPoint(x: q.minX, y: q.minY), CGPoint(x: q.maxX, y: q.minY), CGPoint(x: q.minX, y: q.maxY),
+                           CGPoint(x: q.maxX, y: q.maxY), CGPoint(x: q.midX, y: q.midY)] {
+                    let bg = rgbAt(bare, pt.x, pt.y)
+                    let ink = primary ? colorsNow.text : colorsNow.secondary
+                    let value = ink.contrast(with: bg)
+                    if primary {
+                        if value < worstText {
+                            worstText = value
+                            worstText2 = "\(ps.name) \(theme.rawValue) \(artName) «\(m.text)»"
+                        }
+                    } else {
+                        worstSecondary = min(worstSecondary, value)
+                    }
+                }
+            }
+            let L = playerLayout(r, ps.card)
+            // Lejos de la portada el fondo es el degradado de la portada.
+            let far: CGPoint
+            switch L.style {
+            case .stage: far = CGPoint(x: r.minX + 8, y: r.maxY - 8)
+            case .column: far = CGPoint(x: r.minX + 6, y: r.maxY - 6)
+            case .row: far = CGPoint(x: r.maxX - 8, y: r.maxY - 8)
+            }
+            let expected = gradientAt(colorsNow, r, far)
+            let got = rgbAt(bare, far.x, far.y)
+            if colorDistance(got, expected) > (ps.card == nil ? 0.06 : 0.1) {
+                backgroundProblems.append(String(format: "%@ %@ %@: %.2f", ps.name, theme.rawValue, artName, colorDistance(got, expected)))
+            }
+            // De noche se ve el resplandor junto a la portada.
+            if theme == .dark {
+                let near = L.style == .row ? CGPoint(x: L.artwork.midX, y: L.artwork.minY - 5) : CGPoint(x: L.artwork.minX - 8, y: L.artwork.midY)
+                if colorDistance(rgbAt(bare, near.x, near.y), gradientAt(colorsNow, r, near)) < 0.02 {
+                    glowProblems.append("\(ps.name) \(artName)")
+                }
+            }
+            if L.style != .row && !shown.marks.contains(where: { $0.text == "Reproduciendo" }) { stateMissing.append(ps.name) }
+        }
+    }
+}
+check("Música: en todas las formas el fondo es el degradado con los colores de la portada", backgroundProblems.isEmpty,
+      backgroundProblems.isEmpty ? "\(playerSnaps.count) formas, 3 portadas, día y noche" : backgroundProblems.joined(separator: "; "))
+check("Música: de noche se ve el resplandor de la portada en todas las formas", glowProblems.isEmpty, glowProblems.joined(separator: ", "))
+check("Música: título y artista legibles en todas las formas (contraste ≥ 4,5)", worstText >= 4.5,
+      String(format: "peor %.1f:1 (%@)", worstText, worstText2))
+check("Música: álbum y tiempos legibles (contraste ≥ 3)", worstSecondary >= 3, String(format: "peor %.1f:1", worstSecondary))
+check("Música: el estado (Reproduciendo / En pausa) está en la música completa y en la columna", stateMissing.isEmpty, stateMissing.joined(separator: ", "))
+var pausedCard = musicSnap(.preset(.gpsMusic), .dark, art: neon)
+pausedCard.music.playing = false
+var pausedColumn = musicSnap(.preset(.split), .dark, art: neon)
+pausedColumn.music.playing = false
+check("Música en pausa: «En pausa» en la columna y sin texto cortado en la tarjeta",
+      render(pausedColumn).marks.contains { $0.text == "En pausa" } && textProblems(render(pausedCard).marks, clock: clockSpot).isEmpty)
+
+// Ningún texto cortado ni montado en ningún modo.
+var cutProblems: [String] = []
+var normalTruncated: [String] = []
+var textRenders = 0
+for mode in DashMode.allCases {
+    for theme in [DashTheme.dark, .light] {
+        for routeOn in [true, false] {
+            for art in [neon, nil] as [CGImage?] {
+                let marks = render(musicSnap(.preset(mode), theme, art: art, route: routeOn)).marks
+                textRenders += 1
+                let tag = "\(mode.label) \(theme.rawValue) \(routeOn ? "con" : "sin") ruta"
+                cutProblems += textProblems(marks, clock: clockSpot).map { "\(tag): \($0)" }
+                normalTruncated += marks.filter { $0.truncated }.map { "\(tag): «\($0.text)»" }
+            }
+        }
+    }
+}
+for layout in [largeMusicLayout, sideLayout] {
+    for routeOn in [true, false] {
+        let marks = render(musicSnap(layout, .dark, art: neon, route: routeOn)).marks
+        textRenders += 1
+        cutProblems += textProblems(marks, clock: clockSpot).map { "\(layout.template.rawValue): \($0)" }
+        normalTruncated += marks.filter { $0.truncated }.map { "\(layout.template.rawValue): «\($0.text)»" }
+    }
+}
+check("Ningún texto cortado, montado ni encima de la hora (todos los modos, día y noche, con y sin ruta)", cutProblems.isEmpty,
+      cutProblems.isEmpty ? "\(textRenders) composiciones" : cutProblems.prefix(8).joined(separator: "; "))
+check("Con datos normales ningún texto necesita «…»", normalTruncated.isEmpty, normalTruncated.prefix(6).joined(separator: "; "))
+
+// Textos largos: se acortan con «…» sin salirse, y solo el título o el artista.
+var longProblems: [String] = []
+for mode in [DashMode.music, .split, .musicNotices, .gpsMusic, .full] {
+    var s = musicSnap(.preset(mode), .dark, art: neon)
+    s.music.title = "Una canción con un título larguísimo para probar el reproductor en la moto"
+    s.music.artist = "Artista invitado con un nombre también bastante largo"
+    let marks = render(s).marks
+    longProblems += textProblems(marks, clock: clockSpot).map { "\(mode.label): \($0)" }
+    for m in marks where m.truncated && !(s.music.title.hasSuffix(m.text) || s.music.artist.hasSuffix(m.text)) {
+        longProblems.append("\(mode.label): «\(m.text)» acortado")
+    }
+}
+check("Títulos y artistas largos: se acortan con «…» sin salirse de su sitio", longProblems.isEmpty, longProblems.prefix(6).joined(separator: "; "))
+var noMusicProblems: [String] = []
+for mode in [DashMode.music, .split, .musicNotices, .gpsMusic] {
+    var s = musicSnap(.preset(mode), .dark, art: nil)
+    s.music = MusicSnapshot()
+    let marks = render(s).marks
+    if !marks.contains(where: { $0.text == "Sin música" }) { noMusicProblems.append("\(mode.label): falta «Sin música»") }
+    noMusicProblems += textProblems(marks, clock: clockSpot).map { "\(mode.label): \($0)" }
+}
+check("Sin música: el mismo aviso en todas las formas, sin cortes", noMusicProblems.isEmpty, noMusicProblems.joined(separator: "; "))
+
+// Otra resolución (640×320): mismas reglas.
+let smallClock = DashLayoutEngine.statusClock(in: CGRect(x: 0, y: 0, width: 640, height: 320), k: 0.8)
+var smallProblems: [String] = []
+for mode in DashMode.allCases {
+    let marks = render(musicSnap(.preset(mode), .dark, art: neon), width: 640, height: 320).marks
+    smallProblems += textProblems(marks, width: 640, height: 320, clock: smallClock).map { "\(mode.label): \($0)" }
+}
+check("A 640×320 tampoco hay textos cortados ni montados", smallProblems.isEmpty, smallProblems.prefix(6).joined(separator: "; "))
+
+// La vista previa del iPhone es el mismo dibujo que recibe la moto.
+func imageBytes(_ image: CGImage?) -> [UInt8] {
+    guard let image = image else { return [] }
+    var data = [UInt8](repeating: 0, count: image.width * image.height * 4)
+    let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+    data.withUnsafeMutableBytes { raw in
+        guard let ctx = CGContext(data: raw.baseAddress, width: image.width, height: image.height, bitsPerComponent: 8,
+                                  bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    }
+    return data
+}
+var previewDiff = 0
+for mode in [DashMode.split, .gpsMusic, .music, .musicNotices] {
+    let s = musicSnap(.preset(mode), .dark, art: neon)
+    previewDiff = max(previewDiff, maxDifference(imageBytes(DashPreview.image(s, now: now)), imageBytes(render(s).px.image)))
+}
+check("La vista previa del iPhone y la imagen de la moto salen del mismo dibujo (idénticas)", previewDiff == 0, "diferencia máxima \(previewDiff)")
+
+// Maniobra compacta en las zonas con mapa (pantalla dividida y diseños por zonas).
+let splitNav = DashLayoutEngine.frames(.preset(.split), in: zoneArea, gap: 6).first { $0.module == .nav }?.rect ?? .null
+let navCompact = NavZoneLayout.make(splitNav, OverlaySettings(), k: 1, reserve: nil, trip: true)
+check("Dividida: la tarjeta de la maniobra es la misma que en el mapa completo (200×96; antes 426×155)",
+      navCompact.card.size == CGSize(width: 200, height: 96), String(format: "%.0f×%.0f", navCompact.card.width, navCompact.card.height))
+let oldPad = (splitNav.height * 0.03).rounded() + 2
+let oldCard = splitNav.width - 2 * oldPad
+let oldCovered = oldCard * splitNav.height * 0.4 + (splitNav.width - 2 * oldPad - 70) * max(11, splitNav.height * 0.062) * 1.9
+let newCovered = navCompact.card.width * navCompact.card.height + navCompact.trip.width * navCompact.trip.height
+let zoneSize = splitNav.width * splitNav.height
+check("Dividida: se ve más mapa (al menos el 80 % de la zona libre de tarjetas)", 1 - newCovered / zoneSize >= 0.8,
+      String(format: "mapa libre: %.0f %% (antes %.0f %%)", (1 - newCovered / zoneSize) * 100, (1 - oldCovered / zoneSize) * 100))
+var largeNav = OverlaySettings()
+largeNav.maneuverSize = .large
+let navLarge = NavZoneLayout.make(splitNav, largeNav, k: 1, reserve: nil, trip: true)
+check("Dividida: si se elige la tarjeta grande, es más grande pero proporcional a la zona",
+      navLarge.card.width > navCompact.card.width && navLarge.card.width <= splitNav.width * 0.7 + 0.5 && navLarge.card.height <= splitNav.height * 0.42 + 0.5,
+      String(format: "%.0f×%.0f", navLarge.card.width, navLarge.card.height))
+var spotProblems: [String] = []
+var spotCount = 0
+for spot in CardSpot.allCases {
+    for size in CardSize.allCases {
+        for mirrored in [false, true] {
+            var o = OverlaySettings()
+            o.maneuverSpot = spot
+            o.maneuverSize = size
+            var layout = DashLayout.preset(.split)
+            layout.mirrored = mirrored
+            layout.overlay = o
+            guard let zone = DashLayoutEngine.frames(layout, in: zoneArea, gap: 6).first(where: { $0.module == .nav })?.rect else { continue }
+            spotCount += 1
+            let L = NavZoneLayout.make(zone, o, k: 1, reserve: zone.intersects(clockSpot) ? clockSpot : nil, trip: true)
+            let tag = "\(spot.rawValue) \(size.rawValue)\(mirrored ? " (zona a la derecha)" : "")"
+            let parts: [(String, CGRect)] = [("tarjeta", L.card), ("viaje", L.trip), ("brújula", L.compass)]
+            for (i, a) in parts.enumerated() {
+                if !zone.insetBy(dx: -0.5, dy: -0.5).contains(a.1) { spotProblems.append("\(tag): \(a.0) se sale") }
+                if a.1.intersects(clockSpot) { spotProblems.append("\(tag): \(a.0) tapa la hora") }
+                for b in parts[(i + 1)...] where a.1.intersects(b.1) { spotProblems.append("\(tag): \(a.0) y \(b.0) se montan") }
+            }
+            let left = L.card.midX < zone.midX - 1
+            let right = L.card.midX > zone.midX + 1
+            let upper = L.card.midY < zone.midY
+            let inSpot: Bool
+            switch spot {
+            case .topLeft: inSpot = left && upper
+            case .topRight: inSpot = right && upper
+            case .bottomLeft: inSpot = left && !upper
+            case .bottomRight: inSpot = right && !upper
+            case .bottomCenter: inSpot = !left && !right && !upper
+            }
+            if !inSpot { spotProblems.append("\(tag): la tarjeta no está donde se eligió") }
+            // Por delante de la moto (centro de la zona, de la moto hacia arriba) queda libre.
+            let ahead = CGRect(x: zone.midX - 16, y: zone.minY + zone.height * 0.25, width: 32, height: zone.height * 0.47)
+            if size == .compact && spot.isTop && L.card.intersects(ahead) { spotProblems.append("\(tag): tapa la ruta por delante") }
+        }
+    }
+}
+check("Dividida: la maniobra va donde se eligió en el iPhone, sin tapar la hora, el viaje, la brújula ni la ruta por delante",
+      spotProblems.isEmpty, spotProblems.isEmpty ? "\(spotCount) combinaciones" : spotProblems.prefix(6).joined(separator: "; "))
+var overlayFree: [String] = []
+for mode in [DashMode.gps, .gpsMusic, .full, .gpsNotices] {
+    let cards = DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1)
+    let covered = cards.filter { $0.item != .compass }.reduce(0) { $0 + $1.rect.width * $1.rect.height }
+    overlayFree.append(String(format: "%@ %.0f %%", mode.label, (1 - covered / (W * H)) * 100))
+}
+let maneuverSizes = [DashMode.gps, .gpsMusic, .full, .gpsNotices].compactMap { mode in
+    DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1).first { $0.item == .maneuver }?.rect.size
+}
+check("Nav + Música, Completo y Nav + Avisos usan la misma maniobra compacta que Navegación (200×96)",
+      maneuverSizes.count == 4 && maneuverSizes.allSatisfy { $0 == CGSize(width: 200, height: 96) }, "mapa libre: " + overlayFree.joined(separator: ", "))
+
+// Cobertura del mapa guardado.
+let covComplete = MapCoverageState.make(routeActive: true, remaining: 12_400, continuous: 12_390, horizon: 12_600, cached: 80, capacity: 800)
+let covSaving = MapCoverageState.make(routeActive: true, remaining: 12_400, continuous: 3_200, horizon: 12_600, cached: 20, capacity: 800)
+let covPartial = MapCoverageState.make(routeActive: true, remaining: 160_000, continuous: 141_000, horizon: 141_600, cached: 800, capacity: 800)
+let covNone = MapCoverageState.make(routeActive: false, remaining: 0, continuous: 0, horizon: 0, cached: 0, capacity: 800)
+check("Cobertura: ruta completa, guardando y parcial (por memoria) se distinguen",
+      covComplete.kind == .complete && covSaving.kind == .saving && covPartial.kind == .partial && covNone.kind == .none && covNone.text.isEmpty,
+      "\(covComplete.text) | \(covSaving.text) | \(covPartial.text)")
+check("Cobertura: se informan los kilómetros que de verdad tienen mapa seguido",
+      covSaving.text == "Guardando el mapa: 3.2 km de 12 km" && covPartial.text == "Mapa parcial: 141 km de 160 km (límite de memoria)"
+      && covComplete.text == "Ruta completa guardada: 12 km")
+let lowCoverage = MapCoverageState.make(routeActive: true, remaining: 30_000, continuous: 1_400, horizon: 30_200, cached: 30, capacity: 800)
+check("Moto: aviso «MAPA GUARDADO» solo con el mapa guardado en uso y menos de 2 km",
+      lowCoverage.tftTag(storedMapInUse: true) == "MAPA GUARDADO: 1.4 KM" && lowCoverage.tftTag(storedMapInUse: false) == nil
+      && covComplete.tftTag(storedMapInUse: true) == nil && covSaving.tftTag(storedMapInUse: true) == nil,
+      lowCoverage.tftTag(storedMapInUse: true) ?? "sin aviso")
+let storedBase = MapBase(
+    image: testStreets(night: true), data: nil, pixelWidth: 800, pixelHeight: 400, center: center, heading: heading,
+    pitch: 0, night: true, live: false, anchor: 160, created: now.timeIntervalSinceReferenceDate, styleKey: "prueba",
+    samples: samplePoints.map { ($0, camera($0)) }
+)
+var lowSnap = musicSnap(.preset(.gpsMusic), .dark, art: neon)
+lowSnap.map = storedBase
+lowSnap.mapCoverage = lowCoverage
+let lowRender = render(lowSnap)
+var lowLive = lowSnap
+lowLive.map = base
+let lowSplit = { () -> [HUDRenderer.TextMark] in
+    var s = lowSnap
+    s.layout = .preset(.split)
+    return render(s).marks
+}()
+check("Moto: el aviso se dibuja sin tapar nada (mapa completo y pantalla dividida)",
+      lowRender.marks.contains { $0.text == "MAPA GUARDADO: 1.4 KM" } && !render(lowLive).marks.contains { $0.text.hasPrefix("MAPA GUARDADO") }
+      && textProblems(lowRender.marks, clock: clockSpot).isEmpty && lowSplit.contains { $0.text == "MAPA GUARDADO: 1.4 KM" }
+      && textProblems(lowSplit, clock: clockSpot).isEmpty)
+if let image = lowRender.px.image { save(image, "063-aviso-mapa-guardado") }
+
+// Precarga: más imágenes a la vez y más memoria.
+let wait2 = driveCorridor(corridorRoute, seconds: 40, speed: 0, imageSeconds: 2, parallel: 2, capacity: 400)
+let wait3 = driveCorridor(corridorRoute, seconds: 40, speed: 0, imageSeconds: 2, parallel: MapCorridor.parallelPrefetch, capacity: MapCorridor.maxImages)
+let wait2Coverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: wait2.entries, northUp: false).continuous
+let wait3Coverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: wait3.entries, northUp: false).continuous
+check("Precarga antes de salir: con 3 imágenes a la vez se guarda más ruta en el mismo tiempo",
+      wait3Coverage >= wait2Coverage * 1.35 && wait3.repeated == 0,
+      String(format: "en 40 s (2 s por imagen): %.1f km; antes %.1f km", wait3Coverage / 1000, wait2Coverage / 1000))
+let ready3 = driveCorridor(corridorRoute, seconds: 70, speed: 0, imageSeconds: 2, parallel: MapCorridor.parallelPrefetch, capacity: MapCorridor.maxImages)
+let ready3State = MapCoverageState.make(routeActive: true, remaining: corridorRoute.length,
+                                        continuous: CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: ready3.entries, northUp: false).continuous,
+                                        horizon: CorridorPlanner.horizon(remaining: corridorRoute.length, capacity: MapCorridor.maxImages, step: corridorStep),
+                                        cached: ready3.entries.count, capacity: MapCorridor.maxImages)
+check("Ruta de 15 km: «Ruta completa guardada» en poco más de un minuto con el iPhone desbloqueado", ready3State.kind == .complete,
+      "\(ready3State.text) (\(ready3.requests) imágenes)")
+let h400 = CorridorPlanner.horizon(remaining: 120_000, capacity: 400, step: corridorStep)
+let h800 = CorridorPlanner.horizon(remaining: 120_000, capacity: MapCorridor.maxImages, step: corridorStep)
+check("Con 800 imágenes cabe una ruta de 120 km entera (antes, unos 70 km)", h800 >= 120_000 && h400 < 120_000,
+      String(format: "%.0f km → %.0f km", h400 / 1000, min(h800, 120_000) / 1000))
+check("Memoria del mapa guardado: hasta 96 MB y nunca más de la quinta parte de la libre",
+      MapCorridor.budget(available: 2_000 << 20) == 96 << 20 && MapCorridor.budget(available: 300 << 20) == 60 << 20
+      && MapCorridor.budget(available: 40 << 20) == 16 << 20)
+
+// Hora actual y llegada en las formas nuevas.
+let tripMarks = render(musicSnap(.preset(.split), .dark, art: neon)).marks
+let etaClock063 = HUDFormat.clock(now.addingTimeInterval(18 * 60))
+check("Dividida: «Llegada», hora de llegada, tiempo y distancia por separado, y la hora actual arriba",
+      ["Llegada", etaClock063.time, "18 min", "7.4 km"].allSatisfy { t in tripMarks.contains { $0.text == t } }
+      && tripMarks.contains { $0.text == HUDFormat.clock(now).time && clockSpot.contains($0.rect) })
+
+// Capturas de la 0.6.3.
+let captures: [(String, DashSnapshot)] = [
+    ("063-musica-sola-noche", musicSnap(.preset(.music), .dark, art: neon, route: false)),
+    ("063-musica-sola-dia", musicSnap(.preset(.music), .light, art: blue, source: "Apple Music", route: false)),
+    ("063-nav-musica-noche", musicSnap(.preset(.gpsMusic), .dark, art: neon)),
+    ("063-nav-musica-dia", musicSnap(.preset(.gpsMusic), .light, art: blue, source: "Apple Music")),
+    ("063-dividida-noche", musicSnap(.preset(.split), .dark, art: neon)),
+    ("063-dividida-dia", musicSnap(.preset(.split), .light, art: blue, source: "Apple Music")),
+    ("063-completo-noche", musicSnap(.preset(.full), .dark, art: redBlack)),
+    ("063-completo-dia", musicSnap(.preset(.full), .light, art: blue, source: "Apple Music")),
+    ("063-musica-avisos-noche", musicSnap(.preset(.musicNotices), .dark, art: neon, route: false)),
+    ("063-musica-avisos-dia", musicSnap(.preset(.musicNotices), .light, art: blue, source: "Apple Music", route: false)),
+    ("063-musica-avisos-con-ruta", musicSnap(.preset(.musicNotices), .dark, art: redBlack)),
+    ("063-tarjeta-grande", musicSnap(largeMusicLayout, .dark, art: neon)),
+    ("063-principal-mas-2", musicSnap(sideLayout, .dark, art: neon)),
+    ("063-nav-avisos", musicSnap(.preset(.gpsNotices), .dark, art: neon)),
+    ("063-navegacion", musicSnap(.preset(.gps), .dark, art: neon)),
+]
+for (name, snap) in captures {
+    if let image = render(snap).px.image { save(image, name) }
+}
+var splitLarge = musicSnap(.preset(.split), .dark, art: neon)
+splitLarge.layout.overlay.maneuverSize = .large
+if let image = render(splitLarge).px.image { save(image, "063-dividida-maniobra-grande") }
+var splitRight = musicSnap(.preset(.split), .dark, art: neon)
+splitRight.layout.mirrored = true
+splitRight.layout.overlay.maneuverSpot = .topRight
+if let image = render(splitRight).px.image { save(image, "063-dividida-a-la-derecha") }
+var splitBottom = musicSnap(.preset(.split), .light, art: blue, source: "Apple Music")
+splitBottom.layout.overlay.maneuverSpot = .bottomLeft
+if let image = render(splitBottom).px.image { save(image, "063-dividida-maniobra-abajo") }
+if let image = render(musicSnap(.preset(.split), .dark, art: neon, route: false)).px.image { save(image, "063-dividida-sin-ruta") }
+if let image = render(pausedColumn).px.image { save(image, "063-dividida-en-pausa") }
+var noMusicSplit = musicSnap(.preset(.split), .dark, art: nil)
+noMusicSplit.music = MusicSnapshot()
+if let image = render(noMusicSplit).px.image { save(image, "063-dividida-sin-musica") }
+var crossCard = musicSnap(.preset(.gpsMusic), .dark, art: neon)
+var previousSong = crossCard.music
+previousSong.title = "Canción anterior"
+previousSong.artist = "Otro artista"
+previousSong.artwork = redBlack
+crossCard.musicFrom = previousSong
+crossCard.musicFade = 0.7
+crossCard.paletteFrom = redBlack.flatMap { ArtPalette.extract($0) }
+crossCard.paletteFade = 0.7
+if let image = render(crossCard).px.image { save(image, "063-tarjeta-transicion") }
+var longSplit = musicSnap(.preset(.split), .dark, art: neon)
+longSplit.music.title = "Una canción con un título larguísimo para probar el reproductor en la moto"
+if let image = render(longSplit).px.image { save(image, "063-titulo-largo") }
+if let image = render(musicSnap(.preset(.split), .dark, art: neon), width: 640, height: 320).px.image { save(image, "063-dividida-640x320") }
+
+// Rendimiento de las formas nuevas.
+let perfRenderer = HUDRenderer(width: Int(W), height: Int(H))
+var perfCases: [String] = []
+var perfWorst = 0.0
+for (name, snap) in [("Dividida", musicSnap(.preset(.split), .dark, art: neon)), ("Nav + Música en transición", crossCard),
+                     ("Música + Avisos", musicSnap(.preset(.musicNotices), .dark, art: neon))] {
+    let t0 = Date()
+    for _ in 0..<40 { _ = DashPreview.image(snap, now: now, renderer: perfRenderer) }
+    let ms = Date().timeIntervalSince(t0) * 1000 / 40
+    perfWorst = max(perfWorst, ms)
+    perfCases.append(String(format: "%@ %.1f ms", name, ms))
+}
+check("Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma", perfWorst < 25, perfCases.joined(separator: ", "))
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))

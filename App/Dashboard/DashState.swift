@@ -143,6 +143,7 @@ final class DashState {
         s.night = isNight(nav.style, now: now)
         if s.layout.showsMap {
             s.map = TFTMap.shared.base(for: nav, now: now)
+            s.mapCoverage = TFTMap.shared.coverageState()
             if anim, let fade = TFTMap.shared.styleFade(now: now), fade.to === s.map {
                 s.mapFrom = fade.from
                 s.mapFade = fade.t

@@ -19,6 +19,75 @@ enum MapCorridor {
     /// Parte de la imagen en la que la moto puede estar para usarla (márgenes de seguridad).
     static let usableX = 0.1...0.9
     static let usableY = 0.3...0.94
+    /// 0.6.3: imágenes de la ruta que se piden a la vez (además de la de en vivo). Eran 2.
+    static let parallelPrefetch = 3
+    /// 0.6.3: tope de imágenes guardadas (eran 400). Con unos 90 KB por imagen, ~70 MB.
+    static let maxImages = 800
+    /// 0.6.3: memoria máxima para el mapa guardado (eran 64 MB). Nunca más de 1/5 de la que le
+    /// queda libre a la app.
+    static let budgetCap = 96 << 20
+    static let budgetFloor = 16 << 20
+
+    /// Memoria para el mapa guardado según la que le queda libre a la app.
+    static func budget(available: Int) -> Int {
+        guard available > 0 else { return 48 << 20 }
+        return max(budgetFloor, min(budgetCap, available / 5))
+    }
+}
+
+/// 0.6.3: cuánta ruta tiene mapa guardado, dicho igual en el iPhone y en la moto.
+struct MapCoverageState: Equatable {
+    enum Kind: String {
+        case none, saving, complete, partial
+    }
+    var kind: Kind
+    /// Metros seguidos con mapa guardado desde la posición actual.
+    var available: Double
+    /// Metros de ruta que quedan.
+    var remaining: Double
+
+    static let none = MapCoverageState(kind: .none, available: 0, remaining: 0)
+
+    /// `horizon`: hasta dónde se intenta guardar (lo limita la memoria). `cached` y `capacity`:
+    /// imágenes guardadas y máximo que cabe.
+    static func make(routeActive: Bool, remaining: Double, continuous: Double, horizon: Double,
+                     cached: Int, capacity: Int) -> MapCoverageState {
+        guard routeActive else { return .none }
+        let left = max(0, remaining)
+        let have = max(0, min(continuous, left))
+        if have >= left - 30 { return MapCoverageState(kind: .complete, available: left, remaining: left) }
+        // No cabe toda la ruta: lo guardado llega hasta donde da la memoria.
+        let limited = horizon + 1 < left || (capacity > 0 && cached >= capacity)
+        return MapCoverageState(kind: limited ? .partial : .saving, available: have, remaining: left)
+    }
+
+    /// Texto para el iPhone.
+    var text: String {
+        switch kind {
+        case .none: return ""
+        case .complete:
+            return remaining < 100 ? "Ruta completa guardada" : "Ruta completa guardada: \(HUDFormat.distance(remaining))"
+        case .saving: return "Guardando el mapa: \(HUDFormat.distance(available)) de \(HUDFormat.distance(remaining))"
+        case .partial: return "Mapa parcial: \(HUDFormat.distance(available)) de \(HUDFormat.distance(remaining)) (límite de memoria)"
+        }
+    }
+
+    /// Qué hacer, en una línea, para el iPhone.
+    var advice: String {
+        switch kind {
+        case .none: return ""
+        case .complete: return "Ya puedes bloquear el iPhone: la moto tiene el mapa de toda la ruta."
+        case .saving: return "Espera a «Ruta completa guardada» antes de bloquear, o usa la pantalla negra."
+        case .partial: return "Con el iPhone bloqueado, después de \(HUDFormat.distance(available)) la moto mostrará el mapa simple. La pantalla negra mantiene el mapa en vivo."
+        }
+    }
+
+    /// Aviso en la moto: solo con el mapa guardado en uso (iPhone bloqueado), cuando no está la
+    /// ruta completa y quedan menos de 2 km de mapa. Sin mapa guardado ya sale MAPA SIMPLE.
+    func tftTag(storedMapInUse: Bool) -> String? {
+        guard storedMapInUse, kind == .saving || kind == .partial, available >= 50, available < 2000 else { return nil }
+        return "MAPA GUARDADO: " + HUDFormat.distance(available).uppercased()
+    }
 }
 
 extension GeoPoint {

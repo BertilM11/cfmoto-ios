@@ -51,25 +51,25 @@ jobs:
         run: |
           # Si alguna prueba falla, no se publica la versión.
           set -o pipefail
-          mkdir -p paquete/CFMotoLink_0.6.2/docs/laminas
+          mkdir -p paquete/CFMotoLink_0.6.3/docs/laminas
           swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift -o dashcheck
-          ./dashcheck paquete/CFMotoLink_0.6.2/docs/laminas | tee resultados.txt
-          D=paquete/CFMotoLink_0.6.2
+          ./dashcheck paquete/CFMotoLink_0.6.3/docs/laminas | tee resultados.txt
+          D=paquete/CFMotoLink_0.6.3
           cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md CHANGELOG.md LICENSE .github "$D"/ 2>/dev/null || true
           mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
           cp CFMotoLink.ipa "$D"/
-          (cd paquete && zip -qry ../CFMotoLink_0.6.2_Interfaz.zip CFMotoLink_0.6.2)
-          ls -la CFMotoLink_0.6.2_Interfaz.zip
+          (cd paquete && zip -qry ../CFMotoLink_0.6.3_Correcciones.zip CFMotoLink_0.6.3)
+          ls -la CFMotoLink_0.6.3_Correcciones.zip
 
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.6.2_Interfaz.zip \
+          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.6.3_Correcciones.zip \
             --title "CFMoto Link · compilación ${{ github.run_number }}" \
             --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
 
-      # Etiquetas de versión: v0.6.0 (respaldo, la compilación 8), v0.6.1 (la 9) y la de esta versión.
+      # Etiquetas de versión: v0.6.0 (respaldo, la compilación 8), v0.6.1 (la 9), v0.6.2 (la 11) y la de esta versión.
       - name: Etiquetas de versión
         run: |
           VERSION=$(grep -m1 'CFBundleShortVersionString' project.yml | sed -E 's/.*"([0-9.]+)".*/\1/')

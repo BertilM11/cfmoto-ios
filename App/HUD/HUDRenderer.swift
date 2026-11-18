@@ -241,6 +241,21 @@ final class HUDRenderer {
     var stageBackground: (key: String, image: CGImage)?
     /// Las pruebas lo apagan para comparar con el dibujo directo.
     static var cacheStageBackground = true
+    /// Solo para las pruebas (0.6.3): cada texto que se dibuja, con su caja y el recorte vigente,
+    /// para comprobar que nada se corta, se monta ni tapa la hora. En la app está apagado.
+    struct TextMark {
+        let text: String
+        let rect: CGRect
+        /// Zona o tarjeta en la que va (o el recorte vigente).
+        let box: CGRect
+        let truncated: Bool
+    }
+    static var recordText = false
+    /// Solo para las pruebas: dibuja todo menos los textos (para medir el contraste con el fondo).
+    static var hideText = false
+    var textMarks: [TextMark] = []
+    /// Zona o tarjeta que se está dibujando (solo lo usan las pruebas).
+    var textBox: CGRect?
     /// El mapa simple dibuja su propia brújula salvo que el panel la ponga en otro sitio.
     var miniCompass = true
     /// Rumbo de la ruta en el último dibujo simple (radianes), para la brújula del panel.
@@ -552,6 +567,9 @@ final class HUDRenderer {
         let width: CGFloat
         let ascent: CGFloat
         let descent: CGFloat
+        /// Texto de la línea y si termina en "…" (para las pruebas).
+        var text: String = ""
+        var truncated = false
     }
 
     func font(_ size: CGFloat, bold: Bool) -> CTFont {
@@ -578,10 +596,27 @@ final class HUDRenderer {
 
     func measure(_ text: String, size: CGFloat, bold: Bool, color: CGColor) -> Measured {
         let attributed = NSAttributedString(string: text, attributes: attributes(size: size, bold: bold, color: color))
-        return measured(CTLineCreateWithAttributedString(attributed))
+        var m = measured(CTLineCreateWithAttributedString(attributed))
+        m.text = text
+        return m
+    }
+
+    /// Línea `range` de un texto partido en varias (con "…" si es la última y no cabía).
+    func measured(_ line: CTLine, in text: String, range: CFRange, truncated: Bool) -> Measured {
+        var m = measured(line)
+        let ns = text as NSString
+        let loc = max(0, min(ns.length, range.location))
+        m.text = ns.substring(with: NSRange(location: loc, length: max(0, min(ns.length - loc, range.length))))
+        m.truncated = truncated
+        return m
     }
 
     func put(_ m: Measured, x: CGFloat, baseline: CGFloat, _ ctx: CGContext) {
+        if HUDRenderer.recordText {
+            textMarks.append(TextMark(text: m.text, rect: CGRect(x: x, y: baseline - m.ascent, width: m.width, height: m.ascent + m.descent),
+                                      box: textBox ?? ctx.boundingBoxOfClipPath, truncated: m.truncated))
+        }
+        if HUDRenderer.hideText { return }
         // El contexto tiene el eje Y hacia abajo: se invierte solo el texto.
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         ctx.textPosition = CGPoint(x: x, y: baseline)
@@ -603,26 +638,31 @@ final class HUDRenderer {
             var start = 0
             var lastStart = 0
             var lines: [CTLine] = []
+            var ranges: [CFRange] = []
             while start < total && lines.count < maxLines {
                 let count = CTTypesetterSuggestLineBreak(typesetter, start, Double(width))
                 if count <= 0 { break }
                 lines.append(CTTypesetterCreateLine(typesetter, CFRange(location: start, length: count)))
+                ranges.append(CFRange(location: start, length: count))
                 lastStart = start
                 start += count
             }
             let fits = start >= total
             let isLast = index == sizes.count - 1
             if !fits && !isLast { continue }
+            var cutLast = false
             if !fits, !lines.isEmpty {
                 let rest = CTTypesetterCreateLine(typesetter, CFRange(location: lastStart, length: total - lastStart))
                 let ellipsis = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attrs))
                 if let cut = CTLineCreateTruncatedLine(rest, Double(width), .end, ellipsis) {
                     lines[lines.count - 1] = cut
+                    ranges[ranges.count - 1] = CFRange(location: lastStart, length: total - lastStart)
+                    cutLast = true
                 }
             }
             var y = top
-            for line in lines {
-                let m = measured(line)
+            for (i, line) in lines.enumerated() {
+                let m = measured(line, in: clean, range: ranges[i], truncated: cutLast && i == lines.count - 1)
                 put(m, x: x, baseline: y + m.ascent, ctx)
                 y += m.ascent + m.descent + size * 0.10
             }

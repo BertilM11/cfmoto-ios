@@ -8,6 +8,8 @@ struct PersonalizationScreen: View {
     @State private var demo = false
 
     private var layout: DashLayout { store.config.layout }
+    /// El diseño tiene mapa con la maniobra encima (mapa completo o una zona de navegación).
+    private var hasNav: Bool { layout.template == .overlay || layout.slots.contains(.nav) }
 
     var body: some View {
         DarkPage(title: "Personalización del tablero") {
@@ -85,7 +87,8 @@ struct PersonalizationScreen: View {
             Card {
                 Text("Modo de visualización").font(.headline)
                 ModeChips()
-                if layout.template == .overlay {
+                if hasNav {
+                    // 0.6.3: también en la pantalla dividida y en los diseños por zonas con mapa.
                     HStack {
                         Text("Tarjeta de maniobra")
                         Spacer()
@@ -94,6 +97,18 @@ struct PersonalizationScreen: View {
                         }
                         .pickerStyle(.segmented).frame(width: 190)
                     }
+                    if layout.template != .overlay {
+                        HStack {
+                            Text("Lugar de la maniobra")
+                            Spacer()
+                            Picker("Lugar", selection: Binding(get: { layout.overlay.maneuverSpot }, set: { v in store.edit { $0.overlay.move(.maneuver, to: v) } })) {
+                                ForEach(CardSpot.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                    }
+                }
+                if layout.template == .overlay {
                     HStack {
                         Text("Tarjeta de música")
                         Spacer()
@@ -102,7 +117,11 @@ struct PersonalizationScreen: View {
                         }
                         .pickerStyle(.segmented).frame(width: 190)
                     }
-                    Text("Cambiar un tamaño pasa al modo 5 (Personalizado). La posición de cada tarjeta se elige arrastrándola en Mi pantalla.")
+                }
+                if hasNav {
+                    Text(layout.template == .overlay
+                         ? "Cambiar un tamaño pasa al modo 5 (Personalizado). La posición de cada tarjeta se elige arrastrándola en Mi pantalla."
+                         : "La tarjeta de la maniobra es la misma que sobre el mapa completo. Cambiar el tamaño o el lugar pasa al modo 5 (Personalizado).")
                         .font(.caption).foregroundColor(Brand.dim)
                 }
                 Toggle("Animaciones (colores, mapa y ruta nueva)", isOn: $store.config.animations)

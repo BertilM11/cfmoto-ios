@@ -21,10 +21,10 @@ final class TFTMap {
 
     /// Dónde debe quedar la posición dentro de la imagen (fracción del alto, desde arriba).
     static let puckY = MapCorridor.puckY
-    /// Imágenes de la ruta que se piden a la vez, además de la de en vivo.
-    static let parallelPrefetch = 2
-    /// Tope de imágenes guardadas (unos 36 MB con ~90 KB por imagen).
-    static let maxImages = 400
+    /// Imágenes de la ruta que se piden a la vez, además de la de en vivo (0.6.3: 3; eran 2).
+    static let parallelPrefetch = MapCorridor.parallelPrefetch
+    /// Tope de imágenes guardadas (0.6.3: 800, unos 70 MB con ~90 KB por imagen; eran 400).
+    static let maxImages = MapCorridor.maxImages
 
     /// Estado para la pantalla de diagnóstico.
     struct Stats {
@@ -53,6 +53,9 @@ final class TFTMap {
         var step: Double = 0
         var coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
         var wantedStyle = ""
+        /// 0.6.3: estado de la cobertura (completa, guardando o parcial) y avisos de memoria.
+        var state = MapCoverageState.none
+        var memoryWarnings = 0
     }
 
     private let queue = DispatchQueue(label: "cfmoto.tftmap", qos: .userInitiated)
@@ -72,6 +75,8 @@ final class TFTMap {
     /// Qué imagen usó el último fotograma (para el diagnóstico).
     private var lastSource = MapSource.none
     private var lastSourceCreated: TimeInterval = 0
+    /// Cobertura para el dibujo de la moto (0.6.3).
+    private var coverageSummary = MapCoverageState.none
 
     // Lo demás solo se toca desde el hilo principal.
     private var timer: Timer?
@@ -115,6 +120,10 @@ final class TFTMap {
     private var latency = 0.8
     private var told3D = false
     private var announced = false
+    /// 0.6.3: tras un aviso de memoria de iOS se guarda la mitad durante un rato.
+    private var pressureUntil: TimeInterval = 0
+    private var memoryWarnings = 0
+    private var memoryObserver: NSObjectProtocol?
 
     private struct Request {
         let here: GeoPoint
@@ -137,6 +146,31 @@ final class TFTMap {
         let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
+        // Si iOS avisa de poca memoria, se sueltan las imágenes más lejanas (se vuelven a pedir
+        // al acercarse) para que no cierre la app en pleno viaje.
+        memoryObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.memoryWarning() }
+    }
+
+    private func memoryWarning() {
+        let t = Date().timeIntervalSinceReferenceDate
+        memoryWarnings += 1
+        pressureUntil = t + 120
+        let keep = max(20, capacity / 2)
+        lock.lock()
+        let before = entries.count
+        entries = CorridorPlanner.trim(entries, progress: routeProgress, capacity: keep)
+        let after = entries.count
+        lock.unlock()
+        logLine("[MAPA] aviso de memoria de iOS: se conservan las \(after) imágenes más cercanas de \(before) durante 2 min")
+    }
+
+    /// Lo que se dibuja en la moto: cuánta ruta tiene mapa guardado (cualquier hilo).
+    func coverageState() -> MapCoverageState {
+        lock.lock()
+        defer { lock.unlock() }
+        return coverageSummary
     }
 
     func configure(_ s: MapSettings) {
@@ -236,6 +270,8 @@ final class TFTMap {
         s.target = routeTarget
         s.step = routeStep
         s.coverage = coverage
+        s.state = coverageState()
+        s.memoryWarnings = memoryWarnings
         return s
     }
 
@@ -572,6 +608,7 @@ final class TFTMap {
         entries.removeAll()
         lock.unlock()
         coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+        publish(.none)
     }
 
     private func cancelPrefetch() {
@@ -579,11 +616,10 @@ final class TFTMap {
         prefetchers.removeAll()
     }
 
-    /// Memoria para el mapa guardado: una parte de la que le queda libre a la app.
+    /// Memoria para el mapa guardado: una parte de la que le queda libre a la app (0.6.3: hasta
+    /// 96 MB; eran 64 MB).
     static func memoryBudget() -> Int {
-        let available = Int(os_proc_available_memory())
-        guard available > 0 else { return 48 << 20 }
-        return max(16 << 20, min(64 << 20, available / 5))
+        MapCorridor.budget(available: Int(os_proc_available_memory()))
     }
 
     /// Pide las imágenes que faltan de la ruta por delante, las más cercanas primero.
@@ -599,6 +635,7 @@ final class TFTMap {
             routeStep = step
         }
         budget = TFTMap.memoryBudget()
+        if now.timeIntervalSinceReferenceDate < pressureUntil { budget /= 2 }
         capacity = CorridorPlanner.capacity(budgetBytes: budget, averageBytes: averageBytes, maxImages: TFTMap.maxImages)
         let progress = routeProgress
         lock.lock()
@@ -657,12 +694,28 @@ final class TFTMap {
     private func updateCoverage(_ s: MapSettings) {
         guard let line = route else {
             coverage = CorridorCoverage.Result(continuous: 0, covered: 0, checked: 0, gaps: 0)
+            publish(.none)
             return
         }
         lock.lock()
         let list = entries
         lock.unlock()
         coverage = CorridorCoverage.scan(route: line, from: routeProgress, to: line.length, entries: list, northUp: s.northUp)
+        let remaining = max(0, line.length - routeProgress)
+        // Con la ruta propuesta todavía sin calcular el horizonte, se usa toda la ruta.
+        let horizon = routeTarget > 0 ? routeTarget : remaining + 1
+        publish(MapCoverageState.make(routeActive: true, remaining: remaining, continuous: coverage.continuous,
+                                      horizon: horizon, cached: list.count, capacity: capacity))
+    }
+
+    /// Guarda la cobertura para el dibujo y registra cuando cambia de estado.
+    private func publish(_ state: MapCoverageState) {
+        lock.lock()
+        let old = coverageSummary.kind
+        coverageSummary = state
+        lock.unlock()
+        guard state.kind != old, state.kind != .none else { return }
+        logLine("[MAPA] " + state.text)
     }
 
     // MARK: - Instantánea

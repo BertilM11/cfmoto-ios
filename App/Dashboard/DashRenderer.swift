@@ -19,6 +19,8 @@ extension HUDRenderer {
         if s.demo { tags.append("DEMO") }
         if s.nav.navigating && s.nav.simulated { tags.append("SIMULACIÓN") }
         if s.nav.navigating && !s.nav.simulated && !s.nav.gpsOk { tags.append("SIN SEÑAL GPS") }
+        // 0.6.3: con el iPhone bloqueado (mapa guardado en uso), aviso cuando queda poco mapa.
+        if let tag = s.mapCoverage.tftTag(storedMapInUse: s.map.map { !$0.live } ?? false) { tags.append(tag) }
 
         statusReserve = nil
         if s.layout.template == .overlay {
@@ -43,6 +45,7 @@ extension HUDRenderer {
         }
         for f in frames {
             ctx.saveGState()
+            textBox = f.rect
             // La zona que queda debajo de la hora la deja libre (la brújula baja, el texto empieza
             // más abajo y la cabecera de la música se acorta).
             statusReserve = f.rect.intersects(clock) ? clock : nil
@@ -57,12 +60,7 @@ extension HUDRenderer {
             case .turn: dashTurn(s.nav, p, belowStatus(f.rect), ctx)
             case .map: dashMap(s, p, now, f.rect, ctx)
             case .trip: dashTrip(s.nav, p, now, belowStatus(f.rect), ctx)
-            case .music:
-                if MusicStageLayout.fits(f.rect, k: k) {
-                    dashMusicStage(s, p, now, f.rect, ctx)
-                } else {
-                    dashMusic(s, p, now, f.rect, ctx)
-                }
+            case .music: dashPlayer(s, p, now, f.rect, ctx, card: nil)
             case .notices: dashNotices(s, p, now, belowStatus(f.rect), ctx)
             case .clock: dashClock(p, now, belowStatus(f.rect), ctx)
             }
@@ -70,18 +68,47 @@ extension HUDRenderer {
         }
         compassDrop = 0
         statusReserve = nil
+        textBox = nil
         if strip {
             let r = CGRect(x: area.minX, y: area.maxY + gap, width: area.width, height: 62 * k)
+            textBox = r
             dashTurnStrip(s.nav, p, r, ctx)
+            textBox = nil
         }
 
         dashStatusClock(p, now, clock, ctx)
+        // Etiquetas de estado (DEMO, SIMULACIÓN…). 0.6.3: dentro de la zona del mapa, arriba a la
+        // derecha, para no caer sobre la música ni los avisos; sin mapa, junto a la hora.
         var right = clock.minX - 8 * k
+        var top = area.minY + 6 * k
+        if !tags.isEmpty, let zone = frames.first(where: { $0.module == .nav || $0.module == .map }) {
+            let r = zone.rect
+            right = r.maxX - 9 * k
+            if clock.intersects(CGRect(x: r.minX, y: r.minY + 9 * k, width: r.width, height: 22 * k)) { right = min(right, clock.minX - 8 * k) }
+            let total = tags.reduce(CGFloat(0)) { $0 + measure($1, size: 13 * k, bold: true, color: p.background).width + 20 * k }
+            var band = CGRect(x: right - total, y: r.minY + 9 * k, width: total, height: 22 * k)
+            // Debajo de lo que haya en esa esquina (tarjeta, barra del viaje o brújula).
+            var obstacles: [CGRect] = []
+            let reserve: CGRect? = r.intersects(clock) ? clock : nil
+            if zone.module == .nav {
+                let L = NavZoneLayout.make(r, s.layout.overlay, k: k, reserve: reserve, trip: s.nav.navigating && !s.nav.arrived)
+                obstacles = [L.card, L.trip, L.compass]
+            } else {
+                let drop = reserve.map { max(0, $0.maxY - r.minY - 4 * k) } ?? 0
+                obstacles = [CGRect(x: r.maxX - 50 * k, y: r.minY + 10 * k + drop, width: 40 * k, height: 40 * k)]
+            }
+            for _ in 0..<3 {
+                for o in obstacles where !o.isEmpty && o.intersects(band) { band.origin.y = o.maxY + 6 * k }
+            }
+            top = band.minY
+        }
         for tag in tags {
             let m = measure(tag, size: 13 * k, bold: true, color: p.background)
-            let pill = CGRect(x: right - m.width - 14 * k, y: area.minY + 6 * k, width: m.width + 14 * k, height: 22 * k)
+            let pill = CGRect(x: right - m.width - 14 * k, y: top, width: m.width + 14 * k, height: 22 * k)
             fillRounded(pill, radius: 11 * k, color: p.warn, ctx)
+            textBox = pill
             put(m, x: pill.minX + 7 * k, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
+            textBox = nil
             right = pill.minX - 6 * k
         }
     }
@@ -95,7 +122,9 @@ extension HUDRenderer {
         for m in ms {
             let pill = CGRect(x: x, y: top, width: m.width + 14 * k, height: 22 * k)
             fillRounded(pill, radius: 11 * k, color: p.warn, ctx)
+            textBox = pill
             put(m, x: pill.minX + 7 * k, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
+            textBox = nil
             x = pill.maxX + 6 * k
         }
     }
@@ -134,28 +163,13 @@ extension HUDRenderer {
         }
         for card in cards {
             let r = card.rect
+            textBox = r
+            defer { textBox = nil }
             switch card.item {
             case .maneuver:
-                let compact = o.maneuverSize == .compact
-                let radius = (compact ? 16 : 18) * k
-                if let ext = s.external, !n.navigating {
-                    let small = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(r.height, 112 * k))
-                    cardBackground(small, p, ctx, radius: radius)
-                    dashExternalCard(ext, s, p, now, small, ctx)
-                } else if n.navigating || n.arrived || !n.previewRoutes.isEmpty {
-                    cardBackground(r, p, ctx, radius: radius)
-                    if compact { dashTurnCompact(n, p, r, ctx) } else { dashTurnContent(n, p, r, ctx) }
-                } else {
-                    let small = CGRect(x: r.minX, y: r.minY, width: r.width, height: min(r.height, (compact ? 66 : 92) * k))
-                    cardBackground(small, p, ctx, radius: radius)
-                    if compact { dashTurnCompact(n, p, small, ctx) } else { dashTurnContent(n, p, small, ctx) }
-                }
+                drawManeuverCard(s, p, now, r, top: o.maneuverSpot.isTop, ctx)
             case .music:
-                if o.musicSize == .large {
-                    dashMusic(s, p, now, r, ctx, cardRadius: 18 * k, alpha: 0.94)
-                } else {
-                    dashMusicCompact(s, p, now, r, ctx)
-                }
+                dashPlayer(s, p, now, r, ctx, card: o.musicSize)
             case .trip:
                 dashTripPill(n, p, now, r, ctx)
             case .notices:
@@ -211,49 +225,6 @@ extension HUDRenderer {
         let black = c.top.chroma < 0.05 && c.bottom.chroma < 0.05 && mid.luminance < 0.03
         if black { return RGB(hex: 0x1ED760).cg }
         return mid.luminance < 0.4 ? RGB(1, 1, 1).cg : RGB(0, 0, 0).cg
-    }
-
-    /// Música en una tarjeta pequeña: portada, estado, canción, artista y progreso.
-    func dashMusicCompact(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
-        let m = s.music
-        let pad = 10 * k
-        let has = m.available && !m.title.isEmpty
-        let c = musicColors(s)
-        drawMusicBackground(r, c, radius: 18 * k, alpha: 0.94, ctx)
-        var tx = r.minX + pad
-        if s.showArtwork {
-            let a = r.height - 2 * pad
-            let art = CGRect(x: r.minX + pad, y: r.minY + pad, width: a, height: a)
-            dashArtwork(has ? m.artwork : nil, art, p, ctx)
-            tx = art.maxX + 12 * k
-        }
-        let tw = r.maxX - pad - tx
-        guard tw > 30 else { return }
-        if !has {
-            wrapped("Sin música", sizes: [19 * k], color: c.secondary.cg, x: tx, top: r.minY + pad + 4 * k, width: tw, maxLines: 1, ctx)
-            wrapped("Reproduce algo en el iPhone", sizes: [14 * k, 12 * k], color: c.secondary.cg, x: tx, top: r.minY + pad + 32 * k, width: tw, maxLines: 2, ctx)
-            return
-        }
-        var line = r.minY + pad
-        if s.showSource {
-            let state = (m.source.isEmpty ? "MÚSICA" : m.source.uppercased()) + (m.playing ? "  ▶" : "  ❚❚")
-            let sm = measure(state, size: 12 * k, bold: true, color: sourceColor(m, c))
-            put(sm, x: tx, baseline: line + sm.ascent, ctx)
-            line += 16 * k
-        } else {
-            line += 4 * k
-        }
-        wrapped(m.title, sizes: [19 * k, 17 * k], color: c.text.cg, x: tx, top: line, width: tw, maxLines: 1, ctx)
-        if s.showArtist {
-            wrapped(m.artist, sizes: [15 * k, 13 * k], color: c.secondary.cg, x: tx, top: line + 24 * k, width: tw, maxLines: 1, ctx)
-        }
-        if s.showProgress && m.duration > 1 {
-            let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
-            let pos = max(0, min(m.duration, m.position + elapsed))
-            let bar = CGRect(x: tx, y: r.maxY - pad - 3 * k, width: tw, height: 3 * k)
-            fillRounded(bar, radius: 1.5 * k, color: c.track.cg, ctx)
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: bar.height), radius: 1.5 * k, color: c.accent.cg, ctx)
-        }
     }
 
     /// Guía en otra app: la tarjeta dice cuál, el destino y la distancia en línea recta.
@@ -353,6 +324,9 @@ extension HUDRenderer {
 
     /// La hora actual (0.6.2): pequeña y siempre en el mismo sitio, arriba a la derecha.
     func dashStatusClock(_ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        let previousBox = textBox
+        textBox = r
+        defer { textBox = previousBox }
         let c = HUDFormat.clock(now)
         cardBackground(r, p, ctx, radius: r.height / 2)
         let t = measure(c.time, size: 19 * k, bold: true, color: p.text)
@@ -418,56 +392,60 @@ extension HUDRenderer {
     // MARK: - Navegación
 
     func dashMap(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, anchorX: CGFloat = 0.5,
-                 compassBottom: Bool = false, compassLift: CGFloat = 0) {
+                 compassBottom: Bool = false, compassLift: CGFloat = 0, compassRect: CGRect? = nil) {
         let size = 40 * k
-        let compass = compassBottom
+        let compass = compassRect ?? (compassBottom
             ? CGRect(x: r.maxX - size - 10 * k, y: r.maxY - size - 10 * k - compassLift, width: size, height: size)
-            : CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size)
+            : CGRect(x: r.maxX - size - 10 * k, y: r.minY + 10 * k + compassDrop, width: size, height: size))
         if drawStreetMap(s, p, now, r, ctx, compass: compass) { return }
         let u = max(0.5, min(r.width, r.height) / 400)
         let anchor = CGPoint(x: r.minX + r.width * anchorX, y: r.maxY - r.height * 0.24)
         drawMiniMap(s.nav, p, now, r, ctx, anchor: anchor, unit: u, divider: false)
     }
 
+    /// Navegación dentro de una zona (pantalla dividida y diseños por zonas). 0.6.3: la tarjeta
+    /// de la maniobra es la misma que sobre el mapa completo (compacta 200×96 o grande), en la
+    /// esquina y con el tamaño elegidos en el iPhone; la barra del viaje va en el borde
+    /// contrario y es más baja. Antes la tarjeta ocupaba todo el ancho y el 40 % del alto.
     func dashNav(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let n = s.nav
-        let wide = r.width > r.height * 1.25
-        let pad = (r.height * 0.03).rounded() + 2
-        let tripSize = max(11, r.height * 0.062)
-        let tripH = tripSize * 1.9
+        let o = s.layout.overlay
         let showTrip = n.navigating && !n.arrived
-        // Con la tarjeta a todo el ancho (zona estrecha, como en Pantalla dividida), la brújula
-        // va abajo a la derecha, encima de los datos del viaje, para no quedar tapada.
-        dashMap(s, p, now, r, ctx, anchorX: wide ? 0.74 : 0.5, compassBottom: !wide,
-                compassLift: !wide && showTrip ? tripH + pad * 0.5 : 0)
-        var card: CGRect
-        if wide {
-            card = CGRect(x: r.minX + pad, y: r.minY + pad, width: min(r.width * 0.5, r.height * 1.25), height: r.height * 0.62)
-        } else {
-            card = CGRect(x: r.minX + pad, y: r.minY + pad, width: r.width - 2 * pad, height: r.height * 0.4)
+        let L = NavZoneLayout.make(r, o, k: k, reserve: statusReserve, trip: showTrip)
+        dashMap(s, p, now, r, ctx, anchorX: 0.5, compassRect: L.compass)
+        let zoneBox = textBox
+        textBox = L.card
+        drawManeuverCard(s, p, now, L.card, top: o.maneuverSpot.isTop, ctx)
+        if showTrip {
+            // Abajo, a la derecha: el logotipo de Mapas de Apple (abajo a la izquierda) queda a la vista.
+            textBox = L.trip
+            drawTripLine(n, p, L.trip, valueSize: 18 * k, alignRight: L.trip.minY > r.midY, progress: false, ctx)
         }
-        // Si la hora cae encima, la tarjeta se estrecha o baja para no taparla.
-        if let c = statusReserve, c.intersects(card) {
-            let narrow = c.minX - 8 * k - card.minX
-            if narrow >= card.width * 0.6 {
-                card.size.width = narrow
-            } else {
-                card.origin.y = c.maxY + 6 * k
-            }
+        textBox = zoneBox
+    }
+
+    /// La tarjeta de la maniobra (sobre el mapa completo y en las zonas con mapa): misma forma
+    /// en todos los modos. Sin ruta o con la guía en otra app se dibuja más baja, pegada al borde
+    /// donde está.
+    func drawManeuverCard(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, top: Bool, _ ctx: CGContext) {
+        let n = s.nav
+        let compact = s.layout.overlay.maneuverSize == .compact
+        let radius = (compact ? 16 : 18) * k
+        func shortCard(_ h: CGFloat) -> CGRect {
+            let hh = min(r.height, h)
+            return CGRect(x: r.minX, y: top ? r.minY : r.maxY - hh, width: r.width, height: hh)
         }
         if let ext = s.external, !n.navigating {
-            let small = CGRect(x: card.minX, y: card.minY, width: card.width, height: min(card.height, 112 * k))
-            fillRounded(small, radius: small.height * 0.14, color: alpha(p.background, 0.93), ctx)
+            let small = shortCard(112 * k)
+            cardBackground(small, p, ctx, radius: radius)
             dashExternalCard(ext, s, p, now, small, ctx)
-            return
-        }
-        fillRounded(card, radius: card.height * 0.1, color: alpha(p.background, 0.93), ctx)
-        dashTurnContent(n, p, card, ctx)
-
-        if showTrip {
-            // A la derecha: el logotipo de Mapas de Apple (abajo a la izquierda) queda a la vista.
-            let row = CGRect(x: r.minX + pad + 70 * k, y: r.maxY - pad - tripH, width: r.width - 2 * pad - 70 * k, height: tripH)
-            drawTripLine(n, p, row, valueSize: tripSize, alignRight: true, progress: false, ctx)
+        } else if n.navigating || n.arrived || !n.previewRoutes.isEmpty {
+            cardBackground(r, p, ctx, radius: radius)
+            if compact { dashTurnCompact(n, p, r, ctx) } else { dashTurnContent(n, p, r, ctx) }
+        } else {
+            let small = shortCard((compact ? 66 : 92) * k)
+            cardBackground(small, p, ctx, radius: radius)
+            if compact { dashTurnCompact(n, p, small, ctx) } else { dashTurnContent(n, p, small, ctx) }
         }
     }
 
@@ -623,82 +601,81 @@ extension HUDRenderer {
         }
     }
 
-    // MARK: - Música
+    // MARK: - Música (0.6.3: el mismo reproductor en todos los modos)
 
-    func dashMusic(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext,
-                   cardRadius: CGFloat = 0, alpha: CGFloat = 1) {
+    /// El reproductor en cualquier sitio: música completa, columna de la pantalla dividida o de
+    /// Música + Avisos, y tarjetas sobre el mapa. Siempre el mismo fondo con los colores de la
+    /// portada, la portada con sombra, la misma letra, el estado y la barra; solo cambia la
+    /// forma (`MusicPlayerLayout`). Sin botones: el protocolo de la moto no envía teclas.
+    /// `card`: tamaño de la tarjeta sobre el mapa, o nil para una zona del panel.
+    func dashPlayer(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, card: CardSize?) {
         let m = s.music
         let c = musicColors(s)
-        drawMusicBackground(r, c, radius: cardRadius, alpha: alpha, ctx)
-        // La hora actual puede caer en esta zona (columna de la derecha): el contenido va debajo.
-        let r = belowStatus(r)
-        let pad = max(8, min(r.width, r.height) * 0.08)
+        let L = MusicPlayerLayout.make(r, k: k, artwork: s.showArtwork, size: s.artworkSize,
+                                       reserve: card == nil ? statusReserve : nil, card: card)
+        drawPlayerBackground(s, c, L, r, ctx)
         let has = m.available && !m.title.isEmpty
-        let vertical = r.height >= 190 && r.height > r.width * 0.9
-        let fraction = s.artworkSize.fraction
-        var art = CGRect.zero
-        if s.showArtwork {
-            if vertical {
-                let a = min(r.width - 2 * pad, r.height * 0.48 * fraction)
-                art = CGRect(x: r.midX - a / 2, y: r.minY + pad, width: a, height: a)
-            } else {
-                let a = min((r.height - 2 * pad) * fraction, r.width * 0.4)
-                art = CGRect(x: r.minX + pad, y: r.midY - a / 2, width: a, height: a)
-            }
-            dashArtwork(has ? m.artwork : nil, art, p, ctx)
+        ctx.saveGState()
+        if L.card {
+            // Durante el cambio de canción los textos se desplazan: que no salgan de la tarjeta.
+            ctx.addPath(CGPath(roundedRect: r, cornerWidth: 18 * k, cornerHeight: 18 * k, transform: nil))
+            ctx.clip()
         }
-        let tx = (s.showArtwork && !vertical) ? art.maxX + pad : r.minX + pad
-        let top = (s.showArtwork && vertical) ? art.maxY + pad * 0.7 : r.minY + pad
-        let tw = r.maxX - pad - tx
-        let th = r.maxY - pad - top
-        guard tw > 40, th > 20 else { return }
-        let base = max(11, min(th * 0.2, tw * 0.12, 34 * k))
-
-        if !has {
-            wrapped("Sin música", sizes: [base], color: c.secondary.cg, x: tx, top: top + th * 0.2, width: tw, maxLines: 1, ctx)
-            wrapped("Reproduce algo en el iPhone", sizes: [base * 0.7, base * 0.6], color: c.secondary.cg, x: tx, top: top + th * 0.2 + base * 1.4, width: tw, maxLines: 2, ctx)
-            return
+        // Nombre del servicio arriba a la izquierda (en las tarjetas va junto al estado).
+        if L.style != .row && s.showSource && has && L.header.width > 40 * k {
+            let src = textLines(m.source.uppercased(), sizes: [L.source], bold: true, color: sourceColor(m, c), width: L.header.width, maxLines: 1)
+            if let line = src.lines.first { put(line, x: L.header.minX, baseline: L.header.midY + (line.ascent - line.descent) / 2, ctx) }
         }
-
-        // Estado (reproduciendo o en pausa) y origen.
-        let icon = base * 0.62
-        ctx.setFillColor(sourceColor(m, c))
-        if m.playing {
-            ctx.beginPath()
-            ctx.move(to: CGPoint(x: tx, y: top))
-            ctx.addLine(to: CGPoint(x: tx + icon * 0.9, y: top + icon / 2))
-            ctx.addLine(to: CGPoint(x: tx, y: top + icon))
-            ctx.closePath()
-            ctx.fillPath()
+        // Al cambiar de canción la portada se funde de una a otra; los textos, uno después del
+        // otro (la anterior sale hacia arriba y la nueva entra desde abajo), sin mezclarse.
+        let f = CGFloat(max(0, min(1, s.musicFade)))
+        let shift = (L.style == .row ? 6 : 10) * k
+        if let old = s.musicFrom, s.musicFade < 1 {
+            let out = min(1, 2 * f)
+            let into = max(0, 2 * f - 1)
+            playerTrack(old, s, c, L, p, artAlpha: 1 - f, textAlpha: 1 - out, dy: -shift * out, art: old.artwork, artFrom: nil, artFade: 1, ctx)
+            playerTrack(m, s, c, L, p, artAlpha: f, textAlpha: into, dy: shift * (1 - into), art: m.artwork, artFrom: nil, artFade: 1, ctx)
         } else {
-            ctx.fill(CGRect(x: tx, y: top, width: icon * 0.3, height: icon))
-            ctx.fill(CGRect(x: tx + icon * 0.5, y: top, width: icon * 0.3, height: icon))
+            playerTrack(m, s, c, L, p, artAlpha: 1, textAlpha: 1, dy: 0, art: m.artwork, artFrom: s.artFrom, artFade: CGFloat(s.artFade), ctx)
         }
-        if s.showSource {
-            let src = measure(m.source.uppercased(), size: icon * 0.95, bold: true, color: sourceColor(m, c))
-            put(src, x: tx + icon * 1.3, baseline: top + icon * 0.5 + (src.ascent - src.descent) / 2, ctx)
+        if has && s.showProgress && m.duration > 1 {
+            playerProgress(m, c, L, now, ctx)
         }
+        ctx.restoreGState()
+    }
 
-        let titleTop = top + icon * 1.7
-        wrapped(m.title, sizes: [base, base * 0.88], color: c.text.cg, x: tx, top: titleTop, width: tw, maxLines: 1, ctx)
-        if s.showArtist {
-            wrapped(m.artist, sizes: [base * 0.78], color: c.secondary.cg, x: tx, top: titleTop + base * 1.3, width: tw, maxLines: 1, ctx)
-        }
-
-        if s.showProgress && m.duration > 1 {
-            let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
-            let pos = max(0, min(m.duration, m.position + elapsed))
-            let barH = max(3, base * 0.2)
-            let bar = CGRect(x: tx, y: r.maxY - pad - barH, width: tw, height: barH)
-            fillRounded(bar, radius: barH / 2, color: c.track.cg, ctx)
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: bar.width * CGFloat(pos / m.duration), height: barH), radius: barH / 2, color: c.accent.cg, ctx)
-            let ts = base * 0.58
-            if bar.minY - ts * 1.5 > titleTop + base * 2.3 {
-                let a = measure(dashTime(pos), size: ts, bold: false, color: c.secondary.cg)
-                let b = measure(dashTime(m.duration), size: ts, bold: false, color: c.secondary.cg)
-                put(a, x: bar.minX, baseline: bar.minY - ts * 0.45, ctx)
-                put(b, x: bar.maxX - b.width, baseline: bar.minY - ts * 0.45, ctx)
+    /// Barra de progreso con el tiempo transcurrido y la duración (a los lados en la música
+    /// completa y la columna; encima de la barra en las tarjetas grandes; sin tiempos en las
+    /// compactas).
+    func playerProgress(_ m: MusicSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ now: Date, _ ctx: CGContext) {
+        let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
+        let pos = max(0, min(m.duration, m.position + elapsed))
+        let fraction = CGFloat(pos / m.duration)
+        let a = measure(dashTime(pos), size: L.time, bold: true, color: c.secondary.cg)
+        let b = measure(dashTime(m.duration), size: L.time, bold: true, color: c.secondary.cg)
+        var bar: CGRect
+        switch L.style {
+        case .stage, .column:
+            // Ancho fijo para los tiempos: la barra no se mueve al cambiar los segundos.
+            let label = max(measure(m.duration >= 600 ? "88:88" : "8:88", size: L.time, bold: true, color: c.secondary.cg).width, a.width, b.width)
+            let gap = (L.style == .stage ? 14 : 10) * k
+            bar = CGRect(x: L.progress.minX + label + gap, y: L.progress.midY - L.bar / 2,
+                         width: max(0, L.progress.width - 2 * (label + gap)), height: L.bar)
+            let baseline = L.progress.midY + (a.ascent - a.descent) / 2
+            put(a, x: bar.minX - gap - a.width, baseline: baseline, ctx)
+            put(b, x: bar.maxX + gap, baseline: baseline, ctx)
+        case .row:
+            bar = CGRect(x: L.progress.minX, y: L.progress.maxY - L.bar, width: L.progress.width, height: L.bar)
+            if L.times {
+                let baseline = bar.minY - 4 * k - a.descent
+                put(a, x: bar.minX, baseline: baseline, ctx)
+                put(b, x: bar.maxX - b.width, baseline: baseline, ctx)
             }
+        }
+        fillRounded(bar, radius: L.bar / 2, color: c.track.cg, ctx)
+        let done = bar.width * fraction
+        if done > 1 {
+            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: done, height: bar.height), radius: L.bar / 2, color: c.accent.cg, ctx)
         }
     }
 
@@ -840,89 +817,62 @@ extension HUDRenderer {
             var start = 0
             var lastStart = 0
             var lines: [CTLine] = []
+            var ranges: [CFRange] = []
             while start < total && lines.count < maxLines {
                 let count = CTTypesetterSuggestLineBreak(typesetter, start, Double(width))
                 if count <= 0 { break }
                 lines.append(CTTypesetterCreateLine(typesetter, CFRange(location: start, length: count)))
+                ranges.append(CFRange(location: start, length: count))
                 lastStart = start
                 start += count
             }
             if start < total && size != smallest { continue }
             let fits = start >= total
+            var cutLast = false
             if !fits, !lines.isEmpty {
                 let rest = CTTypesetterCreateLine(typesetter, CFRange(location: lastStart, length: total - lastStart))
                 let ellipsis = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attrs))
-                if let cut = CTLineCreateTruncatedLine(rest, Double(width), .end, ellipsis) { lines[lines.count - 1] = cut }
+                if let cut = CTLineCreateTruncatedLine(rest, Double(width), .end, ellipsis) {
+                    lines[lines.count - 1] = cut
+                    ranges[ranges.count - 1] = CFRange(location: lastStart, length: total - lastStart)
+                    cutLast = true
+                }
             }
-            return (lines.map { measured($0) }, size, fits)
+            let out = lines.enumerated().map { i, line in
+                measured(line, in: clean, range: ranges[i], truncated: cutLast && i == lines.count - 1)
+            }
+            return (out, size, fits)
         }
         return ([], smallest, false)
     }
 
-    /// Pantalla de música completa, al estilo de CarPlay: fondo con los colores de la portada,
-    /// portada grande a la derecha, título y artista centrados, el estado y la barra de progreso
-    /// con el tiempo transcurrido y la duración. No dibuja botones: la pantalla de la moto no es
-    /// táctil para la app y el protocolo no envía teclas, así que la música se controla desde
-    /// el iPhone (o el intercomunicador).
-    func dashMusicStage(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
-        let m = s.music
-        let c = musicColors(s)
-        let L = MusicStageLayout.make(r, k: k, artwork: s.showArtwork, size: s.artworkSize, reserve: statusReserve)
-        drawStageBackground(s, c, L, r, ctx)
-        let has = m.available && !m.title.isEmpty
-        if s.showSource && has && L.header.width > 40 * k {
-            let src = textLines(m.source.uppercased(), sizes: [15 * k], bold: true, color: sourceColor(m, c), width: L.header.width, maxLines: 1)
-            if let line = src.lines.first { put(line, x: L.header.minX, baseline: L.header.midY + (line.ascent - line.descent) / 2, ctx) }
-        }
-        // Al cambiar de canción la portada se funde de una a otra; los textos, uno después del
-        // otro (la anterior sale hacia arriba y la nueva entra desde abajo), sin mezclarse.
-        let f = CGFloat(max(0, min(1, s.musicFade)))
-        if let old = s.musicFrom, s.musicFade < 1 {
-            let out = min(1, 2 * f)
-            let into = max(0, 2 * f - 1)
-            stageTrack(old, s, c, L, p, artAlpha: 1 - f, textAlpha: 1 - out, dy: -10 * k * out, art: old.artwork, artFrom: nil, artFade: 1, ctx)
-            stageTrack(m, s, c, L, p, artAlpha: f, textAlpha: into, dy: 10 * k * (1 - into), art: m.artwork, artFrom: nil, artFade: 1, ctx)
-        } else {
-            stageTrack(m, s, c, L, p, artAlpha: 1, textAlpha: 1, dy: 0, art: m.artwork, artFrom: s.artFrom, artFade: CGFloat(s.artFade), ctx)
-        }
-        guard has, s.showProgress, m.duration > 1 else { return }
-        let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
-        let pos = max(0, min(m.duration, m.position + elapsed))
-        let ts = 18 * k
-        let a = measure(dashTime(pos), size: ts, bold: true, color: c.secondary.cg)
-        let b = measure(dashTime(m.duration), size: ts, bold: true, color: c.secondary.cg)
-        // Ancho fijo para los tiempos: la barra no se mueve al cambiar los segundos.
-        let label = max(measure(m.duration >= 600 ? "88:88" : "8:88", size: ts, bold: true, color: c.secondary.cg).width, a.width, b.width)
-        let barH = 6 * k
-        let bar = CGRect(x: L.progress.minX + label + 14 * k, y: L.progress.midY - barH / 2,
-                         width: max(0, L.progress.width - 2 * (label + 14 * k)), height: barH)
-        fillRounded(bar, radius: barH / 2, color: c.track.cg, ctx)
-        let done = bar.width * CGFloat(pos / m.duration)
-        if done > 1 {
-            fillRounded(CGRect(x: bar.minX, y: bar.minY, width: done, height: barH), radius: barH / 2, color: c.accent.cg, ctx)
-        }
-        let baseline = L.progress.midY + (a.ascent - a.descent) / 2
-        put(a, x: bar.minX - 14 * k - a.width, baseline: baseline, ctx)
-        put(b, x: bar.maxX + 14 * k, baseline: baseline, ctx)
-    }
-
-    /// Fondo: degradado con los colores de la portada y un resplandor suave detrás de ella. Solo
-    /// cambia con la canción, así que se dibuja una vez y se reutiliza (salvo durante el fundido).
-    func drawStageBackground(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicStageLayout, _ r: CGRect, _ ctx: CGContext) {
+    /// Fondo del reproductor: degradado con los colores de la portada y un resplandor suave
+    /// detrás de ella (en las tarjetas, más pequeño y suave para que el texto se siga leyendo).
+    /// Solo cambia con la canción, así que se dibuja una vez y se reutiliza (salvo en el fundido).
+    func drawPlayerBackground(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ r: CGRect, _ ctx: CGContext) {
         var glow = c.accent
         if let base = s.music.palette?.base {
             let h = base.hsl
             glow = s.night ? RGB(h: h.h, s: min(h.s, 0.6), l: 0.42) : RGB(h: h.h, s: min(h.s, 0.6) * 0.8, l: 0.8)
         }
-        let center = L.artwork.width > 0 ? CGPoint(x: L.artwork.midX, y: L.artwork.midY) : CGPoint(x: r.maxX - r.width * 0.25, y: r.midY)
+        let center: CGPoint
+        if L.artwork.width > 0 {
+            center = CGPoint(x: L.artwork.midX, y: L.artwork.midY)
+        } else {
+            center = L.style == .row ? CGPoint(x: r.minX + r.height / 2, y: r.midY) : CGPoint(x: r.maxX - r.width * 0.25, y: r.midY)
+        }
+        let radius: CGFloat = L.card ? 18 * k : 0
+        let alpha: CGFloat = L.card ? 0.94 : 1
+        let reach = L.style == .row ? max(L.artwork.width * 1.6, r.height) : max(r.width, r.height) * 0.55
+        let strength: CGFloat = (s.night ? 0.5 : 0.4) * (L.style == .row ? 0.8 : 1) * alpha
         func paint(_ g: CGContext) {
-            drawMusicBackground(r, c, radius: 0, alpha: 1, g)
-            let colors = [glow.cg.copy(alpha: s.night ? 0.5 : 0.4) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
+            drawMusicBackground(r, c, radius: radius, alpha: alpha, g)
+            let colors = [glow.cg.copy(alpha: strength) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
             guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
             g.saveGState()
-            g.clip(to: r)
-            g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center,
-                                 endRadius: max(r.width, r.height) * 0.55, options: [])
+            g.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
+            g.clip()
+            g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: reach, options: [])
             g.restoreGState()
         }
         let w = Int(r.width.rounded())
@@ -932,8 +882,8 @@ extension HUDRenderer {
             return
         }
         func rgb(_ x: RGB) -> String { String(format: "%.3f,%.3f,%.3f", x.r, x.g, x.b) }
-        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f", r.minX, r.minY, w, h, center.x, center.y),
-                   rgb(c.top), rgb(c.bottom), rgb(glow), s.night ? "n" : "d"].joined(separator: "|")
+        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f,%.0f,%.2f", r.minX, r.minY, w, h, center.x, center.y, reach, alpha),
+                   L.style.rawValue, rgb(c.top), rgb(c.bottom), rgb(glow), s.night ? "n" : "d"].joined(separator: "|")
         if stageBackground?.key != key {
             let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
             guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
@@ -941,6 +891,7 @@ extension HUDRenderer {
                 paint(ctx)
                 return
             }
+            off.clear(CGRect(x: 0, y: 0, width: w, height: h))
             // Misma orientación que la imagen de la moto (origen arriba a la izquierda).
             off.translateBy(x: 0, y: CGFloat(h))
             off.scaleBy(x: 1, y: -1)
@@ -961,21 +912,116 @@ extension HUDRenderer {
         ctx.restoreGState()
     }
 
-    /// Portada, título, artista, álbum y estado de una canción (con transparencia y desplazamiento
-    /// para la transición).
-    func stageTrack(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicStageLayout, _ p: HUDPalette,
-                    artAlpha: CGFloat, textAlpha: CGFloat, dy: CGFloat, art: CGImage?, artFrom: CGImage?, artFade: CGFloat,
-                    _ ctx: CGContext) {
+    /// Sombra suave de la portada sin desenfoque (tres capas), proporcional a su tamaño.
+    func drawArtShadow(_ art: CGRect, night: Bool, _ ctx: CGContext) {
+        let u = max(0.4, min(1, art.width / 200))
+        let base: CGFloat = art.width < 110 ? 4 : 8
+        for i in 1...3 {
+            let d = CGFloat(i)
+            fillRounded(art.offsetBy(dx: 0, dy: (2 + d * 2) * k * u).insetBy(dx: -d * 1.5 * k * u, dy: -d * 1.5 * k * u),
+                        radius: (base + d * 2 * u) * k, color: CGColor(gray: 0, alpha: night ? 0.12 : 0.06), ctx)
+        }
+    }
+
+    /// Un bloque de texto del reproductor: líneas ya medidas y espacio antes de ellas.
+    struct PlayerBlock {
+        var lines: [Measured]
+        var gap: CGFloat
+        /// Estado (reproduciendo / en pausa) en vez de texto.
+        var state = false
+        /// Primera línea de las tarjetas: símbolo del estado y nombre del servicio.
+        var sourceLine = false
+    }
+
+    /// Separación entre las líneas de un mismo texto.
+    func playerLineGap(_ L: MusicPlayerLayout) -> CGFloat { (L.style == .row ? 1 : 2) * k }
+
+    /// Alto de la píldora del estado.
+    func playerPill(_ L: MusicPlayerLayout) -> CGFloat { (L.style == .stage ? 36 : 28) * k }
+
+    /// Alto total de unos bloques (como se dibujan en `playerTrack`).
+    func playerHeight(_ blocks: [PlayerBlock], _ L: MusicPlayerLayout) -> CGFloat {
+        var h: CGFloat = 0
+        for (i, b) in blocks.enumerated() {
+            if i > 0 { h += b.gap }
+            if b.state { h += playerPill(L); continue }
+            for (j, line) in b.lines.enumerated() {
+                h += line.ascent + line.descent
+                if j < b.lines.count - 1 { h += playerLineGap(L) }
+            }
+        }
+        return h
+    }
+
+    /// Los textos de una canción para una forma del reproductor, ya ajustados al alto disponible:
+    /// si no caben, el título pasa a una línea, se quita el álbum y se reduce la letra (hasta
+    /// dos veces). Nunca se cortan por el borde: como mucho, el final de una línea lleva "…".
+    func playerBlocks(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout) -> (blocks: [PlayerBlock], height: CGFloat) {
+        let has = m.available && !m.title.isEmpty
+        let w = L.text.width
+        let row = L.style == .row
+        func build(scale: CGFloat, twoLines: Bool, album: Bool, artist: Bool) -> [PlayerBlock] {
+            if !has {
+                let a = textLines("Sin música", sizes: [L.title * 0.9 * scale], bold: true, color: c.secondary.cg, width: w, maxLines: 1)
+                let b = textLines("Reproduce algo en el iPhone", sizes: [L.artist * 0.9 * scale, L.artist * 0.8 * scale], bold: false,
+                                  color: c.secondary.cg, width: w, maxLines: 2)
+                return [PlayerBlock(lines: a.lines, gap: 0), PlayerBlock(lines: b.lines, gap: (row ? 3 : 8) * k)]
+            }
+            var blocks: [PlayerBlock] = []
+            if row && s.showSource {
+                let src = textLines(m.source.isEmpty ? "MÚSICA" : m.source.uppercased(), sizes: [L.source * scale], bold: true,
+                                    color: sourceColor(m, c), width: max(10, w - L.source * scale * 1.6), maxLines: 1)
+                blocks.append(PlayerBlock(lines: src.lines, gap: 0, sourceLine: true))
+            }
+            let t = L.title * scale
+            var title = textLines(m.title, sizes: [t, t * 0.92, t * 0.85], bold: true, color: c.text.cg, width: w, maxLines: 1)
+            if !title.fits && twoLines {
+                title = textLines(m.title, sizes: [t * 0.9, t * 0.82, t * 0.76], bold: true, color: c.text.cg, width: w, maxLines: 2)
+            }
+            blocks.append(PlayerBlock(lines: title.lines, gap: 1.5 * k))
+            if artist && s.showArtist && !m.artist.isEmpty {
+                let a = L.artist * scale
+                blocks.append(PlayerBlock(lines: textLines(m.artist, sizes: [a, a * 0.9], bold: false, color: c.text.cg, width: w, maxLines: 1).lines,
+                                          gap: (L.style == .stage ? 10 : (row ? 1 : 8)) * k))
+            }
+            if album && L.album > 0 && s.showArtist && !m.album.isEmpty {
+                let a = L.album * scale
+                blocks.append(PlayerBlock(lines: textLines(m.album, sizes: [a, a * 0.9], bold: false, color: c.secondary.cg, width: w, maxLines: 1).lines,
+                                          gap: (row ? 1.5 : 6) * k))
+            }
+            if !row && s.showSource {
+                blocks.append(PlayerBlock(lines: [], gap: (L.style == .stage ? 24 : 14) * k, state: true))
+            }
+            return blocks
+        }
+        // De lo más completo a lo más justo.
+        var options: [(CGFloat, Bool, Bool, Bool)] = []
+        for scale in [1, 0.9, 0.82] as [CGFloat] {
+            options.append((scale, true, true, true))
+            options.append((scale, false, true, true))
+            options.append((scale, false, false, true))
+        }
+        options.append((0.82, false, false, false))
+        var last: [PlayerBlock] = []
+        for o in options {
+            let b = build(scale: o.0, twoLines: o.1, album: o.2, artist: o.3)
+            last = b
+            let h = playerHeight(b, L)
+            if h <= L.text.height + 0.5 { return (b, h) }
+        }
+        return (last, playerHeight(last, L))
+    }
+
+    /// Portada, textos y estado de una canción (con transparencia y desplazamiento para la
+    /// transición), en cualquiera de las tres formas.
+    func playerTrack(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ p: HUDPalette,
+                     artAlpha: CGFloat, textAlpha: CGFloat, dy: CGFloat, art: CGImage?, artFrom: CGImage?, artFade: CGFloat,
+                     _ ctx: CGContext) {
         let has = m.available && !m.title.isEmpty
         if L.artwork.width > 4 && artAlpha > 0.01 {
             ctx.saveGState()
             ctx.setAlpha(artAlpha)
-            // Sombra suave sin desenfoque (tres capas), para dar relieve sin gastar CPU.
-            for i in 1...3 {
-                let d = CGFloat(i)
-                fillRounded(L.artwork.offsetBy(dx: 0, dy: (2 + d * 2) * k).insetBy(dx: -d * 1.5 * k, dy: -d * 1.5 * k),
-                            radius: (8 + d * 2) * k, color: CGColor(gray: 0, alpha: s.night ? 0.12 : 0.06), ctx)
-            }
+            drawArtShadow(L.artwork, night: s.night, ctx)
             if artFade < 1 {
                 dashArtwork(has ? artFrom : nil, L.artwork, p, ctx)
                 ctx.setAlpha(artAlpha * max(0, artFade))
@@ -983,68 +1029,61 @@ extension HUDRenderer {
             dashArtwork(has ? art : nil, L.artwork, p, ctx)
             ctx.restoreGState()
         }
-        guard textAlpha > 0.01 else { return }
+        guard textAlpha > 0.01, L.text.width > 30 * k, L.text.height > 10 * k else { return }
         ctx.saveGState()
         ctx.setAlpha(textAlpha)
-        let w = L.text.width
-        var blocks: [(lines: [Measured], gap: CGFloat)] = []
-        if has {
-            // El título en una línea si cabe con letra grande; si no, en dos.
-            var title = textLines(m.title, sizes: [40 * k, 36 * k, 33 * k], bold: true, color: c.text.cg, width: w, maxLines: 1)
-            if !title.fits {
-                title = textLines(m.title, sizes: [36 * k, 32 * k, 28 * k], bold: true, color: c.text.cg, width: w, maxLines: 2)
+        let fit = playerBlocks(m, s, c, L)
+        let pillH = playerPill(L)
+        let lineGap = playerLineGap(L)
+        // Centrados en el alto disponible; si no cupieran, nunca por encima del borde de arriba.
+        var y = max(L.text.minY, L.text.midY - fit.height / 2) + dy
+        for (i, b) in fit.blocks.enumerated() {
+            if i > 0 { y += b.gap }
+            if b.state {
+                // Estado de la reproducción (no es un botón).
+                let label = measure(m.playing ? "Reproduciendo" : "En pausa", size: L.state, bold: true, color: c.text.cg)
+                let g = (L.style == .stage ? 13 : 11) * k
+                let pw = 16 * k + g + 9 * k + label.width + 18 * k
+                let pill = CGRect(x: L.text.midX - pw / 2, y: y, width: pw, height: pillH)
+                fillRounded(pill, radius: pillH / 2, color: c.text.cg.copy(alpha: 0.13) ?? c.text.cg, ctx)
+                stateGlyph(m.playing, CGRect(x: pill.minX + 16 * k, y: pill.midY - g / 2, width: g, height: g), c.text.cg, ctx)
+                put(label, x: pill.minX + 16 * k + g + 9 * k, baseline: pill.midY + (label.ascent - label.descent) / 2, ctx)
+                y += pillH
+                continue
             }
-            blocks.append((title.lines, 0))
-            if s.showArtist && !m.artist.isEmpty {
-                blocks.append((textLines(m.artist, sizes: [25 * k, 22 * k, 20 * k], bold: false, color: c.text.cg, width: w, maxLines: 1).lines, 8 * k))
+            for (j, line) in b.lines.enumerated() {
+                var x = L.centered ? L.text.midX - line.width / 2 : L.text.minX
+                if b.sourceLine {
+                    // Símbolo del estado dentro de un círculo, delante del nombre del servicio.
+                    let d = line.ascent + line.descent
+                    let chip = CGRect(x: x, y: y, width: d, height: d)
+                    ctx.setFillColor(c.text.cg.copy(alpha: 0.16) ?? c.text.cg)
+                    ctx.fillEllipse(in: chip)
+                    stateGlyph(m.playing, chip.insetBy(dx: d * 0.3, dy: d * 0.3), c.text.cg, ctx)
+                    x = chip.maxX + d * 0.35
+                }
+                put(line, x: x, baseline: y + line.ascent, ctx)
+                y += line.ascent + line.descent
+                if j < b.lines.count - 1 { y += lineGap }
             }
-            if s.showArtist && !m.album.isEmpty {
-                blocks.append((textLines(m.album, sizes: [19 * k, 17 * k], bold: false, color: c.secondary.cg, width: w, maxLines: 1).lines, 4 * k))
-            }
-        } else {
-            blocks.append((textLines("Sin música", sizes: [36 * k, 30 * k], bold: true, color: c.secondary.cg, width: w, maxLines: 1).lines, 0))
-            blocks.append((textLines("Reproduce algo en el iPhone", sizes: [22 * k, 19 * k], bold: false, color: c.secondary.cg, width: w, maxLines: 2).lines, 10 * k))
-        }
-        let pillH = 36 * k
-        var height: CGFloat = 0
-        for b in blocks {
-            height += b.gap
-            for line in b.lines { height += line.ascent + line.descent + 2 * k }
-        }
-        if has { height += 22 * k + pillH }
-        var y = L.text.midY - height / 2 + dy
-        for b in blocks {
-            y += b.gap
-            for line in b.lines {
-                put(line, x: L.text.midX - line.width / 2, baseline: y + line.ascent, ctx)
-                y += line.ascent + line.descent + 2 * k
-            }
-        }
-        if has {
-            // Estado de la reproducción (no es un botón).
-            y += 22 * k
-            let label = measure(m.playing ? "Reproduciendo" : "En pausa", size: 16 * k, bold: true, color: c.text.cg)
-            let g = 13 * k
-            let pw = 16 * k + g + 9 * k + label.width + 18 * k
-            let pill = CGRect(x: L.text.midX - pw / 2, y: y, width: pw, height: pillH)
-            fillRounded(pill, radius: pillH / 2, color: c.text.cg.copy(alpha: 0.13) ?? c.text.cg, ctx)
-            let gx = pill.minX + 16 * k
-            let gy = pill.midY - g / 2
-            ctx.setFillColor(c.text.cg)
-            if m.playing {
-                ctx.beginPath()
-                ctx.move(to: CGPoint(x: gx, y: gy))
-                ctx.addLine(to: CGPoint(x: gx + g * 0.9, y: gy + g / 2))
-                ctx.addLine(to: CGPoint(x: gx, y: gy + g))
-                ctx.closePath()
-                ctx.fillPath()
-            } else {
-                ctx.fill(CGRect(x: gx, y: gy, width: g * 0.3, height: g))
-                ctx.fill(CGRect(x: gx + g * 0.55, y: gy, width: g * 0.3, height: g))
-            }
-            put(label, x: gx + g + 9 * k, baseline: pill.midY + (label.ascent - label.descent) / 2, ctx)
         }
         ctx.restoreGState()
+    }
+
+    /// Triángulo (reproduciendo) o dos barras (en pausa).
+    func stateGlyph(_ playing: Bool, _ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        ctx.setFillColor(color)
+        if playing {
+            ctx.beginPath()
+            ctx.move(to: CGPoint(x: r.minX + r.width * 0.08, y: r.minY))
+            ctx.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+            ctx.addLine(to: CGPoint(x: r.minX + r.width * 0.08, y: r.maxY))
+            ctx.closePath()
+            ctx.fillPath()
+        } else {
+            ctx.fill(CGRect(x: r.minX + r.width * 0.05, y: r.minY, width: r.width * 0.32, height: r.height))
+            ctx.fill(CGRect(x: r.minX + r.width * 0.63, y: r.minY, width: r.width * 0.32, height: r.height))
+        }
     }
 
     // MARK: - Avisos

@@ -953,6 +953,204 @@ struct MusicStageLayout: Equatable {
     }
 }
 
+/// 0.6.3: un solo reproductor para todos los modos. Las tres formas comparten el fondo
+/// (degradado con los colores de la portada y un resplandor detrás de ella), la portada con
+/// sombra, la letra (título en negrita, artista, álbum), el estado y la barra de progreso:
+///  - `stage`: zona ancha (Música sola). Portada grande a la derecha y textos centrados.
+///  - `column`: zona alta y estrecha (Dividida, Música + Avisos). Portada arriba, textos debajo.
+///  - `row`: tarjetas y zonas bajas (Nav + Música, Completo). Portada a la izquierda.
+/// No hay botones: la pantalla de la moto no es táctil para la app y el protocolo no envía
+/// teclas (la música se controla desde el iPhone o el intercomunicador).
+enum MusicPlayerStyle: String {
+    case stage, column, row
+}
+
+struct MusicPlayerLayout: Equatable {
+    var style: MusicPlayerStyle
+    /// Nombre del servicio (en `row` va en la primera línea de los textos y esto queda vacío).
+    var header: CGRect
+    var artwork: CGRect
+    /// Título, artista, álbum y estado.
+    var text: CGRect
+    /// Fila de la barra (con los tiempos si `times`).
+    var progress: CGRect
+    var times: Bool
+    /// Tamaños de letra (ya multiplicados por la escala de la imagen).
+    var title: CGFloat
+    var artist: CGFloat
+    /// 0: sin línea de álbum.
+    var album: CGFloat
+    var source: CGFloat
+    var state: CGFloat
+    var time: CGFloat
+    /// Grosor de la barra de progreso.
+    var bar: CGFloat
+    /// Textos centrados (stage, column) o alineados a la izquierda (row).
+    var centered: Bool
+    /// Tarjeta flotante sobre el mapa (esquinas redondeadas y algo de transparencia).
+    var card: Bool
+
+    /// Portada mínima para usar la forma en columna; si sale más pequeña, se usa la fila.
+    static let minColumnArtwork: CGFloat = 140
+
+    /// `card`: tamaño de la tarjeta sobre el mapa, o nil si es una zona del panel.
+    /// `reserve`: la hora actual, si cae dentro (se deja libre).
+    static func make(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, reserve: CGRect?,
+                     card: CardSize? = nil) -> MusicPlayerLayout {
+        let clock = reserve.flatMap { $0.intersects(r) ? $0 : nil }
+        if card == nil && MusicStageLayout.fits(r, k: k) {
+            let L = MusicStageLayout.make(r, k: k, artwork: artwork, size: size, reserve: clock)
+            return MusicPlayerLayout(style: .stage, header: L.header, artwork: L.artwork, text: L.text, progress: L.progress,
+                                     times: true, title: 40 * k, artist: 25 * k, album: 19 * k, source: 15 * k, state: 16 * k,
+                                     time: 18 * k, bar: 6 * k, centered: true, card: false)
+        }
+        if card == nil && r.width >= 240 * k && r.height >= 300 * k, let c = column(r, k: k, artwork: artwork, size: size, clock: clock) {
+            return c
+        }
+        return row(r, k: k, artwork: artwork, size: size, clock: clock, card: card)
+    }
+
+    /// Alto aproximado de una línea de texto (ascendente + descendente de la letra del sistema).
+    static func lineHeight(_ size: CGFloat) -> CGFloat { size * 1.2 }
+
+    private static func factor(_ size: ArtworkSize) -> CGFloat { size == .small ? 0.8 : (size == .large ? 1 : 0.95) }
+
+    private static func column(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, clock: CGRect?) -> MusicPlayerLayout? {
+        let padX = max(16 * k, min(24 * k, r.width * 0.06))
+        var header = CGRect(x: r.minX + padX, y: r.minY + 14 * k, width: r.width - 2 * padX, height: 22 * k)
+        if let c = clock, c.intersects(header.insetBy(dx: 0, dy: -8 * k)) {
+            header.size.width = max(0, c.minX - 12 * k - header.minX)
+        }
+        let progressH = 22 * k
+        let progress = CGRect(x: r.minX + padX, y: r.maxY - 14 * k - progressH, width: r.width - 2 * padX, height: progressH)
+        let title = max(22 * k, min(30 * k, r.width * 0.075))
+        let artist = title * 0.74
+        let state = 14 * k
+        let pill = 28 * k
+        // Título, artista y estado (el álbum solo cabe en la música completa). Mismos espacios
+        // que usa el dibujo.
+        let block = lineHeight(title) + 8 * k + lineHeight(artist) + 14 * k + pill
+        var top = header.maxY + 10 * k
+        if let c = clock { top = max(top, c.maxY + 6 * k) }
+        var art = CGRect.zero
+        var textTop = top
+        if artwork {
+            let room = progress.minY - 12 * k - block - 10 * k - top
+            let side = (min(r.width - 2 * padX, room) * factor(size)).rounded()
+            guard side >= minColumnArtwork * k else { return nil }
+            // La portada y los textos, juntos y centrados en el alto libre.
+            let used = side + 10 * k + block
+            let y = (top + max(0, (progress.minY - 12 * k - top - used) / 2)).rounded()
+            art = CGRect(x: (r.midX - side / 2).rounded(), y: y, width: side, height: side)
+            textTop = art.maxY + 10 * k
+        }
+        let text = CGRect(x: r.minX + padX, y: textTop, width: r.width - 2 * padX, height: max(0, progress.minY - 8 * k - textTop))
+        return MusicPlayerLayout(style: .column, header: header, artwork: art, text: text, progress: progress, times: true,
+                                 title: title, artist: artist, album: 0, source: 13 * k, state: state, time: 14 * k,
+                                 bar: 5 * k, centered: true, card: false)
+    }
+
+    private static func row(_ r: CGRect, k: CGFloat, artwork: Bool, size: ArtworkSize, clock: CGRect?, card: CardSize?) -> MusicPlayerLayout {
+        let pad = card != nil ? (r.height < 100 * k ? 10 * k : 12 * k) : max(12 * k, min(18 * k, r.height * 0.07))
+        var content = r
+        if let c = clock {
+            // La hora cae en la zona: todo el contenido va por debajo.
+            let top = c.maxY + 6 * k - pad
+            if top > content.minY { content = CGRect(x: r.minX, y: top, width: r.width, height: max(0, r.maxY - top)) }
+        }
+        var side: CGFloat = 0
+        var art = CGRect.zero
+        var tx = r.minX + pad
+        if artwork {
+            side = min(content.height - 2 * pad, r.width * 0.42)
+            if card == nil { side *= factor(size) }
+            side = max(0, side.rounded())
+            art = CGRect(x: r.minX + pad, y: (content.minY + pad + (content.height - 2 * pad - side) / 2).rounded(), width: side, height: side)
+            tx = art.maxX + (card != nil ? 12 * k : max(14 * k, side * 0.09))
+        }
+        let tw = max(0, r.maxX - pad - tx)
+        let reference = artwork ? side : content.height - 2 * pad
+        let title = max(15 * k, min(30 * k, reference * 0.29, tw * 0.13))
+        let artist = title * 0.78
+        let source = max(11 * k, title * 0.58)
+        let time = max(11 * k, title * 0.55)
+        let bar = max(3 * k, title * 0.17)
+        let inner = CGRect(x: tx, y: artwork ? art.minY : content.minY + pad, width: tw,
+                           height: artwork ? side : content.height - 2 * pad)
+        let times = inner.height >= 96 * k
+        let progressH = times ? lineHeight(time) + 4 * k + bar : bar
+        let progress = CGRect(x: tx, y: inner.maxY - progressH, width: tw, height: progressH)
+        // Álbum solo si sobra alto (zonas grandes).
+        let album: CGFloat = card == nil && inner.height >= 170 * k ? title * 0.6 : 0
+        let text = CGRect(x: tx, y: inner.minY, width: tw, height: max(0, progress.minY - (times ? 6 : 3) * k - inner.minY))
+        return MusicPlayerLayout(style: .row, header: .zero, artwork: art, text: text, progress: progress, times: times,
+                                 title: title, artist: artist, album: album, source: source, state: source, time: time,
+                                 bar: bar, centered: false, card: card != nil)
+    }
+}
+
+/// 0.6.3: la maniobra dentro de una zona con mapa (pantalla dividida y diseños por zonas). La
+/// tarjeta es la misma que sobre el mapa completo (compacta 200×96 o grande), en la esquina que
+/// se eligió en el iPhone, y la barra del viaje y la brújula van donde no estorban.
+struct NavZoneLayout: Equatable {
+    var card: CGRect
+    var trip: CGRect
+    var compass: CGRect
+
+    /// `reserve`: la hora actual si cae en la zona. `trip`: hay barra del viaje (ruta en curso).
+    static func make(_ zone: CGRect, _ o: OverlaySettings, k: CGFloat, reserve: CGRect?, trip: Bool) -> NavZoneLayout {
+        let m = 9 * k
+        let clock = reserve.flatMap { $0.intersects(zone) ? $0 : nil }
+        let base = DashLayoutEngine.cardSize(.maneuver, o)
+        let large = o.maneuverSize == .large
+        // Proporcional al espacio: nunca más de la mitad del ancho (compacta) o del 70 % (grande).
+        let limitW = zone.width * (large ? 0.7 : 0.5)
+        var w = min(base.width * k, max(160 * k, limitW))
+        w = min(w, zone.width - 2 * m)
+        let h = min(base.height * k * (large ? 0.86 : 1), zone.height * (large ? 0.42 : 0.3))
+        let spot = o.maneuverSpot
+        let top = spot.isTop
+        var x: CGFloat
+        switch spot {
+        case .topLeft, .bottomLeft: x = zone.minX + m
+        case .topRight, .bottomRight: x = zone.maxX - m - w
+        case .bottomCenter: x = zone.midX - w / 2
+        }
+        var y = top ? zone.minY + m : zone.maxY - m - h
+        if let c = clock, top, c.intersects(CGRect(x: x, y: y, width: w, height: h).insetBy(dx: -4 * k, dy: -4 * k)) {
+            // La hora está en esa esquina: la tarjeta empieza debajo de ella.
+            y = c.maxY + 6 * k
+        }
+        let card = CGRect(x: x.rounded(), y: y.rounded(), width: w.rounded(), height: h.rounded())
+
+        // Barra del viaje: en el borde contrario a la tarjeta. A la derecha, para que el logotipo
+        // de Mapas de Apple (abajo a la izquierda) quede a la vista.
+        var tripRect = CGRect.zero
+        let tripH = 34 * k
+        if trip {
+            let left = zone.minX + m + (top ? 70 * k : 0)
+            var right = zone.maxX - m
+            var ty = top ? zone.maxY - m - tripH : zone.minY + m
+            if !top, let c = clock, c.maxY > ty, c.minX < right { right = min(right, c.minX - 8 * k) }
+            if !top && card.minY < ty + tripH + 6 * k { ty = min(ty, card.minY - 6 * k - tripH) }
+            tripRect = CGRect(x: left, y: ty, width: max(0, right - left), height: tripH)
+        }
+
+        // Brújula: abajo a la derecha si está libre; si no, arriba a la derecha (debajo de la
+        // hora) o abajo a la izquierda.
+        let cs = 40 * k
+        var candidates: [CGRect] = []
+        let bottomY = (top && trip ? tripRect.minY - 6 * k : zone.maxY - m) - cs
+        candidates.append(CGRect(x: zone.maxX - m - cs, y: bottomY, width: cs, height: cs))
+        candidates.append(CGRect(x: zone.maxX - m - cs, y: max(zone.minY + m, (clock?.maxY ?? 0) + 6 * k), width: cs, height: cs))
+        candidates.append(CGRect(x: zone.minX + m, y: zone.maxY - m - cs - (trip && top ? tripH + 6 * k : 0), width: cs, height: cs))
+        let busy = [card, tripRect, clock ?? .zero].filter { !$0.isEmpty }
+        let compass = candidates.first { cand in zone.contains(cand) && !busy.contains { $0.intersects(cand.insetBy(dx: -3 * k, dy: -3 * k)) } }
+            ?? candidates[0]
+        return NavZoneLayout(card: card, trip: tripRect, compass: compass)
+    }
+}
+
 enum NoticeKind: String, Codable {
     case nav, link, battery, test
 }
@@ -1002,6 +1200,8 @@ struct DashSnapshot {
     var routeFade: Double = 1
     /// Ruta guiada por otra app (la moto muestra solo el destino).
     var external: ExternalGuide?
+    /// 0.6.3: cuánta ruta tiene mapa guardado (para avisar en la moto cuando se acaba).
+    var mapCoverage = MapCoverageState.none
 }
 
 // MARK: - Reglas automáticas

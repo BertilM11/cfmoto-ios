@@ -58,34 +58,56 @@ struct PocketScreen: View {
     }
 
     private func update() {
-        let s = TFTMap.shared.stats()
-        coverage = s.routeActive ? "Mapa guardado por delante: \(Diagnostics.km(s.coverage.continuous))" : ""
+        // Con la pantalla negra el mapa sigue en vivo; esto dice cuánto hay guardado por si se
+        // bloquea el iPhone (0.6.3: mismo texto que en Navegación).
+        coverage = TFTMap.shared.stats().state.text
     }
 }
 
-/// Aviso en Navegación: cuánto mapa queda guardado por si se bloquea el iPhone.
+/// Aviso en Navegación: cuánto mapa queda guardado por si se bloquea el iPhone. 0.6.3: dice
+/// si la ruta está completa, si se sigue guardando o si es parcial por la memoria, con los
+/// kilómetros que de verdad tienen mapa seguido desde la posición.
 struct MapCoverageChip: View {
     let palette: Palette
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { _ in
-            let s = TFTMap.shared.stats()
-            if s.routeActive {
-                let remaining = s.routeRemaining
-                let continuous = s.coverage.continuous
-                let ready = continuous >= min(remaining, 5000) - 1
-                HStack(spacing: 6) {
-                    Image(systemName: ready ? "checkmark.circle.fill" : "arrow.down.circle")
-                    Text(ready
-                         ? "Mapa guardado: \(Diagnostics.km(continuous)) de \(Diagnostics.km(remaining))"
-                         : "Guardando el mapa: \(Diagnostics.km(continuous)) de \(Diagnostics.km(remaining))")
+            let state = TFTMap.shared.stats().state
+            if state.kind != .none {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: icon(state.kind))
+                        Text(state.text)
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    if state.kind != .complete {
+                        Text(state.advice)
+                            .font(.system(size: 10.5))
+                            .foregroundColor(palette.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(ready ? Color(red: 0.14, green: 0.76, blue: 0.43) : palette.secondaryText)
+                .foregroundColor(color(state.kind))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(palette.card.opacity(0.92), in: Capsule())
+                .background(palette.card.opacity(0.92), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
+        }
+    }
+
+    private func icon(_ kind: MapCoverageState.Kind) -> String {
+        switch kind {
+        case .complete: return "checkmark.circle.fill"
+        case .partial: return "exclamationmark.circle.fill"
+        default: return "arrow.down.circle"
+        }
+    }
+
+    private func color(_ kind: MapCoverageState.Kind) -> Color {
+        switch kind {
+        case .complete: return Color(red: 0.14, green: 0.76, blue: 0.43)
+        case .partial: return Color(red: 0.96, green: 0.62, blue: 0.2)
+        default: return palette.secondaryText
         }
     }
 }
