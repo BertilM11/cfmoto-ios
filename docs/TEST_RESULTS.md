@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.6.1
+# Resultados de las pruebas — CFMoto Link 0.6.2 (y 0.6.1)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,7 +6,52 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **ninguna prueba de la 0.6.1 está hecha todavía.**
+3. **Moto** (manual, con la 450NK): **ni la 0.6.1 ni la 0.6.2 se han probado todavía en la moto.**
+
+## 0.6.2 — Diseño de la pantalla
+
+| Nivel | Qué se hizo | Resultado |
+| --- | --- | --- |
+| Automáticas | 152 pruebas: las 132 de la 0.6.1 (se conservan todas) y 20 nuevas | **Todas pasan** (prueba 29) |
+| Compilación para el simulador | Xcode en GitHub (macOS arm64) | **BUILD SUCCEEDED** |
+| Simulador | Recorrido de demostración en los modos 1 a 4, de día y de noche, y prueba en segundo plano | Capturas de la app con mapas reales de Apple |
+| Compilación para iPhone | Release sin firmar (`CFMotoLink.ipa`) | Ver la publicación de la versión |
+| Moto | Ver el diseño nuevo en la TFT | **Pendiente** |
+
+Pruebas nuevas de la 0.6.2:
+
+| Prueba | Resultado | Detalle |
+| --- | --- | --- |
+| Hora actual: el mismo sitio en los modos con mapa y nada encima | Pasa | arriba a la derecha: x 672, y 12, 116×30 |
+| La hora se ve en el mismo sitio en todos los modos, de día y de noche, con y sin ruta | Pasa | 32 composiciones |
+| La llegada lleva la palabra «Llegada»; el tiempo y la distancia van aparte | Pasa | Llegada 7:22 p.m. \| 18 min \| 7.4 km |
+| La hora de llegada y la hora actual son cosas distintas | Pasa | 7:22 y 7:04 |
+| Sin ruta, abajo no aparece otra hora | Pasa | imagen idéntica a la que no tiene barra de viaje |
+| Maniobra compacta un 30 % más pequeña por lado | Pasa | 200×96, 50 % del área de antes (284×136) |
+| La tarjeta grande de la maniobra sigue igual | Pasa | 340×176 |
+| Mapa + Música: el centro (por donde va la ruta) queda libre de tarjetas | Pasa | maniobra hasta x 212, música desde x 538 |
+| La tarjeta de música no crece | Pasa | 250×84 |
+| La calle se saca de la indicación | Pasa | 8 indicaciones, incluidas dos sin calle |
+| Música completa: partes sin montarse ni tapar la hora | Pasa | tres tamaños de portada, con y sin ruta |
+| Música completa: portada grande | Pasa | 274 px; con el próximo giro abajo, 209 px |
+| Música completa: columna de texto ancha y barra casi a todo el ancho | Pasa | columna de 432 px, barra de 736 px |
+| Música completa: texto legible sobre el degradado | Pasa | peor contraste 10,3:1 (mínimo 4,5) |
+| Cambio de canción: fundido corto | Pasa | 0,45 s |
+| Portada que llega tarde (Spotify): solo se funde la portada | Pasa | |
+| Misma canción avanzando: sin transición | Pasa | |
+| Fondo guardado entre fotogramas igual que dibujado cada vez | Pasa | diferencia máxima 3 de 255 |
+| Música completa en plena transición | Pasa | 9,9 ms por fotograma (equipo de GitHub) |
+| Música completa sin transición (fondo reutilizado) | Pasa | 4,5 ms por fotograma (equipo de GitHub) |
+
+Capturas: `docs/laminas/cambio1-…`, `cambio2-…` y `cambio3-…` en el paquete y la carpeta
+`CAPTURAS` de la entrega (con el antes y el después).
+
+Lo que no se probó: la TFT real (tamaño de letra, contraste al sol, la hora en la esquina),
+Spotify y Apple Music reales con el diseño nuevo y el fundido en un iPhone.
+
+---
+
+# 0.6.1 — Estabilidad y navegación
 
 ## Resumen
 

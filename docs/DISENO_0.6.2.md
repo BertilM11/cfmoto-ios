@@ -12,7 +12,7 @@ Las capturas están en `docs/laminas/` dentro del paquete (`cambio1-…`, `cambi
 
 | | 0.6.1 | 0.6.2 |
 | --- | --- | --- |
-| Portada | 200 px, a la izquierda | **247 px** (tamaño normal; 268 en grande), a la derecha, con sombra suave |
+| Portada | 267 px, a la izquierda | **274 px** (tamaño normal; 288 en grande), a la derecha, con sombra suave |
 | Título | Arriba a la derecha, alineado a la izquierda | Centrado, en una línea si cabe con letra de 33 a 40 px; si no, en dos |
 | Artista y álbum | Artista | Artista y **álbum** (Apple Music y Spotify), centrados |
 | Controles | Icono pequeño de estado junto al servicio | **Estado centrado**: «Reproduciendo» o «En pausa» (ver abajo) |
@@ -35,7 +35,7 @@ negro; si no, blanco o negro) y la portada no se recorta ni lleva nada encima (e
 8 px).
 
 Con una ruta activa, el próximo giro sigue en la franja de abajo y la portada se ajusta
-(184 px).
+(209 px; en la 0.6.1, 220).
 
 ## 2. Modos con mapa: instrucciones compactas
 

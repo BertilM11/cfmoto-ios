@@ -7,7 +7,9 @@ Respaldo de la versión anterior: etiqueta `v0.6.1`, rama `backup/v0.6.1`, publi
 Wi-Fi Direct, el vídeo H.264 ni el protocolo con la moto.
 
 ### Modo 4 · Música completa (al estilo de CarPlay)
-- Portada grande a la derecha (247 px de 400 de alto con el tamaño normal; antes 200).
+- Portada grande a la derecha: 274 px de alto (de 400) con el tamaño normal, 288 en grande
+  (antes 267, a la izquierda). Con una ruta activa, 209 px (antes 220), porque abajo va el
+  próximo giro.
 - Título, artista y álbum centrados a la izquierda; el título en una línea si cabe.
 - En lugar de botones, el **estado**: «Reproduciendo» o «En pausa». La pantalla de la moto no es
   táctil para la app y el protocolo no envía teclas, así que unos botones no funcionarían; la
