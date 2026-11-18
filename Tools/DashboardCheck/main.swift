@@ -1842,19 +1842,19 @@ check("0.6.4: sin música los botones se ven apagados (con ▶)", idleButtons.is
 
 // Cambio entre reproducir y pausa: fundido corto (a mitad, el centro del círculo está entre
 // los dos estados).
-var fadeSnap = musicSnap(.preset(.split), .dark, art: neon)
-let fadePlay = render(fadeSnap, hideText: true)
-let fadeCircle = fadePlay.controls.count > 1 ? fadePlay.controls[1].rect : CGRect(x: 0, y: 0, width: 2, height: 2)
-fadeSnap.music.playing = false
-let fadePause = render(fadeSnap, hideText: true)
-fadeSnap.music.playing = true
-fadeSnap.playFade = 0.5
-let fadeMid = render(fadeSnap, hideText: true)
-let lumA = rgbAt(fadePlay.px, fadeCircle.midX, fadeCircle.midY).luminance
-let lumB = rgbAt(fadePause.px, fadeCircle.midX, fadeCircle.midY).luminance
-let lumM = rgbAt(fadeMid.px, fadeCircle.midX, fadeCircle.midY).luminance
-check("0.6.4: el cambio ▶/❚❚ se funde (sin saltos)", lumM > min(lumA, lumB) + 0.05 && lumM < max(lumA, lumB) - 0.05,
-      String(format: "centro del círculo: sonando %.2f, a mitad %.2f, en pausa %.2f", lumA, lumM, lumB))
+var ppSnap = musicSnap(.preset(.split), .dark, art: neon)
+let ppPlay = render(ppSnap, hideText: true)
+let ppCircle = ppPlay.controls.count > 1 ? ppPlay.controls[1].rect : CGRect(x: 0, y: 0, width: 2, height: 2)
+ppSnap.music.playing = false
+let ppPause = render(ppSnap, hideText: true)
+ppSnap.music.playing = true
+ppSnap.playFade = 0.5
+let ppMid = render(ppSnap, hideText: true)
+let ppLumA = rgbAt(ppPlay.px, ppCircle.midX, ppCircle.midY).luminance
+let ppLumB = rgbAt(ppPause.px, ppCircle.midX, ppCircle.midY).luminance
+let ppLumM = rgbAt(ppMid.px, ppCircle.midX, ppCircle.midY).luminance
+check("0.6.4: el cambio ▶/❚❚ se funde (sin saltos)", ppLumM > min(ppLumA, ppLumB) + 0.05 && ppLumM < max(ppLumA, ppLumB) - 0.05,
+      String(format: "centro del círculo: sonando %.2f, a mitad %.2f, en pausa %.2f", ppLumA, ppLumM, ppLumB))
 
 // La tarjeta de música no crece: mide lo mismo que en la 0.6.3.
 let compactCardRect = musicCard(DashLayout.preset(.gpsMusic).overlay) ?? .zero
