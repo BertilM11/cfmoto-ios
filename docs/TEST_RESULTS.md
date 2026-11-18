@@ -14,7 +14,7 @@ Hay tres niveles y no se mezclan:
 | --- | --- | --- |
 | Automáticas | 193 pruebas: las 152 de la 0.6.2 (se conservan todas) y 41 nuevas | **193 pruebas, todas pasan** (prueba rápida 6; se repite al compilar la versión) |
 | Compilación para el simulador | Xcode en GitHub (macOS arm64) | **BUILD SUCCEEDED** |
-| Simulador | Recorrido de demostración en los modos, de día y de noche, y prueba en segundo plano (prueba 33) | Capturas en `CAPTURAS/4_SIMULADOR_IPHONE`. Mapa guardado: 5,5 de 6,0 km en el primer minuto (37 imágenes); en segundo plano la moto usó las guardadas y los km bajaron sin saltos (5,6 → 5,1); al volver, «Ruta completa guardada» |
+| Simulador | Recorrido de demostración en los modos, de día y de noche, y prueba en segundo plano (prueba 33) | Capturas en `CAPTURAS/4_SIMULADOR_IPHONE`. Ruta de Apple de 8,2 km; mapa guardado: 5,5 de los 6,0 km que quedaban en 68 s (37 imágenes); en segundo plano la moto usó las guardadas y los km bajaron sin saltos (5,6 → 5,1); al volver, «Ruta completa guardada» |
 | Compilación para iPhone | Release sin firmar (`CFMotoLink.ipa`) | Ver la publicación de la versión |
 | Moto | Ver el diseño nuevo en la TFT y el mapa con el iPhone bloqueado | **Pendiente** (pruebas L–T de `TESTING.md`) |
 
