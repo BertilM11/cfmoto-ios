@@ -104,7 +104,16 @@ final class OSMLabelCache {
         let halo: CTLine
         let fill: CTLine
         let width: CGFloat
+        /// El nombre ya dibujado con su borde (se pega girado en cada fotograma: es mucho más
+        /// barato que volver a dibujar las letras).
+        let image: CGImage?
+        let ascent: CGFloat
+        let descent: CGFloat
+        let pad: CGFloat
     }
+
+    /// Dibujar los nombres desde su imagen (las pruebas comparan con el dibujo de las letras).
+    static var useImages = true
 
     /// Un sitio posible para el nombre de una calle (uno cada 170 m de cada calle con nombre).
     struct Anchor {
@@ -161,7 +170,6 @@ final class OSMLabelCache {
         lock.lock()
         defer { lock.unlock() }
         if let l = items[key] { return l }
-        if items.count > 700 { items.removeAll(keepingCapacity: true) }
         let f: CTFont
         if let cached = fonts[size] {
             f = cached
@@ -180,7 +188,26 @@ final class OSMLabelCache {
         ]
         let halo = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: haloAttrs))
         let fill = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: fillAttrs))
-        let l = Label(halo: halo, fill: fill, width: CGFloat(CTLineGetTypographicBounds(fill, nil, nil, nil)))
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        let width = CGFloat(CTLineGetTypographicBounds(fill, &ascent, &descent, nil))
+        let pad = ceil(size * 0.2) + 2
+        var image: CGImage?
+        let w = Int(ceil(width + 2 * pad))
+        let h = Int(ceil(ascent + descent + 2 * pad))
+        if w > 0, h > 0, w < 2000, h < 400,
+           let c = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                             space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue) {
+            // Contexto normal (y hacia arriba): la línea base queda a pad + descent del borde de abajo.
+            c.textPosition = CGPoint(x: pad, y: pad + descent)
+            CTLineDraw(halo, c)
+            c.textPosition = CGPoint(x: pad, y: pad + descent)
+            CTLineDraw(fill, c)
+            image = c.makeImage()
+        }
+        if items.count > 360 { items.removeAll(keepingCapacity: true) }
+        let l = Label(halo: halo, fill: fill, width: width, image: image, ascent: ascent, descent: descent, pad: pad)
         items[key] = l
         return l
     }
@@ -357,6 +384,27 @@ extension HUDRenderer {
     }
 
     private func drawRotatedLabel(_ label: OSMLabelCache.Label, at p: CGPoint, angle: CGFloat, size: CGFloat, _ ctx: CGContext) {
+        if OSMLabelCache.useImages, let img = label.image {
+            // La línea base va 0,35·tamaño por debajo del punto, como al dibujar las letras.
+            let baseline = size * 0.35
+            let top = baseline - label.ascent - label.pad
+            let w = CGFloat(img.width)
+            let h = CGFloat(img.height)
+            ctx.saveGState()
+            if abs(angle) > 0.01 {
+                ctx.translateBy(x: p.x, y: p.y)
+                ctx.rotate(by: angle)
+                ctx.interpolationQuality = .medium
+                ctx.translateBy(x: -label.width / 2 - label.pad, y: top + h)
+            } else {
+                // Sin girar, en píxeles enteros: tan nítido como las letras dibujadas.
+                ctx.translateBy(x: (p.x - label.width / 2 - label.pad).rounded(), y: (p.y + top + h).rounded())
+            }
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.restoreGState()
+            return
+        }
         ctx.saveGState()
         ctx.translateBy(x: p.x, y: p.y)
         ctx.rotate(by: angle)
@@ -400,6 +448,8 @@ final class OSMBaseCache {
 
     /// Las pruebas pueden apagarlo para comparar con el dibujo directo.
     static var enabled = true
+    /// Suavizado al girar la imagen (las pruebas comparan calidades y tiempos).
+    static var interpolation: CGInterpolationQuality = .medium
     /// Imágenes rehechas (para el diagnóstico y las pruebas).
     private(set) var builds = 0
     private var entry: Entry?
@@ -443,19 +493,47 @@ final class OSMBaseCache {
         }
         let off = OSMBaseCache.offset(of: cam.center, from: e.center, mpp: cam.metersPerPixel)
         let scale = CGFloat(e.mpp / cam.metersPerPixel)
+        let angle = -CGFloat(cam.heading * .pi / 180)
+        // Solo la parte de la imagen que cae en pantalla (girar la imagen entera cuesta más).
+        let cosA = cos(-angle)
+        let sinA = sin(-angle)
+        var minX = CGFloat.greatestFiniteMagnitude
+        var minY = CGFloat.greatestFiniteMagnitude
+        var maxX = -CGFloat.greatestFiniteMagnitude
+        var maxY = -CGFloat.greatestFiniteMagnitude
+        for c in corners {
+            let dx = c.x - cam.anchor.x
+            let dy = c.y - cam.anchor.y
+            let rx = dx * cosA - dy * sinA + off.x
+            let ry = dx * sinA + dy * cosA - off.y
+            let ix = e.half + rx / scale
+            let iy = e.half + ry / scale
+            minX = min(minX, ix)
+            minY = min(minY, iy)
+            maxX = max(maxX, ix)
+            maxY = max(maxY, iy)
+        }
+        let side = 2 * e.half
+        let x0 = floor(max(0, minX - 2))
+        let y0 = floor(max(0, minY - 2))
+        let x1 = ceil(min(side, maxX + 2))
+        let y1 = ceil(min(side, maxY + 2))
+        let crop = CGRect(x: x0, y: y0, width: max(0, x1 - x0), height: max(0, y1 - y0))
+        let part = crop.width > 4 && crop.height > 4 ? (e.image.cropping(to: crop) ?? e.image) : e.image
+        let at = part === e.image ? CGRect(x: 0, y: 0, width: side, height: side) : crop
         ctx.saveGState()
         ctx.clip(to: r)
-        ctx.interpolationQuality = .medium
+        ctx.interpolationQuality = OSMBaseCache.interpolation
         // Imagen (norte arriba, centrada en e.center) → pantalla (rumbo hacia arriba, la moto en anchor).
         ctx.translateBy(x: cam.anchor.x, y: cam.anchor.y)
-        ctx.rotate(by: -CGFloat(cam.heading * .pi / 180))
+        ctx.rotate(by: angle)
         ctx.translateBy(x: -off.x, y: off.y)
         ctx.scaleBy(x: scale, y: scale)
         ctx.translateBy(x: -e.half, y: -e.half)
         // El contexto tiene la y hacia abajo: la imagen se voltea para verse derecha.
-        ctx.translateBy(x: 0, y: 2 * e.half)
+        ctx.translateBy(x: at.minX, y: at.minY + at.height)
         ctx.scaleBy(x: 1, y: -1)
-        ctx.draw(e.image, in: CGRect(x: 0, y: 0, width: 2 * e.half, height: 2 * e.half))
+        ctx.draw(part, in: CGRect(x: 0, y: 0, width: at.width, height: at.height))
         ctx.restoreGState()
         return e.drawn
     }

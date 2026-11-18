@@ -1229,8 +1229,8 @@ let steady = stageSnapshot(.dark, art: neon, source: "Spotify")
 let steadyStart = Date()
 for _ in 0..<50 { _ = DashPreview.image(steady, now: now, renderer: stageRenderer) }
 let steadyMs = Date().timeIntervalSince(steadyStart) * 1000 / 50
-check("Música completa sin transición (fondo reutilizado): menos de 15 ms por fotograma", steadyMs < 15,
-      String(format: "%.1f ms de media en esta máquina", steadyMs))
+check("Música completa sin transición (fondo reutilizado): menos de 15 ms por fotograma", steadyMs < 15 * perfLimit / 25,
+      String(format: "%.1f ms de media en esta máquina", steadyMs) + (perfLimit > 25 ? " · máquina Intel de las pruebas: límite 24 ms" : ""))
 
 // 10e. Versión 0.6.3: el mismo reproductor en todos los modos, maniobra compacta en las zonas
 // con mapa, cobertura del mapa guardado y ningún texto cortado.
@@ -2191,6 +2191,35 @@ if let osm = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/zona10.c
                 labelTimes.append(t2.timeIntervalSince(t1) * 1000)
                 cachedTimes.append(t3.timeIntervalSince(t2) * 1000)
             }
+        }
+        // Variantes: imagen girada con suavizado bajo y nombres dibujados letra a letra.
+        var lowTimes: [Double] = []
+        var glyphTimes: [Double] = []
+        scratch.withUnsafeMutableBytes { raw in
+            let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            guard let bctx = CGContext(data: raw.baseAddress, width: 800, height: 400, bitsPerComponent: 8, bytesPerRow: 3200,
+                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
+            let rect = CGRect(x: 0, y: 0, width: 800, height: 400)
+            for i in 0..<10 {
+                let cam = OSMCamera(center: frame.geo(routeShape.point(at: 300 + Double(i) * 30)),
+                                    heading: 35 + Double(i) * 4, metersPerPixel: 1.05, anchor: CGPoint(x: 400, y: 280))
+                OSMBaseCache.interpolation = .low
+                let t0 = Date()
+                perfRenderer.drawOSMBaseCached(osm, cam, night: true, rect, bctx)
+                let t1 = Date()
+                OSMBaseCache.interpolation = .medium
+                OSMLabelCache.useImages = false
+                perfRenderer.drawOSMLabels(osm, cam, night: true, rect, avoid: [], cards: [], bctx)
+                let t2 = Date()
+                OSMLabelCache.useImages = true
+                lowTimes.append(t1.timeIntervalSince(t0) * 1000)
+                glyphTimes.append(t2.timeIntervalSince(t1) * 1000)
+            }
+        }
+        if !lowTimes.isEmpty {
+            report.append(String(format: "nota: variantes (mediana): imagen guardada con suavizado bajo %.1f ms; nombres letra a letra %.1f ms",
+                                 lowTimes.sorted()[lowTimes.count / 2], glyphTimes.sorted()[glyphTimes.count / 2]))
+            print(report.last!)
         }
         if !baseTimes.isEmpty {
             report.append(String(format: "nota: mapa propio por partes (mediana): fondo, parques y calles %.1f ms dibujados en el momento, %.1f ms con la imagen guardada (%d imágenes hechas); nombres %.1f ms",

@@ -20,6 +20,16 @@ enum Demo {
     static let destination = CLLocationCoordinate2D(latitude: 14.5880, longitude: -90.5302)
 
     private static var dumpTimer: Timer?
+    /// Un dibujante por imagen, que se conserva entre volcados (como el de la moto, que guarda la
+    /// imagen del fondo del mapa propio y no la rehace en cada fotograma).
+    private static var renderers: [String: HUDRenderer] = [:]
+
+    private static func renderer(_ key: String, _ width: Int, _ height: Int) -> HUDRenderer {
+        if let r = renderers[key] { return r }
+        let r = HUDRenderer(width: width, height: height)
+        renderers[key] = r
+        return r
+    }
 
     /// Espera a que se cumpla una condición (hasta 40 s) y entonces ejecuta la acción.
     static func when(_ condition: @escaping () -> Bool, _ action: @escaping () -> Void) {
@@ -72,7 +82,7 @@ enum Demo {
         let now = Date()
         let image = renderer.image { context in
             // UIKit ya entrega el contexto con el origen arriba a la izquierda.
-            HUDRenderer(width: width, height: height).drawDashboard(DashState.shared.snapshot(now: now), now: now, in: context.cgContext)
+            renderer("hud", width, height).drawDashboard(DashState.shared.snapshot(now: now), now: now, in: context.cgContext)
         }
         try? image.pngData()?.write(to: folder.appendingPathComponent("hud.png"))
 
@@ -82,7 +92,7 @@ enum Demo {
             s.layout = DashLayout.preset(mode)
             if s.map == nil && s.layout.showsMap && s.mapSettings.provider == .apple { s.map = TFTMap.shared.base(for: s.nav, now: now) }
             let frame = renderer.image { context in
-                HUDRenderer(width: width, height: height).drawDashboard(s, now: now, in: context.cgContext)
+                renderer(mode.rawValue, width, height).drawDashboard(s, now: now, in: context.cgContext)
             }
             try? frame.pngData()?.write(to: folder.appendingPathComponent("hud-\(mode.rawValue).png"))
         }

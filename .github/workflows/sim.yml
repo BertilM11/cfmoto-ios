@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   sim:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,9 @@ jobs:
       - name: Compilar para simulador
         run: |
           set -o pipefail
-          xcodebuild -project CFMotoLink.xcodeproj -scheme CFMotoLink -configuration Debug \
+          # 0.7: compilación optimizada (Release), como la del iPhone: el mapa propio y las rutas
+          # calculadas en el teléfono tardan en el simulador lo que tardarían de verdad.
+          xcodebuild -project CFMotoLink.xcodeproj -scheme CFMotoLink -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath buildsim \
             ARCHS=$(uname -m) ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || true
           grep -E "error:|BUILD SUCCEEDED|BUILD FAILED" build.log | sort -u | head -n 120 || true
@@ -45,7 +47,7 @@ jobs:
       - name: Recorrido de demostración
         if: always()
         run: |
-          APP=buildsim/Build/Products/Debug-iphonesimulator/CFMotoLink.app
+          APP=buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app
           test -d "$APP" || exit 0
           UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; c=[x for k,v in sorted(d.items(), reverse=True) if 'iOS' in k for x in v if x['name'].startswith('iPhone 16')]; print(c[0]['udid'])")
           echo "$UDID" > udid.txt
@@ -55,7 +57,7 @@ jobs:
           xcrun simctl privacy "$UDID" grant location io.github.cfmotolink.app
           xcrun simctl location "$UDID" set 14.6419,-90.5133
           # 0.7: el cuarto dato elige el mapa (osm por defecto, apple para probar el modo Apple).
-          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion" "search 0 lista" "light 0 lista apple" "night 0 lista apple"; do
+          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion" "search 1 lista" "light 1 lista apple" "night 1 lista apple"; do
             set -- $run
             MAPA="${4:-osm}"
             TAG="$1-tab$2$( [ "$MAPA" = osm ] || echo "-$MAPA" )"
@@ -75,7 +77,7 @@ jobs:
       - name: Prueba con la app en segundo plano
         if: always()
         run: |
-          APP=buildsim/Build/Products/Debug-iphonesimulator/CFMotoLink.app
+          APP=buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app
           test -d "$APP" && test -f udid.txt || exit 0
           UDID=$(cat udid.txt)
           mkdir -p shots
