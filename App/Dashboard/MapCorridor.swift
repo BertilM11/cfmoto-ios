@@ -319,6 +319,50 @@ enum CorridorPlanner {
         return out
     }
 
+    /// 0.6.5: imágenes extra para los huecos que `missing` no ve. En una curva cerrada que no
+    /// cuenta como giro (radio de unos 90 a 200 m), la imagen del ancla mira a otro lado a mitad
+    /// del tramo y la siguiente todavía no llega: queda un hueco, pero el ancla ya tiene imagen y
+    /// no se pedía nada más. El guardado se quedaba parado (en la moto: «10.0 km de 21 km»).
+    /// Se pide una imagen justo donde empieza cada hueco, solo en lo ya recorrido por la rejilla
+    /// (lo que está más allá todavía no se ha pedido) y como mucho dos veces por sitio.
+    static func gapFills(route: RoutePath, progress: Double, end: Double, existing: [CorridorEntry],
+                         inFlight: [Double], night: (Double) -> Bool, styleKey: (Bool) -> String,
+                         northUp: Bool, attempts: [Int: Int], limit: Int) -> [CorridorRequest] {
+        guard limit > 0, !route.isEmpty, let reached = existing.map({ $0.anchor }).max() else { return [] }
+        let last = min(end, route.length, reached)
+        guard last > progress else { return [] }
+        var out: [CorridorRequest] = []
+        for g in CorridorCoverage.gapStarts(route: route, from: progress, to: last, entries: existing,
+                                            northUp: northUp, limit: limit * 3) {
+            if out.count >= limit { break }
+            let at = g
+            guard at < route.length - 30 else { continue }
+            if inFlight.contains(where: { abs($0 - at) < 60 }) { continue }
+            if out.contains(where: { abs($0.anchor - at) < 60 }) { continue }
+            if (attempts[Int(at / 25)] ?? 0) >= 2 { continue }
+            let n = night(at)
+            let key = styleKey(n)
+            let h = heading(route: route, at: at, northUp: northUp)
+            if existing.contains(where: { abs($0.anchor - at) < 12 && $0.base.styleKey == key && headingGap($0.base.heading, h) < 20 }) {
+                continue
+            }
+            out.append(CorridorRequest(anchor: at, here: route.point(at: at), heading: h, night: n))
+        }
+        return out
+    }
+
+    /// 0.6.5: junta lo que falta de la rejilla con lo de los huecos, lo más cercano primero y sin
+    /// pedir dos imágenes a menos de 60 m.
+    static func merge(_ grid: [CorridorRequest], _ fills: [CorridorRequest], limit: Int) -> [CorridorRequest] {
+        var out: [CorridorRequest] = []
+        for r in (grid + fills).sorted(by: { $0.anchor < $1.anchor }) {
+            if out.count >= limit { break }
+            if out.contains(where: { abs($0.anchor - r.anchor) < 60 }) && fills.contains(r) { continue }
+            out.append(r)
+        }
+        return out
+    }
+
     /// Al cambiar de ruta (recálculo o ruta nueva) se conservan las imágenes que siguen
     /// sirviendo: la moto pasa por ese punto y en la misma dirección.
     static func retain(_ entries: [CorridorEntry], on route: RoutePath, northUp: Bool, tolerance: Double = 60) -> [CorridorEntry] {
@@ -399,6 +443,38 @@ enum CorridorCoverage {
             d += sample
         }
         return true
+    }
+
+    /// 0.6.5: dónde empieza cada tramo sin imagen (de cerca a lejos), como mucho `limit`.
+    static func gapStarts(route: RoutePath, from progress: Double, to end: Double, entries: [CorridorEntry],
+                          northUp: Bool, limit: Int, sample: Double = 25) -> [Double] {
+        guard limit > 0, !route.isEmpty, end > progress else { return [] }
+        let sorted = entries.sorted { $0.anchor < $1.anchor }
+        let last = min(end, route.length)
+        var out: [Double] = []
+        var inGap = false
+        var lower = 0
+        // Los mismos puntos fijos que `scan` (cada `sample` metros desde el inicio de la ruta).
+        var points: [Double] = [progress]
+        var g = ((progress / sample).rounded(.down) + 1) * sample
+        while g <= last {
+            points.append(g)
+            g += sample
+        }
+        for d in points {
+            if out.count >= limit { break }
+            while lower < sorted.count && sorted[lower].anchor < d - 1500 { lower += 1 }
+            var near: [CorridorEntry] = []
+            var i = lower
+            while i < sorted.count && sorted[i].anchor <= d + 1500 {
+                near.append(sorted[i])
+                i += 1
+            }
+            let ok = usable(near, route: route, at: d, northUp: northUp, style: nil)
+            if !ok && !inGap { out.append(d) }
+            inGap = !ok
+        }
+        return out
     }
 
     static func scan(route: RoutePath, from progress: Double, to end: Double, entries: [CorridorEntry],

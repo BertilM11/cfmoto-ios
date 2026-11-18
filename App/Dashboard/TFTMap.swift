@@ -56,6 +56,8 @@ final class TFTMap {
         /// 0.6.3: estado de la cobertura (completa, guardando o parcial) y avisos de memoria.
         var state = MapCoverageState.none
         var memoryWarnings = 0
+        /// 0.6.5: imágenes extra pedidas para huecos en curvas.
+        var gapFills = 0
     }
 
     private let queue = DispatchQueue(label: "cfmoto.tftmap", qos: .userInitiated)
@@ -124,6 +126,9 @@ final class TFTMap {
     private var pressureUntil: TimeInterval = 0
     private var memoryWarnings = 0
     private var memoryObserver: NSObjectProtocol?
+    /// 0.6.5: imágenes pedidas para huecos de curvas, y cuántas veces por sitio (cada 25 m).
+    private var gapAttempts: [Int: Int] = [:]
+    private var gapFills = 0
 
     private struct Request {
         let here: GeoPoint
@@ -272,6 +277,7 @@ final class TFTMap {
         s.coverage = coverage
         s.state = coverageState()
         s.memoryWarnings = memoryWarnings
+        s.gapFills = gapFills
         return s
     }
 
@@ -579,6 +585,7 @@ final class TFTMap {
             let line = RoutePath(points: pts)
             route = line
             routeGeneration += 1
+            gapAttempts.removeAll()
             turns = line.turns()
             lock.lock()
             let before = entries.count
@@ -650,14 +657,30 @@ final class TFTMap {
         let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + routeTarget, step: step, turns: turns)
         // Velocidad media prevista, para saber a qué hora se pasa por cada tramo (día o noche).
         let speed = n.remainingTime > 1 ? max(5, n.remainingDistance / n.remainingTime) : 11
-        let wanted = CorridorPlanner.missing(
+        let nightAt: (Double) -> Bool = { anchor in
+            let eta = now.addingTimeInterval(max(0, anchor - progress) / speed)
+            return DashState.shared.night(at: eta, place: route.point(at: anchor))
+        }
+        var wanted = CorridorPlanner.missing(
             anchors: anchors, route: route, existing: existing, inFlight: Array(prefetchers.keys),
-            night: { anchor in
-                let eta = now.addingTimeInterval(max(0, anchor - progress) / speed)
-                return DashState.shared.night(at: eta, place: route.point(at: anchor))
-            },
-            styleKey: { s.styleKey(night: $0) }, northUp: s.northUp, step: step, limit: free
+            night: nightAt, styleKey: { s.styleKey(night: $0) }, northUp: s.northUp, step: step, limit: free
         )
+        // 0.6.5: huecos en curvas que la rejilla no ve (el guardado se quedaba parado). Se piden
+        // junto con lo demás, siempre lo más cercano primero.
+        let fills = CorridorPlanner.gapFills(
+            route: route, progress: progress, end: progress + routeTarget, existing: existing,
+            inFlight: Array(prefetchers.keys), night: nightAt, styleKey: { s.styleKey(night: $0) },
+            northUp: s.northUp, attempts: gapAttempts, limit: free
+        )
+        if !fills.isEmpty {
+            let merged = CorridorPlanner.merge(wanted, fills, limit: free)
+            for f in merged where fills.contains(f) {
+                gapAttempts[Int(f.anchor / 25), default: 0] += 1
+                gapFills += 1
+                logLine(String(format: "[MAPA] hueco del mapa guardado a %.1f km (curva): se pide una imagen más", max(0, f.anchor - progress) / 1000))
+            }
+            wanted = merged
+        }
         for r in wanted {
             startPrefetch(r, s: s, distance: distance, pixels: pixels, now: now)
         }

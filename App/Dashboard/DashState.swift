@@ -72,6 +72,20 @@ final class DashState {
 
     /// Tema para un momento y un lugar. Sirve también para preparar el mapa de lo que viene:
     /// un tramo por el que se pasará después del atardecer se guarda ya en oscuro.
+    /// 0.6.5: la moto usa el tema del mapa guardado porque no hay imágenes del tema elegido.
+    private(set) var themeFollowsMap = false
+
+    private func noteThemeFollowsMap(_ follow: Bool, night: Bool) {
+        lock.lock()
+        let changed = follow != themeFollowsMap
+        themeFollowsMap = follow
+        lock.unlock()
+        guard changed else { return }
+        logLine(follow
+            ? "[TEMA] la moto usa el tema del mapa guardado (\(night ? "oscuro" : "claro")) hasta tener imágenes del tema elegido"
+            : "[TEMA] la moto vuelve al tema elegido")
+    }
+
     func night(at date: Date, place: GeoPoint?) -> Bool {
         lock.lock()
         let theme = base.theme
@@ -160,6 +174,12 @@ final class DashState {
                 s.mapFade = fade.t
             }
         }
+        // 0.6.5: el tema de la moto sigue al del mapa que se ve. Con el iPhone bloqueado solo hay
+        // imágenes guardadas; si la que toca es del otro tema (cambio de tema, o el atardecer o el
+        // amanecer llegó antes o después de lo previsto) salía el tema claro con el mapa oscuro.
+        let follow = s.map.map { $0.night != s.night } ?? false
+        if follow, let m = s.map { s.night = m.night }
+        noteThemeFollowsMap(follow, night: s.night)
         return s
     }
 }

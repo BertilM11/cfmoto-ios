@@ -255,6 +255,7 @@ final class Diagnostics {
         if map.routeActive {
             mapRows.append(Row(label: "Mapa seguido por delante", value: Diagnostics.km(continuous) + " de " + Diagnostics.km(map.routeRemaining), warn: !enough))
             mapRows.append(Row(label: "Con imagen en total", value: Diagnostics.km(map.coverage.covered) + " · tramos sin imagen: \(map.coverage.gaps)"))
+            mapRows.append(Row(label: "Imágenes extra para curvas", value: "\(map.gapFills)"))
             mapRows.append(Row(label: "Objetivo de guardado", value: Diagnostics.km(map.target) + String(format: " · una imagen cada %.0f m y en cada giro", map.step)))
         }
         if !map.lastError.isEmpty { mapRows.append(Row(label: "Último error", value: map.lastError, warn: true)) }
@@ -277,6 +278,7 @@ final class Diagnostics {
         out.append(Section(title: "Tema, música y navegación", rows: [
             Row(label: "Tema elegido", value: config.theme.title),
             Row(label: "Tema que se aplica ahora", value: night ? "oscuro (noche)" : "claro (día)"),
+            Row(label: "Tema de la moto", value: DashState.shared.themeFollowsMap ? "el del mapa guardado (hasta tener imágenes del tema elegido)" : "el que se aplica ahora"),
             Row(label: "Estilo del mapa pedido", value: map.wantedStyle.isEmpty ? "—" : map.wantedStyle),
             Row(label: "Servicio de música", value: config.musicProvider.title),
             Row(label: "Spotify", value: SpotifyService.shared.statusText),
