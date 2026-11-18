@@ -56,8 +56,11 @@ final class TFTMap {
         /// 0.6.3: estado de la cobertura (completa, guardando o parcial) y avisos de memoria.
         var state = MapCoverageState.none
         var memoryWarnings = 0
-        /// 0.6.5: imágenes extra pedidas para huecos en curvas.
+        /// 0.6.5: imágenes extra pedidas para huecos que la rejilla no veía.
         var gapFills = 0
+        /// 0.6.5: fallos seguidos al guardar y segundos que faltan para reintentar.
+        var failStreak = 0
+        var retryIn: Double = 0
     }
 
     private let queue = DispatchQueue(label: "cfmoto.tftmap", qos: .userInitiated)
@@ -126,9 +129,15 @@ final class TFTMap {
     private var pressureUntil: TimeInterval = 0
     private var memoryWarnings = 0
     private var memoryObserver: NSObjectProtocol?
-    /// 0.6.5: imágenes pedidas para huecos de curvas, y cuántas veces por sitio (cada 25 m).
+    /// 0.6.5: imágenes pedidas para huecos que la rejilla no vuelve a pedir, y cuántas veces por
+    /// sitio (cada 25 m).
     private var gapAttempts: [Int: Int] = [:]
     private var gapFills = 0
+    /// 0.6.5: tras un fallo de Apple al guardar se espera antes de volver a pedir (2, 4, 8… hasta
+    /// 60 s). Antes se volvía a pedir enseguida, y si Apple estaba limitando las peticiones el
+    /// guardado podía quedarse parado.
+    private var failStreak = 0
+    private var pauseUntil: TimeInterval = 0
 
     private struct Request {
         let here: GeoPoint
@@ -278,6 +287,8 @@ final class TFTMap {
         s.state = coverageState()
         s.memoryWarnings = memoryWarnings
         s.gapFills = gapFills
+        s.failStreak = failStreak
+        s.retryIn = max(0, pauseUntil - t)
         return s
     }
 
@@ -654,6 +665,7 @@ final class TFTMap {
         routeTarget = CorridorPlanner.horizon(remaining: max(0, route.length - progress), capacity: capacity, step: step)
         let free = TFTMap.parallelPrefetch - prefetchers.count
         guard free > 0, existing.count < capacity else { return }
+        guard now.timeIntervalSinceReferenceDate >= pauseUntil else { return }
         let anchors = CorridorPlanner.anchors(route: route, from: progress, to: progress + routeTarget, step: step, turns: turns)
         // Velocidad media prevista, para saber a qué hora se pasa por cada tramo (día o noche).
         let speed = n.remainingTime > 1 ? max(5, n.remainingDistance / n.remainingTime) : 11
@@ -752,7 +764,20 @@ final class TFTMap {
             if failures == 1 || failures % 20 == 0 {
                 logLine("[MAPA] no llegó la imagen de calles: \(lastError)")
             }
+            if req.anchor >= 0 {
+                failStreak += 1
+                let wait = min(60, pow(2, Double(min(6, failStreak))))
+                pauseUntil = Date().timeIntervalSinceReferenceDate + wait
+                if failStreak <= 3 || failStreak % 10 == 0 {
+                    logLine(String(format: "[MAPA] guardado en pausa %.0f s tras %d fallos seguidos de Apple", wait, failStreak))
+                }
+            }
             return
+        }
+        if req.anchor >= 0 {
+            if failStreak > 0 { logLine("[MAPA] Apple vuelve a entregar imágenes: sigue el guardado") }
+            failStreak = 0
+            pauseUntil = 0
         }
         successes += 1
         lastSuccess = Date()

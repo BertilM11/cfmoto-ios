@@ -72,7 +72,8 @@ struct MapCoverageChip: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { _ in
-            let state = TFTMap.shared.stats().state
+            let stats = TFTMap.shared.stats()
+            let state = stats.state
             if state.kind != .none {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -84,6 +85,13 @@ struct MapCoverageChip: View {
                         Text(state.advice)
                             .font(.system(size: 10.5))
                             .foregroundColor(palette.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    // 0.6.5: si Apple no entrega imágenes, decirlo en vez de parecer parado.
+                    if state.kind != .complete && stats.retryIn > 0 {
+                        Text(String(format: "Apple no entregó la última imagen (%@). Reintento en %.0f s.", stats.lastError, stats.retryIn))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundColor(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

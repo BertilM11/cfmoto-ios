@@ -628,8 +628,8 @@ check("Situar un punto en la ruta (a lo largo y de lado)", abs(located.along - 7
       String(format: "%.1f m / %.1f m", located.along, located.offset))
 
 // Imagen guardada de prueba: la misma cámara que pide la app (moto al 72 % del alto).
-func fakeShot(_ here: GeoPoint, heading h: Double, style: String, anchor: Double) -> CorridorEntry? {
-    let v = corridorVisible
+func fakeShot(_ here: GeoPoint, heading h: Double, style: String, anchor: Double, visible: Double = corridorVisible) -> CorridorEntry? {
+    let v = visible
     let ahead = (MapCorridor.puckY - 0.5) * v
     let c = here.moved(ahead, bearing: h)
     func cam(_ g: GeoPoint) -> CGPoint {
@@ -850,9 +850,9 @@ for _ in 0..<20 {
 let scanMs = Date().timeIntervalSince(planStart) * 1000 / 20
 check("Revisar la cobertura de 15 km tarda poco", scanMs < 60, String(format: "%.1f ms", scanMs))
 
-// 10c-bis. Versión 0.6.5: curvas cerradas que no cuentan como giro (radio de 90 a 200 m). La imagen
-// del ancla mira a otro lado a mitad del tramo y la siguiente todavía no llega: quedaba un hueco, el
-// ancla ya tenía imagen y no se pedía nada más. El guardado se quedaba parado (en la moto: 10 de 21 km).
+// 10c-bis. Versión 0.6.5: el guardado no debe quedarse parado.
+// (1) Curvas cerradas que no cuentan como giro (radio de 90 a 200 m): se comprobó que la rejilla
+// las cubre entera; no eran la causa. Queda como prueba de que no empeora.
 func winding(_ start: GeoPoint, _ parts: [(length: Double, turn: Double)]) -> [GeoPoint] {
     var pts = [start]
     var here = start
@@ -869,8 +869,9 @@ func winding(_ start: GeoPoint, _ parts: [(length: Double, turn: Double)]) -> [G
 }
 let curvy = RoutePath(points: winding(corridorStart, [(800, 0), (300, 150), (600, 0), (320, -130), (500, 0),
                                                       (180, 100), (180, -100), (400, 0), (260, 160), (700, 0)]))
-func fillWithGaps(_ route: RoutePath) -> (list: [CorridorEntry], fills: Int, rounds: Int) {
-    var list: [CorridorEntry] = []
+// Lo que hace la app desde la 0.6.5: rejilla + huecos, lo más cercano primero, 3 a la vez.
+func fillWithGaps(_ route: RoutePath, start: [CorridorEntry] = [], shortAt: [Double] = []) -> (list: [CorridorEntry], fills: Int, rounds: Int) {
+    var list = start
     var attempts: [Int: Int] = [:]
     var fills = 0
     var rounds = 0
@@ -892,40 +893,63 @@ func fillWithGaps(_ route: RoutePath) -> (list: [CorridorEntry], fills: Int, rou
         if wanted.isEmpty { break }
         rounds += 1
         for r in wanted {
-            if let e = fakeShot(r.here, heading: r.heading, style: "dia", anchor: r.anchor) { list.append(e) }
+            // Las de `shortAt` llegan cubriendo menos terreno (otra escala).
+            let short = shortAt.contains { abs($0 - r.anchor) < 1 }
+            if let e = fakeShot(r.here, heading: r.heading, style: "dia", anchor: r.anchor,
+                                visible: short ? corridorVisible * 0.3 : corridorVisible) { list.append(e) }
         }
         list.sort { $0.anchor < $1.anchor }
     }
     return (list, fills, rounds)
 }
 let curvyTurns = curvy.turns()
-let curvyOld = fillCorridor(curvy, from: 0, existing: [])
-let curvyOldCoverage = CorridorCoverage.scan(route: curvy, from: 0, to: curvy.length, entries: curvyOld, northUp: false)
+let curvyGrid = fillCorridor(curvy, from: 0, existing: [])
+let curvyGridCoverage = CorridorCoverage.scan(route: curvy, from: 0, to: curvy.length, entries: curvyGrid, northUp: false)
 let curvyNew = fillWithGaps(curvy)
 let curvyNewCoverage = CorridorCoverage.scan(route: curvy, from: 0, to: curvy.length, entries: curvyNew.list, northUp: false)
 check("Ruta de curvas cerradas de prueba (4,2 km, ninguna cuenta como giro)",
       abs(curvy.length - 4240) < 30 && curvyTurns.isEmpty, String(format: "%.0f m, %d giros", curvy.length, curvyTurns.count))
-check("0.6.5: sin rellenar huecos, el guardado se queda parado en la primera curva (lo que pasó en la moto)",
-      curvyOldCoverage.continuous < curvy.length - 300,
-      String(format: "%.1f de %.1f km seguidos, %d huecos, %d imágenes", curvyOldCoverage.continuous / 1000, curvy.length / 1000, curvyOldCoverage.gaps, curvyOld.count))
-check("0.6.5: con las imágenes extra para curvas la ruta queda guardada entera",
-      curvyNewCoverage.continuous >= curvy.length - 30 && curvyNewCoverage.gaps == 0,
-      String(format: "%.1f km seguidos, %d huecos; %d imágenes (%d extra para curvas)", curvyNewCoverage.continuous / 1000,
-             curvyNewCoverage.gaps, curvyNew.list.count, curvyNew.fills))
-check("0.6.5: las imágenes extra son pocas (menos que las de la rejilla) y se termina de pedir",
-      curvyNew.fills > 0 && curvyNew.fills < curvyOld.count && curvyNew.rounds < 80,
-      "\(curvyNew.fills) extra frente a \(curvyOld.count) de la rejilla, \(curvyNew.rounds) rondas")
-let straightGaps = fillWithGaps(corridorRoute)
-check("0.6.5: en la ruta de 15 km sin curvas cerradas no se pide nada extra", straightGaps.fills == 0,
-      "\(straightGaps.fills) extra, \(straightGaps.list.count) imágenes")
-let stuckAgain = CorridorPlanner.gapFills(route: curvy, progress: 0, end: curvy.length, existing: curvyNew.list, inFlight: [],
+check("Curvas cerradas: la rejilla las guarda enteras (no eran la causa de quedarse parado)",
+      curvyGridCoverage.continuous >= curvy.length - 30 && curvyGridCoverage.gaps == 0,
+      String(format: "%.1f de %.1f km seguidos, %d imágenes", curvyGridCoverage.continuous / 1000, curvy.length / 1000, curvyGrid.count))
+check("0.6.5: en curvas y en la ruta de 15 km no se pide ninguna imagen extra",
+      curvyNew.fills == 0 && fillWithGaps(corridorRoute).fills == 0 && curvyNewCoverage.continuous >= curvy.length - 30,
+      "\(curvyNew.fills) extra en curvas")
+// (2) Una imagen que llega cubriendo menos de lo previsto deja un hueco que la rejilla ya no vuelve
+// a pedir (su ancla ya tiene imagen): así el guardado se quedaría parado en ese punto.
+let shortAnchors = CorridorPlanner.anchors(route: corridorRoute, from: 0, to: corridorRoute.length, step: corridorStep, turns: corridorTurns)
+    .filter { $0 > 2900 && $0 < 3300 }
+var shortList = fullCorridor.filter { e in !shortAnchors.contains { abs($0 - e.anchor) < 1 } }
+for a in shortAnchors {
+    if let e = fakeShot(corridorRoute.point(at: a), heading: CorridorPlanner.heading(route: corridorRoute, at: a, northUp: false),
+                        style: "dia", anchor: a, visible: corridorVisible * 0.3) { shortList.append(e) }
+}
+shortList.sort { $0.anchor < $1.anchor }
+let shortCoverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: shortList, northUp: false)
+let shortGrid = CorridorPlanner.missing(anchors: CorridorPlanner.anchors(route: corridorRoute, from: 0, to: corridorRoute.length, step: corridorStep, turns: corridorTurns),
+                                        route: corridorRoute, existing: shortList, inFlight: [], night: { _ in false },
+                                        styleKey: { $0 ? "noche" : "dia" }, northUp: false, step: corridorStep, limit: 50)
+check("Si una imagen cubre menos de lo previsto queda un hueco que la rejilla no vuelve a pedir (se quedaría parado)",
+      shortCoverage.gaps >= 1 && shortCoverage.continuous < 3400 && shortGrid.isEmpty,
+      String(format: "seguido %.1f km, %d huecos, %d pedidas por la rejilla", shortCoverage.continuous / 1000, shortCoverage.gaps, shortGrid.count))
+let shortFixed = fillWithGaps(corridorRoute, start: shortList)
+let shortFixedCoverage = CorridorCoverage.scan(route: corridorRoute, from: 0, to: corridorRoute.length, entries: shortFixed.list, northUp: false)
+check("0.6.5: se piden imágenes justo en el hueco y la ruta queda guardada entera",
+      shortFixedCoverage.continuous >= corridorRoute.length - 30 && shortFixedCoverage.gaps == 0 && shortFixed.fills > 0 && shortFixed.fills <= 6,
+      String(format: "%.1f km seguidos, %d huecos, %d imágenes extra", shortFixedCoverage.continuous / 1000, shortFixedCoverage.gaps, shortFixed.fills))
+let stuckAgain = CorridorPlanner.gapFills(route: corridorRoute, progress: 0, end: corridorRoute.length, existing: shortFixed.list, inFlight: [],
                                           night: { _ in false }, styleKey: { $0 ? "noche" : "dia" }, northUp: false,
                                           attempts: [:], limit: 3)
 check("0.6.5: con la ruta guardada entera ya no se piden más imágenes extra", stuckAgain.isEmpty, "\(stuckAgain.count)")
-let noLoop = CorridorPlanner.gapFills(route: curvy, progress: 0, end: curvy.length, existing: curvyOld, inFlight: [],
+let noLoop = CorridorPlanner.gapFills(route: corridorRoute, progress: 0, end: corridorRoute.length, existing: shortList, inFlight: [],
                                       night: { _ in false }, styleKey: { $0 ? "noche" : "dia" }, northUp: false,
-                                      attempts: Dictionary(uniqueKeysWithValues: (0..<400).map { ($0, 2) }), limit: 3)
+                                      attempts: Dictionary(uniqueKeysWithValues: (0..<700).map { ($0, 2) }), limit: 3)
 check("0.6.5: un hueco que no se llena tras dos intentos no se pide sin fin", noLoop.isEmpty, "\(noLoop.count)")
+let notAhead = CorridorPlanner.gapFills(route: corridorRoute, progress: 0, end: corridorRoute.length,
+                                        existing: fullCorridor.filter { $0.anchor < 2000 }, inFlight: [],
+                                        night: { _ in false }, styleKey: { $0 ? "noche" : "dia" }, northUp: false,
+                                        attempts: [:], limit: 3)
+check("0.6.5: lo que la rejilla todavía no pidió no se toma por hueco", notAhead.isEmpty, "\(notAhead.count)")
 
 // 10d. Versión 0.6.2: hora actual fija, llegada con su nombre, maniobra compacta y música completa.
 let fullImage = CGRect(x: 0, y: 0, width: W, height: H)

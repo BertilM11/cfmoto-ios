@@ -255,7 +255,10 @@ final class Diagnostics {
         if map.routeActive {
             mapRows.append(Row(label: "Mapa seguido por delante", value: Diagnostics.km(continuous) + " de " + Diagnostics.km(map.routeRemaining), warn: !enough))
             mapRows.append(Row(label: "Con imagen en total", value: Diagnostics.km(map.coverage.covered) + " · tramos sin imagen: \(map.coverage.gaps)"))
-            mapRows.append(Row(label: "Imágenes extra para curvas", value: "\(map.gapFills)"))
+            mapRows.append(Row(label: "Imágenes extra para huecos", value: "\(map.gapFills)"))
+            if map.failStreak > 0 {
+                mapRows.append(Row(label: "Fallos seguidos de Apple", value: String(format: "%d · reintento en %.0f s", map.failStreak, map.retryIn), warn: true))
+            }
             mapRows.append(Row(label: "Objetivo de guardado", value: Diagnostics.km(map.target) + String(format: " · una imagen cada %.0f m y en cada giro", map.step)))
         }
         if !map.lastError.isEmpty { mapRows.append(Row(label: "Último error", value: map.lastError, warn: true)) }
