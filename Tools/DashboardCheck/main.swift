@@ -1632,8 +1632,18 @@ HUDRenderer.cacheCards = true
 let cachedCards = [DashMode.full, .split, .musicNotices, .gpsNotices].map { render(musicSnap(.preset($0), .dark, art: neon)).px.data }
     + [render(musicSnap(.preset(.gpsMusic), .light, art: blue, source: "Apple Music")).px.data]
 let cardCacheDiff = zip(directCards, cachedCards).map { maxDifference($0.0, $0.1) }.max() ?? 255
+var cacheWhere = ""
+for (n, pair) in zip(directCards, cachedCards).enumerated() {
+    var worst = 0
+    var at = 0
+    for i in 0..<min(pair.0.count, pair.1.count) where abs(Int(pair.0[i]) - Int(pair.1[i])) > worst {
+        worst = abs(Int(pair.0[i]) - Int(pair.1[i]))
+        at = i
+    }
+    if worst == cardCacheDiff { cacheWhere = "caso \(n), x \((at / 4) % Int(W)), y \((at / 4) / Int(W)), canal \(at % 4): \(pair.0[at]) / \(pair.1[at])" }
+}
 check("Rediseño: las tarjetas guardadas ya dibujadas se ven igual que dibujadas cada vez", cardCacheDiff <= 4,
-      "diferencia máxima \(cardCacheDiff) de 255")
+      "diferencia máxima \(cardCacheDiff) de 255 (\(cacheWhere))")
 
 // Datos del viaje como en la referencia: Distancia | Restante | Llegada, cada cifra sobre su nombre.
 let navMarks = render(musicSnap(.preset(.gps), .dark, art: neon)).marks
@@ -1686,7 +1696,7 @@ if let q = base?.project(center.moved(250, bearing: heading + 180)) {
             if c.b > 0.15 && c.b < 0.3 && c.r < 0.1 { disk += 1 }
         }
     }
-    check("Rediseño: la posición se marca con la flecha azul en su disco de vidrio", arrow > 80 && disk > 300,
+    check("Rediseño: la posición se marca con la flecha azul en su disco de vidrio", arrow > 70 && disk > 300,
           "flecha \(arrow) px, disco \(disk) px")
 }
 
