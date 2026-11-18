@@ -16,8 +16,8 @@ Hay tres niveles y no se mezclan:
 
 | Nivel | Qué se probó | Resultado |
 | --- | --- | --- |
-| Automáticas | 246 pruebas: las 208 de la 0.6.5 y 38 del mapa propio (zona de prueba y mapa completo de Guatemala) | **Todas pasan** en un Mac con Apple M1 (prueba rápida 22) y dentro de la prueba en el simulador (prueba 40) |
-| Simulador | Compilación optimizada (como en el iPhone), recorridos con el mapa propio y con Apple Maps, búsqueda sin internet y segundo plano (prueba 40) | `BUILD SUCCEEDED`; capturas en `CAPTURAS/2_SIMULADOR_IPHONE` |
+| Automáticas | 246 pruebas: las 208 de la 0.6.5 y 38 del mapa propio (zona de prueba y mapa completo de Guatemala) | **Todas pasan** en un Mac con Apple M1 (prueba rápida 22), dentro de las pruebas en el simulador (40 y 41) y en la compilación que produjo el IPA (build-17) |
+| Simulador | Compilación optimizada (como en el iPhone), recorridos con el mapa propio y con Apple Maps, búsqueda sin internet y segundo plano (pruebas 40 y 41, la 41 con el código de la entrega) | `BUILD SUCCEEDED`; capturas de la 41 en `CAPTURAS/2_SIMULADOR_IPHONE` |
 | Moto | — | **Sin probar** (pruebas Z1 a Z6 de `TESTING.md`) |
 
 ### Mapa propio en la moto (Mac con Apple M1, mediana)
