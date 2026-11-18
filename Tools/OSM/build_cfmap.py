@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Convierte un extracto de OpenStreetMap (.osm.pbf) en el archivo de mapa de CFMoto Link (.cfmap).
 
-Uso: build_cfmap.py entrada.osm.pbf salida.cfmap [--bbox lon0,lat0,lon1,lat1]
+Uso: build_cfmap.py entrada.osm.pbf salida.cfmap [--bbox lon0,lat0,lon1,lat1] [--date AAAA-MM-DDTHH:MM:SSZ]
 
 El archivo guarda, por cuadros de 0,01° (unos 1,1 km), las calles (clase, sentido, nombre y
 puntos), los parques, el agua y los ríos, comprimidos cada uno por separado (deflate sin
@@ -14,7 +14,11 @@ Formato (little-endian):
             u32 columnas, u32 filas, u64 fecha de los datos (unix),
             u64 posición de los nombres, u64 de los lugares, u64 del índice, u64 de los datos
   nombres   u32 n, n × u32 desplazamiento, UTF-8 seguido (desplazamientos relativos al texto)
-  lugares   n × (i32 lon, i32 lat, u32 nombre, u8 tipo, u8 relleno ×3)
+  lugares   n × (i32 lon, i32 lat, u32 nombre, u8 tipo, u8 relleno, u16 municipio)
+            tipo: el bit 0x80 marca otro nombre (alt_name…) del lugar anterior. Versión 2: los
+            primeros lugares son los departamentos (41) y municipios (40) de OpenStreetMap, y el
+            u16 de cada lugar es el índice de su municipio (de su departamento, en un municipio;
+            0xFFFF si no hay). En la versión 1 ese campo no existía (relleno a cero).
   índice    n × (u32 clave = fila*columnas+columna, u32 desplazamiento, u32 tamaño, u32 tamaño sin comprimir)
   datos     por cuadro (deflate): u16 calles, u16 áreas, u16 líneas y luego cada una:
             calle: u8 clase|banderas, u8 sentido, u32 nombre, u16 n, puntos
@@ -28,7 +32,9 @@ import struct
 import sys
 import time
 import zlib
+from datetime import datetime, timezone
 
+import numpy as np
 import osmium
 
 STEP = 10000          # 0,01° en 1e-6°
@@ -58,6 +64,9 @@ EXTRA = {('amenity', 'bus_station'): 28, ('leisure', 'stadium'): 29, ('amenity',
          ('aeroway', 'aerodrome'): 32}
 # Otros nombres con los que también se busca un lugar («Xela», «La Aurora»…).
 ALT_NAMES = ('alt_name', 'short_name', 'loc_name', 'official_name', 'name:es')
+# Límites administrativos que dan el «dónde» de cada lugar: departamentos y municipios.
+ADMIN_LEVELS = {'4': 41, '6': 40}
+ALIAS = 0x80
 
 
 def place_kind(t):
@@ -85,6 +94,8 @@ class Reader(osmium.SimpleHandler):
         self.lines = []      # (tipo, [(lon, lat)…])
         self.places = []     # (lon, lat, nombre, tipo)
         self.names = {}
+        self.admin = []      # (tipo 41/40, nombre, [anillos exteriores])
+        self.admin_levels = {}
 
     def name_id(self, text):
         if not text:
@@ -114,7 +125,7 @@ class Reader(osmium.SimpleHandler):
         if self.inside(lon, lat):
             self.places.append((q(lon), q(lat), self.name_id(name), kind))
             for alt in self.alt_names(t, name):
-                self.places.append((q(lon), q(lat), self.name_id(alt), kind))
+                self.places.append((q(lon), q(lat), self.name_id(alt), kind | ALIAS))
 
     @staticmethod
     def alt_names(t, name):
@@ -167,6 +178,19 @@ class Reader(osmium.SimpleHandler):
 
     def area(self, a):
         t = a.tags
+        if t.get('boundary') == 'administrative':
+            level = t.get('admin_level', '')
+            self.admin_levels[level] = self.admin_levels.get(level, 0) + 1
+            name = t.get('name')
+            if level in ADMIN_LEVELS and name:
+                try:
+                    rings = [[(n.lon, n.lat) for n in outer] for outer in a.outer_rings()]
+                    rings = [ring for ring in rings if len(ring) >= 4]
+                    if rings:
+                        self.admin.append((ADMIN_LEVELS[level], name, rings))
+                except osmium.InvalidLocationError:
+                    pass
+            return
         # Lugares dibujados como edificio o terreno (centros comerciales, hospitales…): se
         # buscan en el centro de su contorno.
         poi = place_kind(t)
@@ -181,7 +205,7 @@ class Reader(osmium.SimpleHandler):
                         if self.inside(lon, lat):
                             self.places.append((q(lon), q(lat), self.name_id(name), poi))
                             for alt in self.alt_names(t, name):
-                                self.places.append((q(lon), q(lat), self.name_id(alt), poi))
+                                self.places.append((q(lon), q(lat), self.name_id(alt), poi | ALIAS))
                     break
             except osmium.InvalidLocationError:
                 pass
@@ -300,12 +324,123 @@ def simplify(pts, tol):
     return [p for p, k in zip(pts, keep) if k]
 
 
-def build(src, dst, bbox=None):
+def simplify_ring(pts, tol):
+    """Douglas–Peucker para un anillo cerrado (el primer punto se repite al final): se parte en
+    dos por el punto más lejano al primero, para que el método no se quede sin referencia."""
+    if len(pts) < 5:
+        return pts
+    x0, y0 = pts[0]
+    k = max(range(len(pts)), key=lambda i: (pts[i][0] - x0) ** 2 + (pts[i][1] - y0) ** 2)
+    if k == 0 or k == len(pts) - 1:
+        return pts
+    a = simplify(pts[:k + 1], tol)
+    b = simplify(pts[k:], tol)
+    return a[:-1] + b
+
+
+def ring_area(arr):
+    x, y = arr[:, 0], arr[:, 1]
+    return abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1))) / 2
+
+
+def inside_ring(arr, pts):
+    """Qué puntos (M×2) caen dentro del anillo (N×2), por el método del rayo."""
+    x, y = pts[:, 0], pts[:, 1]
+    res = np.zeros(len(pts), dtype=bool)
+    xs, ys = arr[:, 0], arr[:, 1]
+    xj, yj = np.roll(xs, 1), np.roll(ys, 1)
+    for xi, yi, xk, yk in zip(xs, ys, xj, yj):
+        if yi == yk:
+            continue
+        cross = (yi > y) != (yk > y)
+        if not cross.any():
+            continue
+        res ^= cross & (x < (xk - xi) * (y - yi) / (yk - yi) + xi)
+    return res
+
+
+def assign_admin(r):
+    """Pone primero los departamentos y municipios y apunta cada lugar a su municipio."""
+    polys = []   # (tipo, nombre, [anillos np], área, caja)
+    for kind, name, rings in r.admin:
+        arrs = []
+        for ring in rings:
+            qr = simplify_ring([(q(x), q(y)) for x, y in ring], 300)   # unos 33 m
+            if len(qr) >= 4:
+                arrs.append(np.array(qr, dtype=np.float64))
+        if not arrs:
+            continue
+        area = sum(ring_area(a) for a in arrs)
+        allpts = np.concatenate(arrs)
+        box = (allpts[:, 0].min(), allpts[:, 1].min(), allpts[:, 0].max(), allpts[:, 1].max())
+        polys.append((kind, name, arrs, area, box))
+    depts = [p for p in polys if p[0] == 41]
+    munis = [p for p in polys if p[0] == 40]
+    ordered = depts + munis
+
+    def locate(pts, group, offset):
+        best = np.full(len(pts), -1, dtype=np.int64)
+        best_area = np.full(len(pts), np.inf)
+        for i, (kind, name, arrs, area, box) in enumerate(group):
+            m = (pts[:, 0] >= box[0]) & (pts[:, 0] <= box[2]) & (pts[:, 1] >= box[1]) & (pts[:, 1] <= box[3])
+            idx = np.nonzero(m)[0]
+            if len(idx) == 0:
+                continue
+            sub = pts[idx]
+            hit = np.zeros(len(idx), dtype=bool)
+            for a in arrs:
+                hit |= inside_ring(a, sub)
+            win = idx[hit & (area < best_area[idx])]
+            best[win] = offset + i
+            best_area[win] = area
+        return best
+
+    reps = []
+    for kind, name, arrs, area, box in ordered:
+        big = max(arrs, key=ring_area)
+        reps.append((int(big[:, 0].mean()), int(big[:, 1].mean())))
+    admin_places = []
+    rep_pts = np.array(reps, dtype=np.float64) if reps else np.zeros((0, 2))
+    muni_dept = locate(rep_pts[len(depts):], depts, 0) if len(munis) else np.zeros(0, dtype=np.int64)
+    for i, (kind, name, arrs, area, box) in enumerate(ordered):
+        parent = 0xFFFF
+        if kind == 40 and muni_dept[i - len(depts)] >= 0:
+            parent = int(muni_dept[i - len(depts)])
+        admin_places.append((reps[i][0], reps[i][1], r.name_id(name), kind, parent))
+
+    pts = np.array([(x, y) for x, y, n, k in r.places], dtype=np.float64) if r.places else np.zeros((0, 2))
+    muni = locate(pts, munis, len(depts)) if munis else np.full(len(pts), -1)
+    dept = locate(pts, depts, 0) if depts else np.full(len(pts), -1)
+    out = list(admin_places)
+    for (x, y, n, k), mi, di in zip(r.places, muni, dept):
+        owner = int(mi) if mi >= 0 else (int(di) if di >= 0 else 0xFFFF)
+        out.append((x, y, n, k, owner))
+    print(f'límites: {len(depts)} departamentos, {len(munis)} municipios; niveles en el archivo: '
+          f'{dict(sorted(r.admin_levels.items()))}; lugares sin municipio: {int((muni < 0).sum())} de {len(pts)}',
+          file=sys.stderr)
+    return out
+
+
+def data_date(src):
+    """Fecha de los datos de OpenStreetMap (de la cabecera del archivo, si la trae)."""
+    try:
+        h = osmium.io.Reader(src, osmium.osm.osm_entity_bits.NOTHING).header()
+        ts = h.get('osmosis_replication_timestamp')
+        if ts:
+            return int(datetime.strptime(ts, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).timestamp())
+    except Exception:
+        pass
+    return None
+
+
+def build(src, dst, bbox=None, date=None):
     t0 = time.time()
     r = Reader(bbox)
     r.apply_file(src, locations=True, idx='flex_mem')
     print(f'leído: {len(r.roads)} calles, {len(r.areas)} áreas, {len(r.lines)} ríos, {len(r.places)} lugares, '
           f'{len(r.names)} nombres ({time.time() - t0:.0f} s)', file=sys.stderr)
+    # Antes de escribir la tabla de nombres: los municipios añaden los suyos.
+    places = assign_admin(r)
 
     tiles = {}   # (fila, col) -> {'roads': [], 'areas': [], 'lines': []}
     def tile(key):
@@ -371,7 +506,7 @@ def build(src, dst, bbox=None):
         offsets.append(len(name_bytes))
         name_bytes += text.encode('utf-8')
     name_sec = struct.pack('<I', len(names)) + b''.join(struct.pack('<I', o) for o in offsets) + bytes(name_bytes)
-    place_sec = b''.join(struct.pack('<iiIBxxx', x, y, n, k) for x, y, n, k in r.places)
+    place_sec = b''.join(struct.pack('<iiIBxH', x, y, n, k, owner) for x, y, n, k, owner in places)
 
     header_len = 8 + 4 * 4 + 4 * 3 + 4 * 2 + 8 + 8 * 4
     pos_names = header_len
@@ -383,8 +518,8 @@ def build(src, dst, bbox=None):
     for key, comp, rawlen in blobs:
         index += struct.pack('<IIII', key, len(data), len(comp), rawlen)
         data += comp
-    stamp = int(time.time())
-    header = (b'CFMAP1\0\0' + struct.pack('<IIII', 1, len(blobs), len(names), len(r.places)) +
+    stamp = date or data_date(src) or int(time.time())
+    header = (b'CFMAP1\0\0' + struct.pack('<IIII', 2, len(blobs), len(names), len(places)) +
               struct.pack('<iii', col0 * STEP, row0 * STEP, STEP) + struct.pack('<II', ncols, nrows) +
               struct.pack('<Q', stamp) + struct.pack('<QQQQ', pos_names, pos_places, pos_index, pos_data))
     assert len(header) == header_len
@@ -407,4 +542,9 @@ if __name__ == '__main__':
         i = args.index('--bbox')
         bbox = tuple(float(v) for v in args[i + 1].split(','))
         del args[i:i + 2]
-    build(args[0], args[1], bbox)
+    date = None
+    if '--date' in args:
+        i = args.index('--date')
+        date = int(datetime.strptime(args[i + 1], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).timestamp())
+        del args[i:i + 2]
+    build(args[0], args[1], bbox, date)

@@ -22,9 +22,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p App/Map
-          gh release download mapa-guatemala -p Guatemala.cfmap -D App/Map --clobber
-          GOT=$(shasum -a 256 App/Map/Guatemala.cfmap | cut -d' ' -f1)
           WANT=$(cut -d' ' -f1 Tools/OSM/Guatemala.cfmap.sha256)
+          gh release download mapa-guatemala -p "Guatemala-${WANT:0:8}.cfmap" -D App/Map --clobber
+          mv "App/Map/Guatemala-${WANT:0:8}.cfmap" App/Map/Guatemala.cfmap
+          GOT=$(shasum -a 256 App/Map/Guatemala.cfmap | cut -d' ' -f1)
           echo "SHA-256 del mapa: $GOT (esperado $WANT)"
           test "$GOT" = "$WANT"
       - name: Instalar XcodeGen

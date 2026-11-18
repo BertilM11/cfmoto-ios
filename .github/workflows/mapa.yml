@@ -20,7 +20,7 @@ jobs:
       - name: Herramientas
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
-          python3 -m pip install --quiet --break-system-packages osmium
+          python3 -m pip install --quiet --break-system-packages osmium numpy
       - name: Descargar Guatemala (Geofabrik)
         run: curl -sSfL -o gt.osm.pbf https://download.geofabrik.de/central-america/guatemala-latest.osm.pbf && ls -la gt.osm.pbf
       - name: Filtrar (calles, agua, parques y lugares con nombre)
@@ -28,12 +28,14 @@ jobs:
           osmium tags-filter gt.osm.pbf w/highway w/waterway w/natural=water r/natural=water \
             w/leisure=park,garden,recreation_ground,golf_course,stadium w/landuse=grass,forest,recreation_ground,reservoir w/natural=wood \
             r/leisure=park r/landuse=forest r/natural=wood \
-            n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium nwr/aeroway=aerodrome -o filtrado.osm.pbf
+            n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium nwr/aeroway=aerodrome \
+            r/boundary=administrative -o filtrado.osm.pbf
           ls -la filtrado.osm.pbf
       - name: Convertir al formato de la app
         run: |
           mkdir -p out
-          python3 Tools/OSM/build_cfmap.py filtrado.osm.pbf out/Guatemala.cfmap
+          FECHA=$(osmium fileinfo -g header.option.osmosis_replication_timestamp gt.osm.pbf || true)
+          python3 Tools/OSM/build_cfmap.py filtrado.osm.pbf out/Guatemala.cfmap ${FECHA:+--date $FECHA}
           cd out
           sha256sum Guatemala.cfmap > Guatemala.cfmap.sha256
           {
@@ -54,7 +56,12 @@ jobs:
           gh release view mapa-guatemala >/dev/null 2>&1 || gh release create mapa-guatemala --latest=false \
             --title "Mapa de Guatemala (OpenStreetMap)" \
             --notes "Mapa propio de CFMoto Link, armado con datos de © colaboradores de OpenStreetMap bajo la licencia ODbL 1.0. Lo usan las compilaciones de la app; ver FUENTE.txt."
-          gh release upload mapa-guatemala out/Guatemala.cfmap out/Guatemala.cfmap.sha256 out/FUENTE.txt --clobber
+          # Cada mapa queda también con su huella en el nombre: las compilaciones piden el suyo.
+          SHA8=$(cut -c1-8 out/Guatemala.cfmap.sha256)
+          cp out/Guatemala.cfmap "out/Guatemala-$SHA8.cfmap"
+          cp out/FUENTE.txt "out/FUENTE-$SHA8.txt"
+          gh release upload mapa-guatemala out/Guatemala.cfmap "out/Guatemala-$SHA8.cfmap" out/Guatemala.cfmap.sha256 out/FUENTE.txt "out/FUENTE-$SHA8.txt" --clobber
+          rm "out/Guatemala-$SHA8.cfmap" "out/FUENTE-$SHA8.txt"
       - name: Copia en la rama ci-mapa
         env:
           GH_TOKEN: ${{ github.token }}

@@ -21,8 +21,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download mapa-guatemala -p Guatemala.cfmap -D Tools/DashboardCheck --clobber
-          shasum -a 256 Tools/DashboardCheck/Guatemala.cfmap
+          WANT=$(cut -d' ' -f1 Tools/OSM/Guatemala.cfmap.sha256)
+          gh release download mapa-guatemala -p "Guatemala-${WANT:0:8}.cfmap" -D Tools/DashboardCheck --clobber
+          mv "Tools/DashboardCheck/Guatemala-${WANT:0:8}.cfmap" Tools/DashboardCheck/Guatemala.cfmap
+          test "$(shasum -a 256 Tools/DashboardCheck/Guatemala.cfmap | cut -d' ' -f1)" = "$WANT"
       - name: Pruebas y láminas del panel
         run: |
           mkdir -p shots
