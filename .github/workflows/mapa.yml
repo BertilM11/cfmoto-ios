@@ -1,0 +1,67 @@
+name: Mapa de Guatemala (OpenStreetMap)
+
+# Arma el mapa propio de la app (Guatemala.cfmap) con los datos de OpenStreetMap de Geofabrik
+# y lo publica en la versión «mapa-guatemala» del repositorio, bajo la licencia ODbL.
+# Las compilaciones descargan ese archivo y comprueban su SHA-256 con App/Map/Guatemala.cfmap.sha256.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['wip/mapa-**']
+
+permissions:
+  contents: write
+
+jobs:
+  mapa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Herramientas
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
+          python3 -m pip install --quiet --break-system-packages osmium
+      - name: Descargar Guatemala (Geofabrik)
+        run: curl -sSfL -o gt.osm.pbf https://download.geofabrik.de/central-america/guatemala-latest.osm.pbf && ls -la gt.osm.pbf
+      - name: Filtrar (calles, agua, parques y lugares con nombre)
+        run: |
+          osmium tags-filter gt.osm.pbf w/highway w/waterway w/natural=water r/natural=water \
+            w/leisure=park,garden,recreation_ground,golf_course,stadium w/landuse=grass,forest,recreation_ground,reservoir w/natural=wood \
+            r/leisure=park r/landuse=forest r/natural=wood \
+            n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium -o filtrado.osm.pbf
+          ls -la filtrado.osm.pbf
+      - name: Convertir al formato de la app
+        run: |
+          mkdir -p out
+          python3 Tools/OSM/build_cfmap.py filtrado.osm.pbf out/Guatemala.cfmap
+          cd out
+          sha256sum Guatemala.cfmap > Guatemala.cfmap.sha256
+          {
+            echo "Mapa de Guatemala para CFMoto Link"
+            echo "Datos: © colaboradores de OpenStreetMap (openstreetmap.org/copyright)"
+            echo "Licencia de la base de datos: Open Database License (ODbL) 1.0"
+            echo "Fuente: download.geofabrik.de/central-america/guatemala-latest.osm.pbf"
+            osmium fileinfo -g header.option.osmosis_replication_timestamp ../gt.osm.pbf | sed 's/^/Fecha de los datos: /' || true
+            echo "Armado: $(date -u +%Y-%m-%dT%H:%MZ) con Tools/OSM/build_cfmap.py (commit ${GITHUB_SHA})"
+            ls -la Guatemala.cfmap | awk '{print "Tamaño: " $5 " bytes"}'
+            cat Guatemala.cfmap.sha256
+          } > FUENTE.txt
+          cat FUENTE.txt
+      - name: Publicar en la versión mapa-guatemala
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view mapa-guatemala >/dev/null 2>&1 || gh release create mapa-guatemala --latest=false \
+            --title "Mapa de Guatemala (OpenStreetMap)" \
+            --notes "Mapa propio de CFMoto Link, armado con datos de © colaboradores de OpenStreetMap bajo la licencia ODbL 1.0. Lo usan las compilaciones de la app; ver FUENTE.txt."
+          gh release upload mapa-guatemala out/Guatemala.cfmap out/Guatemala.cfmap.sha256 out/FUENTE.txt --clobber
+      - name: Copia en la rama ci-mapa
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd out
+          git init -q -b ci-mapa
+          git add .
+          git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -qm "Mapa ${{ github.run_number }}"
+          git remote add origin "https://github.com/${{ github.repository }}.git"
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push -q -f origin ci-mapa

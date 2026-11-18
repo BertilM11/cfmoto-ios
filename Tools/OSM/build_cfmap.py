@@ -52,6 +52,21 @@ AMENITIES = {'fuel': 10, 'hospital': 11, 'clinic': 11, 'police': 12, 'university
              'school': 14, 'marketplace': 15, 'bank': 16, 'restaurant': 17, 'fast_food': 17, 'cafe': 17,
              'pharmacy': 18, 'parking': 19, 'place_of_worship': 20}
 SHOPS = {'mall': 21, 'supermarket': 22, 'motorcycle': 23, 'car_repair': 24, 'hardware': 25}
+TOURISM = {'hotel': 26, 'motel': 26, 'guest_house': 26, 'hostel': 26,
+           'attraction': 27, 'museum': 27, 'viewpoint': 27}
+EXTRA = {('amenity', 'bus_station'): 28, ('leisure', 'stadium'): 29, ('amenity', 'townhall'): 31}
+
+
+def place_kind(t):
+    """Tipo de lugar buscable de un objeto (0 si no se busca)."""
+    kind = (PLACES.get(t.get('place', '')) or AMENITIES.get(t.get('amenity', '')) or
+            SHOPS.get(t.get('shop', '')) or TOURISM.get(t.get('tourism', '')))
+    if kind:
+        return kind
+    for (k, v), extra in EXTRA.items():
+        if t.get(k) == v:
+            return extra
+    return 0
 
 
 def q(v):
@@ -88,7 +103,7 @@ class Reader(osmium.SimpleHandler):
 
     def node(self, n):
         t = n.tags
-        kind = PLACES.get(t.get('place', '')) or AMENITIES.get(t.get('amenity', '')) or SHOPS.get(t.get('shop', ''))
+        kind = place_kind(t)
         name = t.get('name')
         if not kind or not name or not n.location.valid():
             return
@@ -137,6 +152,22 @@ class Reader(osmium.SimpleHandler):
 
     def area(self, a):
         t = a.tags
+        # Lugares dibujados como edificio o terreno (centros comerciales, hospitales…): se
+        # buscan en el centro de su contorno.
+        poi = place_kind(t)
+        name = t.get('name')
+        if poi and name and poi not in PLACES.values():
+            try:
+                for outer in a.outer_rings():
+                    ring = [(n.lon, n.lat) for n in outer]
+                    if len(ring) >= 3:
+                        lon = sum(p[0] for p in ring) / len(ring)
+                        lat = sum(p[1] for p in ring) / len(ring)
+                        if self.inside(lon, lat):
+                            self.places.append((q(lon), q(lat), self.name_id(name), poi))
+                    break
+            except osmium.InvalidLocationError:
+                pass
         kind = 0
         for k, v in t:
             if (k, v) in WATER:

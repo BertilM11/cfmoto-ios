@@ -92,7 +92,12 @@ struct OSMPlace {
         case 23: return "Tienda de motos"
         case 24: return "Taller"
         case 25: return "Ferretería"
+        case 26: return "Hotel"
+        case 27: return "Lugar turístico"
+        case 28: return "Terminal de buses"
+        case 29: return "Estadio"
         case 30: return "Calle"
+        case 31: return "Municipalidad"
         default: return "Lugar"
         }
     }
