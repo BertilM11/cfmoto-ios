@@ -53,8 +53,8 @@ extension HUDRenderer {
             let radius = 14 * k
             ctx.addPath(CGPath(roundedRect: f.rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
             ctx.clip()
-            ctx.setFillColor(p.panel)
-            ctx.fill(f.rect)
+            // 0.6.3: cada zona es un panel de vidrio (degradado oscuro y borde luminoso).
+            fillVertical(f.rect, p.panelTop, p.panelBottom, ctx)
             switch f.module {
             case .nav: dashNav(s, p, now, f.rect, ctx)
             case .turn: dashTurn(s.nav, p, belowStatus(f.rect), ctx)
@@ -65,6 +65,12 @@ extension HUDRenderer {
             case .clock: dashClock(p, now, belowStatus(f.rect), ctx)
             }
             ctx.restoreGState()
+            if f.module == .music {
+                let c = musicColors(s)
+                glassEdge(f.rect, radius: radius, top: musicEdge(c, s.night).top, bottom: musicEdge(c, s.night).bottom, width: 1.25 * k, ctx)
+            } else {
+                glassEdge(f.rect, radius: radius, top: p.edgeTop, bottom: p.edgeBottom, width: 1.25 * k, ctx)
+            }
         }
         compassDrop = 0
         statusReserve = nil
@@ -103,9 +109,9 @@ extension HUDRenderer {
             top = band.minY
         }
         for tag in tags {
-            let m = measure(tag, size: 13 * k, bold: true, color: p.background)
+            let m = measure(tag, size: 13 * k, bold: true, color: HUDRenderer.tagInk)
             let pill = CGRect(x: right - m.width - 14 * k, y: top, width: m.width + 14 * k, height: 22 * k)
-            fillRounded(pill, radius: 11 * k, color: p.warn, ctx)
+            tagPill(pill, ctx)
             textBox = pill
             put(m, x: pill.minX + 7 * k, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
             textBox = nil
@@ -116,12 +122,12 @@ extension HUDRenderer {
     /// Etiquetas de estado (DEMO, SIMULACIÓN…) centradas arriba.
     func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, _ ctx: CGContext) {
         guard !tags.isEmpty else { return }
-        let ms = tags.map { measure($0, size: 13 * k, bold: true, color: p.background) }
+        let ms = tags.map { measure($0, size: 13 * k, bold: true, color: HUDRenderer.tagInk) }
         let total = ms.reduce(0) { $0 + $1.width + 14 * k } + CGFloat(ms.count - 1) * 6 * k
         var x = width / 2 - total / 2
         for m in ms {
             let pill = CGRect(x: x, y: top, width: m.width + 14 * k, height: 22 * k)
-            fillRounded(pill, radius: 11 * k, color: p.warn, ctx)
+            tagPill(pill, ctx)
             textBox = pill
             put(m, x: pill.minX + 7 * k, baseline: pill.midY + (m.ascent - m.descent) / 2, ctx)
             textBox = nil
@@ -129,18 +135,247 @@ extension HUDRenderer {
         }
     }
 
-    // MARK: - Mapa completo con tarjetas
+    // MARK: - Sistema visual (0.6.3, según la referencia premium)
+    //
+    // Todas las tarjetas usan las mismas piezas: vidrio con degradado (oscuro de noche, claro de
+    // día), borde luminoso más claro arriba, sombra suave y, de noche, un halo azul muy tenue.
+    // Los iconos van en mosaicos con degradado y brillo. Todo con CoreGraphics (CPU), y los
+    // fondos de las tarjetas se guardan ya dibujados para no repetir el trabajo en cada
+    // fotograma.
 
-    /// Fondo de las tarjetas flotantes: semitransparente, con borde suave.
-    func cardBackground(_ r: CGRect, _ p: HUDPalette, _ ctx: CGContext, radius: CGFloat? = nil) {
-        let rad = radius ?? 18 * k
-        fillRounded(r, radius: rad, color: alpha(p.background, 0.86), ctx)
+    static let tagInk = CGColor(srgbRed: 0.1, green: 0.07, blue: 0, alpha: 1)
+
+    static func rgb(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
+        CGColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255, alpha: a)
+    }
+
+    static func white(_ a: CGFloat) -> CGColor { CGColor(srgbRed: 1, green: 1, blue: 1, alpha: a) }
+
+    /// Degradados de los mosaicos de icono (arriba, abajo).
+    enum Tile {
+        case blue, warn, good, gray, amber, violet
+    }
+
+    func tileColors(_ t: Tile, _ p: HUDPalette) -> (CGColor, CGColor) {
+        switch t {
+        case .blue: return (p.tileTop, p.tileBottom)
+        case .warn: return (HUDRenderer.rgb(0xFFC550), HUDRenderer.rgb(0xE98500))
+        case .good: return (HUDRenderer.rgb(0x3EDC8A), HUDRenderer.rgb(0x0F9A52))
+        case .amber: return (HUDRenderer.rgb(0xFFCF4D), HUDRenderer.rgb(0xF29200))
+        case .violet: return (HUDRenderer.rgb(0xA98BFF), HUDRenderer.rgb(0x6A4BE0))
+        case .gray: return p.dark ? (HUDRenderer.rgb(0x5C6A82), HUDRenderer.rgb(0x323E53)) : (HUDRenderer.rgb(0xAAB6C8), HUDRenderer.rgb(0x8291A8))
+        }
+    }
+
+    /// Degradado vertical que llena `r` (dentro del recorte vigente).
+    func fillVertical(_ r: CGRect, _ top: CGColor, _ bottom: CGColor, _ ctx: CGContext) {
+        guard r.height > 0, let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [top, bottom] as CFArray, locations: [0, 1]) else { return }
         ctx.saveGState()
-        ctx.addPath(CGPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), cornerWidth: rad, cornerHeight: rad, transform: nil))
-        ctx.setStrokeColor(alpha(p.text, 0.1))
-        ctx.setLineWidth(1)
+        ctx.clip(to: r)
+        ctx.drawLinearGradient(g, start: CGPoint(x: r.midX, y: r.minY), end: CGPoint(x: r.midX, y: r.maxY), options: [])
+        ctx.restoreGState()
+    }
+
+    /// Borde luminoso: una línea fina con degradado vertical (más clara arriba).
+    func glassEdge(_ r: CGRect, radius: CGFloat, top: CGColor, bottom: CGColor, width w: CGFloat, _ ctx: CGContext) {
+        guard r.width > 2 * w, r.height > 2 * w else { return }
+        let i = w / 2
+        let rad = max(0, min(radius, r.width / 2, r.height / 2) - i)
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r.insetBy(dx: i, dy: i), cornerWidth: rad, cornerHeight: rad, transform: nil))
+        ctx.setLineWidth(w)
+        ctx.replacePathWithStrokedPath()
+        ctx.clip()
+        fillVertical(r, top, bottom, ctx)
+        ctx.restoreGState()
+    }
+
+    /// Borde de las tarjetas de música: el mismo brillo, con el color de la portada.
+    func musicEdge(_ c: MusicCardColors, _ night: Bool) -> (top: CGColor, bottom: CGColor) {
+        if night {
+            let light = c.accent.mixed(with: RGB(1, 1, 1), 0.35)
+            return (light.cg.copy(alpha: 0.6) ?? light.cg, c.accent.cg.copy(alpha: 0.16) ?? c.accent.cg)
+        }
+        return (HUDRenderer.white(0.9), c.accent.cg.copy(alpha: 0.3) ?? c.accent.cg)
+    }
+
+    /// Sombra suave fuera de la tarjeta (el interior queda sin tocar, para que el vidrio deje
+    /// ver el mapa).
+    func paintShadow(_ r: CGRect, radius: CGFloat, color: CGColor, blur: CGFloat, drop: CGFloat, _ g: CGContext) {
+        let path = CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil)
+        g.saveGState()
+        g.addRect(r.insetBy(dx: -blur * 3, dy: -blur * 3))
+        g.addPath(path)
+        g.clip(using: .evenOdd)
+        // En un contexto de mapa de bits el desplazamiento de la sombra no gira con la
+        // matriz: hacia abajo en la imagen final es negativo.
+        g.setShadow(offset: CGSize(width: 0, height: -drop), blur: blur, color: color)
+        g.addPath(path)
+        g.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1))
+        g.fillPath()
+        g.restoreGState()
+    }
+
+    /// Dibuja la tarjeta de vidrio en un contexto (lo usan la imagen guardada y el dibujo directo).
+    private func paintGlass(_ r: CGRect, radius rad: CGFloat, _ p: HUDPalette, shadow: Bool, body: Bool, _ g: CGContext) {
+        if shadow { paintShadow(r, radius: rad, color: p.shadow, blur: 9 * k, drop: 3 * k, g) }
+        guard body else { return }
+        if p.halo.alpha > 0.001 {
+            g.saveGState()
+            g.addPath(CGPath(roundedRect: r.insetBy(dx: -1.25 * k, dy: -1.25 * k), cornerWidth: rad + 1.25 * k, cornerHeight: rad + 1.25 * k, transform: nil))
+            g.setStrokeColor(p.halo)
+            g.setLineWidth(2.5 * k)
+            g.strokePath()
+            g.restoreGState()
+        }
+        g.saveGState()
+        g.addPath(CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil))
+        g.clip()
+        fillVertical(r, p.cardTop, p.cardBottom, g)
+        g.restoreGState()
+        glassEdge(r, radius: rad, top: p.edgeTop, bottom: p.edgeBottom, width: 1.25 * k, g)
+    }
+
+    /// Tarjeta de vidrio (la pieza común de todo el panel). `body: false` dibuja solo la sombra
+    /// (para tarjetas con fondo propio, como la de música).
+    func glassCard(_ r: CGRect, radius: CGFloat, _ p: HUDPalette, _ ctx: CGContext, shadow: Bool = true, body: Bool = true) {
+        guard r.width > 2, r.height > 2 else { return }
+        let rad = max(0, min(radius, r.width / 2, r.height / 2))
+        let m = ((shadow ? 30 : 4) * k).rounded(.up)
+        let w = Int((r.width + 2 * m).rounded(.up))
+        let h = Int((r.height + 2 * m).rounded(.up))
+        guard HUDRenderer.cacheCards, w > 0, h > 0, w * h < 1_200_000 else {
+            paintGlass(r, radius: rad, p, shadow: shadow, body: body, ctx)
+            return
+        }
+        // La parte decimal de la posición se respeta dentro de la imagen guardada.
+        let fx = r.minX - r.minX.rounded(.down)
+        let fy = r.minY - r.minY.rounded(.down)
+        let key = String(format: "%.2f|%.2f|%.2f|%.2f|%.2f|%d%d%d", r.width, r.height, rad, fx, fy, p.dark ? 1 : 0, shadow ? 1 : 0, body ? 1 : 0)
+        var image = cardImages[key]
+        if image == nil {
+            let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            if let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) {
+                off.clear(CGRect(x: 0, y: 0, width: w, height: h))
+                off.translateBy(x: 0, y: CGFloat(h))
+                off.scaleBy(x: 1, y: -1)
+                paintGlass(CGRect(x: m + fx, y: m + fy, width: r.width, height: r.height), radius: rad, p, shadow: shadow, body: body, off)
+                image = off.makeImage()
+                if cardImages.count > 40 { cardImages.removeAll() }
+                cardImages[key] = image
+            }
+        }
+        guard let img = image else {
+            paintGlass(r, radius: rad, p, shadow: shadow, body: body, ctx)
+            return
+        }
+        let ox = r.minX.rounded(.down) - m
+        let oy = r.minY.rounded(.down) - m
+        ctx.saveGState()
+        ctx.translateBy(x: ox, y: oy + CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.interpolationQuality = .none
+        ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.restoreGState()
+    }
+
+    /// Mosaico de icono: degradado, brillo de vidrio arriba y borde claro.
+    func iconTile(_ r: CGRect, _ colors: (CGColor, CGColor), _ ctx: CGContext, radius: CGFloat? = nil) {
+        guard r.width > 2, r.height > 2 else { return }
+        let rad = radius ?? min(r.width, r.height) * 0.26
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil))
+        ctx.clip()
+        fillVertical(r, colors.0, colors.1, ctx)
+        fillVertical(CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height * 0.52), HUDRenderer.white(0.2), HUDRenderer.white(0), ctx)
+        ctx.restoreGState()
+        glassEdge(r, radius: rad, top: HUDRenderer.white(0.55), bottom: HUDRenderer.white(0.08), width: max(1, 1.1 * k), ctx)
+    }
+
+    /// Píldora ámbar de las etiquetas de estado (DEMO, SIMULACIÓN, MAPA SIMPLE…).
+    func tagPill(_ r: CGRect, _ ctx: CGContext) {
+        iconTile(r, (HUDRenderer.rgb(0xFFCB57), HUDRenderer.rgb(0xF2A10F)), ctx, radius: r.height / 2)
+    }
+
+    /// Reloj pequeño (círculo y agujas) para distinguir la hora actual de la de llegada.
+    func clockGlyph(_ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let lw = max(1, r.width * 0.12)
+        let c = CGPoint(x: r.midX, y: r.midY)
+        ctx.saveGState()
+        ctx.setStrokeColor(color)
+        ctx.setLineWidth(lw)
+        ctx.setLineCap(.round)
+        ctx.strokeEllipse(in: r.insetBy(dx: lw / 2, dy: lw / 2))
+        ctx.beginPath()
+        ctx.move(to: CGPoint(x: c.x, y: c.y - r.height * 0.28))
+        ctx.addLine(to: c)
+        ctx.addLine(to: CGPoint(x: c.x + r.width * 0.2, y: c.y + r.height * 0.08))
         ctx.strokePath()
         ctx.restoreGState()
+    }
+
+    /// Campana (avisos).
+    func bellGlyph(_ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let w = r.width
+        let h = r.height
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: r.minX + w * 0.14, y: r.minY + h * 0.76))
+        path.addLine(to: CGPoint(x: r.minX + w * 0.22, y: r.minY + h * 0.62))
+        path.addLine(to: CGPoint(x: r.minX + w * 0.22, y: r.minY + h * 0.42))
+        path.addCurve(to: CGPoint(x: r.minX + w * 0.78, y: r.minY + h * 0.42),
+                      control1: CGPoint(x: r.minX + w * 0.22, y: r.minY + h * 0.06),
+                      control2: CGPoint(x: r.minX + w * 0.78, y: r.minY + h * 0.06))
+        path.addLine(to: CGPoint(x: r.minX + w * 0.78, y: r.minY + h * 0.62))
+        path.addLine(to: CGPoint(x: r.minX + w * 0.86, y: r.minY + h * 0.76))
+        path.closeSubpath()
+        ctx.saveGState()
+        ctx.setFillColor(color)
+        ctx.addPath(path)
+        ctx.fillPath()
+        ctx.fillEllipse(in: CGRect(x: r.midX - w * 0.11, y: r.minY + h * 0.78, width: w * 0.22, height: h * 0.16))
+        ctx.restoreGState()
+    }
+
+    /// Ondas de Wi-Fi (conexión con la moto).
+    func linkGlyph(_ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let w = r.width
+        let base = CGPoint(x: r.midX, y: r.minY + r.height * 0.8)
+        ctx.saveGState()
+        ctx.setStrokeColor(color)
+        ctx.setFillColor(color)
+        ctx.setLineWidth(w * 0.11)
+        ctx.setLineCap(.round)
+        for radius in [w * 0.28, w * 0.5] {
+            ctx.beginPath()
+            ctx.addArc(center: base, radius: radius, startAngle: -.pi * 0.78, endAngle: -.pi * 0.22, clockwise: false)
+            ctx.strokePath()
+        }
+        ctx.fillEllipse(in: CGRect(x: base.x - w * 0.08, y: base.y - w * 0.08, width: w * 0.16, height: w * 0.16))
+        ctx.restoreGState()
+    }
+
+    /// Batería con su carga.
+    func batteryGlyph(_ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let w = r.width
+        let body = CGRect(x: r.minX + w * 0.08, y: r.midY - w * 0.22, width: w * 0.74, height: w * 0.44)
+        ctx.saveGState()
+        ctx.setStrokeColor(color)
+        ctx.setFillColor(color)
+        ctx.setLineWidth(w * 0.08)
+        ctx.addPath(CGPath(roundedRect: body, cornerWidth: w * 0.08, cornerHeight: w * 0.08, transform: nil))
+        ctx.strokePath()
+        ctx.fill(CGRect(x: body.maxX + w * 0.03, y: r.midY - w * 0.09, width: w * 0.07, height: w * 0.18))
+        ctx.fill(CGRect(x: body.minX + w * 0.1, y: body.minY + w * 0.1, width: body.width * 0.28, height: body.height - w * 0.2))
+        ctx.restoreGState()
+    }
+
+    // MARK: - Mapa completo con tarjetas
+
+    /// Fondo de las tarjetas flotantes (0.6.3: la tarjeta de vidrio del sistema visual).
+    func cardBackground(_ r: CGRect, _ p: HUDPalette, _ ctx: CGContext, radius: CGFloat? = nil) {
+        glassCard(r, radius: radius ?? 16 * k, p, ctx)
     }
 
     /// Mapa en toda el área y las tarjetas encima. Devuelve true si se dibujó el mapa de calles.
@@ -174,7 +409,7 @@ extension HUDRenderer {
                 dashTripPill(n, p, now, r, ctx)
             case .notices:
                 if let note = s.notices.max(by: { $0.time < $1.time }) {
-                    cardBackground(r, p, ctx, radius: 16 * k)
+                    cardBackground(r, p, ctx, radius: 14 * k)
                     dashNoticeCard(note, s.privacy, p, now, r, ctx)
                 }
             case .clock:
@@ -232,7 +467,7 @@ extension HUDRenderer {
         let pad = 10 * k
         let t = min(r.height - 2 * pad, 64 * k, r.width * 0.26)
         let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
-        fillRounded(tile, radius: tile.width * 0.22, color: p.accent, ctx)
+        iconTile(tile, tileColors(.blue, p), ctx)
         // Flecha hacia el destino, en el sentido del mapa (arriba = hacia donde vas).
         if let here = s.nav.here {
             let dy = (ext.destination.lat - here.lat) * 110_574.0
@@ -265,60 +500,68 @@ extension HUDRenderer {
         }
     }
 
-    /// Barra de viaje (0.6.2): "Llegada 7:22 p.m. | 18 min | 7.4 km" y el avance. Sin ruta no
-    /// se dibuja: la hora actual está siempre arriba a la derecha y no se confunde con la llegada.
+    /// Datos del viaje (0.6.3, como en la referencia): tres bloques «Distancia | Restante |
+    /// Llegada», cada uno con su cifra en grande y su nombre debajo, y el avance en el borde de
+    /// abajo. Sin ruta no se dibuja: la hora actual está siempre arriba a la derecha y no se
+    /// confunde con la llegada.
     func dashTripPill(_ n: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         guard n.navigating && !n.arrived else { return }
-        drawTripLine(n, p, r, valueSize: 22 * k, alignRight: false, progress: true, ctx)
+        drawTripBlocks(n, p, r, value: 18.5 * k, card: true, progress: true, ctx)
     }
 
-    /// Las tres cifras del viaje separadas: la llegada con su etiqueta, el tiempo y la distancia.
-    func drawTripLine(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, valueSize: CGFloat, alignRight: Bool,
-                      progress: Bool, _ ctx: CGContext) {
+    /// Los tres bloques del viaje dentro de `r`. `card`: con su tarjeta de vidrio (sobre el
+    /// mapa); sin ella, dentro de una zona del panel. Las cifras se achican todas a la vez si
+    /// alguna no cabe en su bloque.
+    func drawTripBlocks(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, value: CGFloat, card: Bool, progress: Bool, _ ctx: CGContext) {
+        let radius = min(14 * k, r.height / 2)
+        if card { glassCard(r, radius: radius, p, ctx) }
         let t = HUDFormat.tripParts(n)
-        func parts(_ v: CGFloat) -> [Measured] {
-            [measure(t.label, size: v * 0.62, bold: true, color: p.dim),
-             measure(t.eta, size: v, bold: true, color: p.text),
-             measure(t.suffix, size: v * 0.55, bold: true, color: p.dim),
-             measure(t.remaining, size: v, bold: true, color: p.text),
-             measure(t.distance, size: v, bold: true, color: p.text)]
+        let items: [(value: String, suffix: String, label: String)] = [
+            (t.distance, "", "Distancia"), (t.remaining, "", "Restante"), (t.eta, t.suffix, t.label),
+        ]
+        let cw = r.width / 3
+        var v = value
+        func widths(_ v: CGFloat) -> [CGFloat] {
+            items.map { item in
+                measure(item.value, size: v, bold: true, color: p.text).width
+                    + (item.suffix.isEmpty ? 0 : v * 0.14 + measure(item.suffix, size: v * 0.56, bold: true, color: p.dim).width)
+            }
         }
-        func width(_ m: [Measured], _ v: CGFloat) -> CGFloat {
-            m[0].width + v * 0.3 + m[1].width + v * 0.16 + m[2].width + 2 * v * 1.2 + m[3].width + m[4].width
+        if let widest = widths(v).max(), widest > cw - 14 * k, widest > 0 {
+            v *= max(0.62, (cw - 14 * k) / widest)
         }
-        var v = valueSize
-        var m = parts(v)
-        let maxW = r.width - 1.6 * v
-        if width(m, v) > maxW {
-            v *= max(0.6, maxW / width(m, v))
-            m = parts(v)
-        }
-        let content = width(m, v)
-        let w = min(r.width, content + 1.6 * v)
-        let pill = CGRect(x: alignRight ? r.maxX - w : r.midX - w / 2, y: r.minY, width: w, height: r.height)
-        cardBackground(pill, p, ctx, radius: r.height / 2)
-        let lift = progress ? 1.5 * k : 0
-        let base = pill.midY + (m[1].ascent - m[1].descent) / 2 - lift
-        var x = pill.midX - content / 2
-        put(m[0], x: x, baseline: base, ctx)
-        x += m[0].width + v * 0.3
-        put(m[1], x: x, baseline: base, ctx)
-        x += m[1].width + v * 0.16
-        put(m[2], x: x, baseline: base, ctx)
-        x += m[2].width
-        for value in [m[3], m[4]] {
-            ctx.setFillColor(alpha(p.text, 0.28))
-            ctx.fill(CGRect(x: x + v * 0.6 - 0.75 * k, y: pill.midY - lift - v * 0.42, width: 1.5 * k, height: v * 0.84))
-            x += v * 1.2
-            put(value, x: x, baseline: base, ctx)
-            x += value.width
+        let labelSize = max(9.5 * k, v * 0.6)
+        let sample = measure("0", size: v, bold: true, color: p.text)
+        let sampleLabel = measure("D", size: labelSize, bold: false, color: p.dim)
+        let gap = 1.5 * k
+        let block = sample.ascent + sample.descent + gap + sampleLabel.ascent + sampleLabel.descent
+        let lift: CGFloat = progress ? 1.5 * k : 0
+        let top = r.midY - block / 2 - lift
+        let valueBase = top + sample.ascent
+        let labelBase = valueBase + sample.descent + gap + sampleLabel.ascent
+        for (i, item) in items.enumerated() {
+            let cx = r.minX + cw * (CGFloat(i) + 0.5)
+            let vm = measure(item.value, size: v, bold: true, color: p.text)
+            let sm = item.suffix.isEmpty ? nil : measure(item.suffix, size: v * 0.56, bold: true, color: p.dim)
+            let total = vm.width + (sm.map { v * 0.14 + $0.width } ?? 0)
+            put(vm, x: cx - total / 2, baseline: valueBase, ctx)
+            if let sm = sm { put(sm, x: cx - total / 2 + vm.width + v * 0.14, baseline: valueBase, ctx) }
+            let lm = measure(item.label, size: labelSize, bold: false, color: p.dim)
+            put(lm, x: cx - lm.width / 2, baseline: labelBase, ctx)
+            if i > 0 {
+                let x = r.minX + cw * CGFloat(i)
+                ctx.setFillColor(p.divider)
+                ctx.fill(CGRect(x: x - 0.5 * k, y: r.midY - lift - r.height * 0.27, width: 1 * k, height: r.height * 0.54))
+            }
         }
         guard progress else { return }
         let f = CGFloat(max(0, min(1, n.fraction)))
-        let track = CGRect(x: pill.minX + r.height * 0.45, y: pill.maxY - 6 * k, width: pill.width - r.height * 0.9, height: 3 * k)
-        fillRounded(track, radius: 1.5 * k, color: alpha(p.line, 0.9), ctx)
+        let track = CGRect(x: r.minX + radius, y: r.maxY - 4 * k, width: r.width - 2 * radius, height: 2 * k)
+        fillRounded(track, radius: 1 * k, color: p.divider, ctx)
         if f > 0.01 {
-            fillRounded(CGRect(x: track.minX, y: track.minY, width: track.width * f, height: track.height), radius: 1.5 * k, color: p.accent, ctx)
+            let done = CGRect(x: track.minX, y: track.minY, width: max(2 * k, track.width * f), height: track.height)
+            fillRounded(done.insetBy(dx: -1 * k, dy: -1 * k), radius: 2 * k, color: p.accent.copy(alpha: 0.3) ?? p.accent, ctx)
+            fillRounded(done, radius: 1 * k, color: p.accent, ctx)
         }
     }
 
@@ -328,13 +571,18 @@ extension HUDRenderer {
         textBox = r
         defer { textBox = previousBox }
         let c = HUDFormat.clock(now)
-        cardBackground(r, p, ctx, radius: r.height / 2)
-        let t = measure(c.time, size: 19 * k, bold: true, color: p.text)
-        let sfx = measure(c.suffix, size: 11 * k, bold: true, color: p.dim)
-        let x = r.midX - (t.width + 4 * k + sfx.width) / 2
+        glassCard(r, radius: r.height / 2, p, ctx)
+        // 0.6.3: con el símbolo del reloj, para que no se confunda con la hora de llegada (que
+        // va siempre con la palabra «Llegada» en los datos del viaje).
+        let t = measure(c.time, size: 17.5 * k, bold: true, color: p.text)
+        let sfx = measure(c.suffix, size: 10.5 * k, bold: true, color: p.dim)
+        let g = 11 * k
+        let total = g + 5 * k + t.width + 3 * k + sfx.width
+        let x = r.midX - total / 2
         let base = r.midY + (t.ascent - t.descent) / 2
-        put(t, x: x, baseline: base, ctx)
-        put(sfx, x: x + t.width + 4 * k, baseline: base, ctx)
+        clockGlyph(CGRect(x: x, y: r.midY - g / 2, width: g, height: g), p.dim, ctx)
+        put(t, x: x + g + 5 * k, baseline: base, ctx)
+        put(sfx, x: x + g + 5 * k + t.width + 3 * k, baseline: base, ctx)
     }
 
     /// La parte de una zona que queda por debajo de la hora (si la hora cae en ella).
@@ -348,45 +596,80 @@ extension HUDRenderer {
         let c = HUDFormat.clock(now)
         let t = measure(c.time, size: 24 * k, bold: true, color: p.text)
         let sfx = measure(c.suffix, size: 13 * k, bold: true, color: p.dim)
-        let w = min(r.width, t.width + sfx.width + 40 * k)
+        let g = 15 * k
+        let w = min(r.width, g + 6 * k + t.width + sfx.width + 40 * k)
         let pill = CGRect(x: r.midX - w / 2, y: r.minY, width: w, height: r.height)
-        cardBackground(pill, p, ctx, radius: r.height / 2)
-        let x = pill.midX - (t.width + 5 * k + sfx.width) / 2
+        glassCard(pill, radius: r.height / 2, p, ctx)
+        let x = pill.midX - (g + 6 * k + t.width + 5 * k + sfx.width) / 2
         let base = pill.midY + (t.ascent - t.descent) / 2
-        put(t, x: x, baseline: base, ctx)
-        put(sfx, x: x + t.width + 5 * k, baseline: base, ctx)
+        clockGlyph(CGRect(x: x, y: pill.midY - g / 2, width: g, height: g), p.dim, ctx)
+        put(t, x: x + g + 6 * k, baseline: base, ctx)
+        put(sfx, x: x + g + 6 * k + t.width + 5 * k, baseline: base, ctx)
     }
 
-    /// El aviso más reciente como tarjeta flotante.
+    /// Quién envía cada aviso (0.6.3: se muestra en la lista de avisos).
+    func noticeSender(_ kind: NoticeKind) -> String {
+        switch kind {
+        case .nav: return "NAVEGACIÓN"
+        case .link: return "MOTO"
+        case .battery: return "IPHONE"
+        case .test: return "CFMOTO LINK"
+        }
+    }
+
+    /// Cuánto hace del aviso: «Ahora», «4 min», «2 h».
+    func noticeAge(_ note: NoticeSnapshot, _ now: Date) -> String {
+        let minutes = Int(max(0, now.timeIntervalSinceReferenceDate - note.time) / 60)
+        if minutes < 1 { return "Ahora" }
+        return minutes < 60 ? "\(minutes) min" : "\(minutes / 60) h"
+    }
+
+    /// El aviso más reciente como tarjeta flotante (0.6.3, como la de la referencia): icono en
+    /// su mosaico, título en negrita con la hora a la derecha y el mensaje debajo.
     func dashNoticeCard(_ note: NoticeSnapshot, _ privacy: Bool, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         let pad = 10 * k
-        let side = r.height - 2 * pad
-        let ic = CGRect(x: r.minX + pad, y: r.minY + pad, width: side, height: side)
+        let side = min(r.height - 2 * pad, 38 * k)
+        let ic = CGRect(x: r.minX + pad, y: r.midY - side / 2, width: side, height: side)
         dashNoticeIcon(note.kind, ic, p, ctx)
         let tx = ic.maxX + 10 * k
         let tw = r.maxX - pad - tx
-        wrapped(note.title, sizes: [17 * k, 15 * k], color: p.text, x: tx, top: r.minY + pad - 1 * k, width: tw, maxLines: 1, ctx)
-        wrapped(privacy ? "Contenido oculto" : note.text, sizes: [14 * k, 12 * k], color: p.dim, x: tx, top: r.minY + pad + 20 * k, width: tw, maxLines: 1, ctx)
+        let age = measure(noticeAge(note, now), size: 11.5 * k, bold: false, color: p.dim)
+        let top = r.midY - 18 * k
+        put(age, x: r.maxX - pad - age.width, baseline: top + 1.5 * k + age.ascent, ctx)
+        wrapped(note.title, sizes: [15.5 * k, 14 * k, 13 * k], color: p.text, x: tx, top: top, width: tw - age.width - 8 * k, maxLines: 1, ctx)
+        textLine(privacy ? "Contenido oculto" : note.text, sizes: [13.5 * k, 12.5 * k, 11.5 * k], bold: false, color: p.dim,
+                 x: tx, top: top + 21 * k, width: tw, ctx)
+    }
+
+    /// Una línea de texto (prueba tamaños de mayor a menor; si ni así cabe, termina en «…»).
+    /// Devuelve el ancho dibujado.
+    @discardableResult
+    func textLine(_ text: String, sizes: [CGFloat], bold: Bool, color: CGColor, x: CGFloat, top: CGFloat, width: CGFloat,
+                  _ ctx: CGContext, align: CGFloat = 0) -> CGFloat {
+        let t = textLines(text, sizes: sizes, bold: bold, color: color, width: width, maxLines: 1)
+        guard let line = t.lines.first else { return 0 }
+        put(line, x: x + (width - line.width) * align, baseline: top + line.ascent, ctx)
+        return line.width
     }
 
     /// Franja con el próximo giro para los diseños sin mapa (por ejemplo, el de música).
     func dashTurnStrip(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
-        fillRounded(r, radius: 14 * k, color: p.panel, ctx)
-        let t = r.height - 14 * k
-        let tile = CGRect(x: r.minX + 7 * k, y: r.minY + 7 * k, width: t, height: t)
-        let color = n.rerouting ? p.warn : p.accent
-        fillRounded(tile, radius: t * 0.22, color: color, ctx)
-        HUDIcons.draw(n.kind, in: tile.insetBy(dx: t * 0.14, dy: t * 0.14), color: p.onAccent, hole: color, ctx: ctx)
-        let parts = HUDFormat.distanceParts(n.distanceToManeuver)
-        let big = measure(parts.value, size: 32 * k, bold: true, color: p.text)
-        let unit = measure(parts.unit, size: 16 * k, bold: true, color: p.dim)
+        glassCard(r, radius: 14 * k, p, ctx, shadow: false)
+        let look = maneuverLook(n, p, street: false)
+        let t = r.height - 16 * k
+        let tile = CGRect(x: r.minX + 8 * k, y: r.minY + 8 * k, width: t, height: t)
+        iconTile(tile, look.tile, ctx)
+        HUDIcons.draw(look.kind, in: tile.insetBy(dx: t * 0.15, dy: t * 0.15), color: p.onAccent, hole: look.tile.1, ctx: ctx)
+        let big = measure(look.big, size: (look.unit.isEmpty ? 22 : 30) * k, bold: true, color: p.text)
+        let unit = measure(look.unit, size: 15 * k, bold: false, color: p.dim)
         let x = tile.maxX + 12 * k
         let base = r.midY + (big.ascent - big.descent) / 2
         put(big, x: x, baseline: base, ctx)
-        put(unit, x: x + big.width + 4 * k, baseline: base, ctx)
-        let lx = x + big.width + unit.width + 18 * k
-        let line = n.rerouting ? "Recalculando la ruta…" : n.instruction
-        wrapped(line, sizes: [20 * k, 17 * k, 15 * k], color: n.rerouting ? p.warn : p.text, x: lx, top: r.midY - 12 * k, width: r.maxX - 12 * k - lx, maxLines: 1, ctx)
+        if !look.unit.isEmpty { put(unit, x: x + big.width + 4 * k, baseline: base, ctx) }
+        let lx = x + big.width + (look.unit.isEmpty ? 0 : unit.width + 4 * k) + 16 * k
+        ctx.setFillColor(p.divider)
+        ctx.fill(CGRect(x: lx - 8.5 * k, y: r.midY - r.height * 0.26, width: 1 * k, height: r.height * 0.52))
+        wrapped(look.line, sizes: [19 * k, 17 * k, 15 * k], color: look.lineColor, x: lx, top: r.midY - 11.5 * k, width: r.maxX - 12 * k - lx, maxLines: 1, ctx)
     }
 
     // MARK: - Navegación
@@ -419,7 +702,7 @@ extension HUDRenderer {
         if showTrip {
             // Abajo, a la derecha: el logotipo de Mapas de Apple (abajo a la izquierda) queda a la vista.
             textBox = L.trip
-            drawTripLine(n, p, L.trip, valueSize: 18 * k, alignRight: L.trip.minY > r.midY, progress: false, ctx)
+            drawTripBlocks(n, p, L.trip, value: 16 * k, card: true, progress: false, ctx)
         }
         textBox = zoneBox
     }
@@ -430,21 +713,21 @@ extension HUDRenderer {
     func drawManeuverCard(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, top: Bool, _ ctx: CGContext) {
         let n = s.nav
         let compact = s.layout.overlay.maneuverSize == .compact
-        let radius = (compact ? 16 : 18) * k
+        let radius = 16 * k
         func shortCard(_ h: CGFloat) -> CGRect {
             let hh = min(r.height, h)
             return CGRect(x: r.minX, y: top ? r.minY : r.maxY - hh, width: r.width, height: hh)
         }
         if let ext = s.external, !n.navigating {
             let small = shortCard(112 * k)
-            cardBackground(small, p, ctx, radius: radius)
+            glassCard(small, radius: radius, p, ctx)
             dashExternalCard(ext, s, p, now, small, ctx)
         } else if n.navigating || n.arrived || !n.previewRoutes.isEmpty {
-            cardBackground(r, p, ctx, radius: radius)
+            glassCard(r, radius: radius, p, ctx)
             if compact { dashTurnCompact(n, p, r, ctx) } else { dashTurnContent(n, p, r, ctx) }
         } else {
             let small = shortCard((compact ? 66 : 92) * k)
-            cardBackground(small, p, ctx, radius: radius)
+            glassCard(small, radius: radius, p, ctx)
             if compact { dashTurnCompact(n, p, small, ctx) } else { dashTurnContent(n, p, small, ctx) }
         }
     }
@@ -453,129 +736,197 @@ extension HUDRenderer {
         dashTurnContent(n, p, r, ctx)
     }
 
-    /// Flecha, distancia e instrucción dentro de un rectángulo cualquiera.
-    func dashTurnContent(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
-        let pad = max(6, min(r.width, r.height) * 0.07)
-        let t = min(r.height * 0.5, r.width * 0.3)
-        let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
-        let textX = tile.maxX + pad * 0.9
-        let textW = r.maxX - pad - textX
+    /// Lo que dice la tarjeta de la maniobra en cada caso: en ruta, recalculando, ruta propuesta,
+    /// llegada o sin ruta. `street`: solo la calle (en la tarjeta compacta el giro lo dice la
+    /// flecha).
+    struct ManeuverLook {
+        var tile: (CGColor, CGColor)
+        var kind: ManeuverKind
+        var big: String
+        var unit: String
+        var line: String
+        var lineColor: CGColor
+        var then: ManeuverKind?
+        var idle: Bool
+    }
 
-        var color = p.accent
-        var kind = n.kind
-        var big = ""
-        var unit = ""
-        var line = n.instruction
-        var lineColor = p.text
-        var iconColor = p.onAccent
+    func maneuverLook(_ n: HUDSnapshot, _ p: HUDPalette, street: Bool) -> ManeuverLook {
+        let preview = !n.navigating && n.previewRoutes.indices.contains(n.previewSelected)
+        var look = ManeuverLook(tile: tileColors(.blue, p), kind: n.kind, big: "", unit: "",
+                                line: street ? (HUDFormat.street(from: n.instruction) ?? n.instruction) : n.instruction,
+                                lineColor: p.text, then: nil, idle: false)
         if n.arrived {
-            color = p.good
-            kind = .arrive
-            big = "Llegaste"
-            line = n.destinationName
-        } else if !n.navigating && n.previewRoutes.indices.contains(n.previewSelected) {
-            // Antes de empezar: la ruta elegida, su distancia y su tiempo.
+            look.tile = tileColors(.good, p)
+            look.kind = .arrive
+            look.big = "Llegaste"
+            look.line = n.destinationName
+        } else if preview {
             let i = n.previewSelected
             let parts = HUDFormat.distanceParts(n.previewDistances.indices.contains(i) ? n.previewDistances[i] : 0)
-            big = parts.value
-            unit = parts.unit
-            kind = .depart
+            look.big = parts.value
+            look.unit = parts.unit
+            look.kind = .depart
             var text = n.previewRoutes.count > 1 ? "Ruta \(i + 1) de \(n.previewRoutes.count)" : "Ruta lista"
             if n.previewTimes.indices.contains(i) { text += " · " + HUDFormat.durationCompact(n.previewTimes[i]) }
-            line = text + " · Toca Iniciar en el iPhone"
+            look.line = street ? text : text + " · Toca Iniciar en el iPhone"
         } else if !n.navigating {
-            color = p.line
-            kind = .depart
-            big = "Sin ruta"
-            line = "Elige un destino en el iPhone"
-            lineColor = p.dim
-            iconColor = p.dim
+            look.tile = tileColors(.gray, p)
+            look.kind = .depart
+            look.big = "Sin ruta"
+            look.line = "Elige un destino en el iPhone"
+            look.lineColor = p.dim
+            look.idle = true
         } else {
             let parts = HUDFormat.distanceParts(n.distanceToManeuver)
-            big = parts.value
-            unit = parts.unit
+            look.big = parts.value
+            look.unit = parts.unit
             if n.rerouting {
-                color = p.warn
-                line = "Recalculando la ruta…"
-                lineColor = p.warn
+                look.tile = tileColors(.warn, p)
+                look.line = street ? "Recalculando…" : "Recalculando la ruta…"
+                look.lineColor = p.warn
+            } else {
+                look.then = n.thenKind
             }
         }
-        fillRounded(tile, radius: t * 0.22, color: color, ctx)
-        HUDIcons.draw(kind, in: tile.insetBy(dx: t * 0.12, dy: t * 0.12), color: iconColor, hole: color, ctx: ctx)
+        return look
+    }
 
-        var size = t * (unit.isEmpty ? 0.4 : 0.66)
-        var m = measure(big, size: size, bold: true, color: p.text)
-        var unitWidth: CGFloat = unit.isEmpty ? 0 : measure(unit, size: size * 0.45, bold: true, color: p.dim).width + size * 0.12
-        if m.width + unitWidth > textW, m.width > 0 {
-            size *= max(0.45, textW / (m.width + unitWidth))
-            m = measure(big, size: size, bold: true, color: p.text)
-            unitWidth = unit.isEmpty ? 0 : measure(unit, size: size * 0.45, bold: true, color: p.dim).width + size * 0.12
-        }
-        let showThen = n.thenKind != nil && n.navigating && !n.rerouting && !n.arrived
-        let baseline = showThen ? tile.minY + m.ascent * 0.92 : tile.midY + (m.ascent - m.descent) / 2
-        put(m, x: textX, baseline: baseline, ctx)
-        if !unit.isEmpty {
-            let um = measure(unit, size: size * 0.45, bold: true, color: p.dim)
-            put(um, x: textX + m.width + size * 0.12, baseline: baseline, ctx)
-        }
-        if showThen, let then = n.thenKind {
-            let ls = t * 0.2
-            let lm = measure("Luego", size: ls, bold: false, color: p.dim)
-            let y = tile.maxY - ls * 1.6
-            put(lm, x: textX, baseline: y + lm.ascent, ctx)
-            HUDIcons.draw(
-                then, in: CGRect(x: textX + lm.width + ls * 0.4, y: y - ls * 0.3, width: ls * 1.8, height: ls * 1.8),
-                color: p.text, hole: p.background, ctx: ctx
-            )
-        }
+    /// La flecha en su mosaico con degradado y brillo (como en la referencia).
+    func maneuverTile(_ look: ManeuverLook, _ r: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
+        iconTile(r, look.tile, ctx)
+        HUDIcons.draw(look.kind, in: r.insetBy(dx: r.width * 0.15, dy: r.height * 0.15), color: p.onAccent, hole: look.tile.1, ctx: ctx)
+    }
 
-        let top = tile.maxY + pad * 0.6
-        let avail = r.maxY - pad * 0.6 - top
-        if avail > 12 {
-            let s1 = min(t * 0.36, avail / 2.45)
-            wrapped(line, sizes: [s1, s1 * 0.9, s1 * 0.8], color: lineColor, x: r.minX + pad, top: top, width: r.width - 2 * pad, maxLines: 2, ctx)
+    /// La distancia en grande con su unidad, ajustada al ancho. `baseline` o, si es nil, centrada
+    /// en `centerY`. Devuelve la letra usada (para colocar lo de debajo).
+    @discardableResult
+    func maneuverDistance(_ look: ManeuverLook, x: CGFloat, baseline: CGFloat?, centerY: CGFloat, size: CGFloat, width: CGFloat,
+                          _ p: HUDPalette, _ ctx: CGContext) -> Measured {
+        var s = look.unit.isEmpty ? size * 0.66 : size
+        var m = measure(look.big, size: s, bold: true, color: p.text)
+        var um = measure(look.unit, size: s * 0.46, bold: false, color: p.dim)
+        let need = m.width + (look.unit.isEmpty ? 0 : s * 0.1 + um.width)
+        if need > width, need > 0 {
+            s *= max(0.5, width / need)
+            m = measure(look.big, size: s, bold: true, color: p.text)
+            um = measure(look.unit, size: s * 0.46, bold: false, color: p.dim)
+        }
+        let base = baseline ?? (centerY + (m.ascent - m.descent) / 2)
+        put(m, x: x, baseline: base, ctx)
+        if !look.unit.isEmpty { put(um, x: x + m.width + s * 0.1, baseline: base, ctx) }
+        return m
+    }
+
+    /// La maniobra siguiente, pequeña, en un chip de vidrio.
+    func thenChip(_ kind: ManeuverKind, _ r: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
+        let rad = r.width * 0.3
+        fillRounded(r, radius: rad, color: p.text.copy(alpha: 0.1) ?? p.text, ctx)
+        glassEdge(r, radius: rad, top: p.text.copy(alpha: 0.24) ?? p.text, bottom: p.text.copy(alpha: 0.05) ?? p.text, width: 1 * k, ctx)
+        HUDIcons.draw(kind, in: r.insetBy(dx: r.width * 0.16, dy: r.height * 0.16), color: p.dim, hole: p.background, ctx: ctx)
+    }
+
+    /// Varias líneas de texto con o sin negrita (prueba tamaños de mayor a menor; la última
+    /// línea termina en «…» si ni así cabe). Devuelve dónde acaba.
+    @discardableResult
+    func paragraph(_ text: String, sizes: [CGFloat], bold: Bool, color: CGColor, x: CGFloat, top: CGFloat, width: CGFloat,
+                   maxLines: Int, _ ctx: CGContext, align: CGFloat = 0) -> CGFloat {
+        let t = textLines(text, sizes: sizes, bold: bold, color: color, width: width, maxLines: maxLines)
+        var y = top
+        for (i, line) in t.lines.enumerated() {
+            put(line, x: x + (width - line.width) * align, baseline: y + line.ascent, ctx)
+            y += line.ascent + line.descent + (i < t.lines.count - 1 ? t.size * 0.1 : 0)
+        }
+        return y
+    }
+
+    /// Tarjeta grande de la maniobra y zona «Próximo giro» (0.6.3, como en la referencia): la
+    /// flecha en su mosaico a la izquierda, la distancia en grande y la instrucción completa a
+    /// su derecha, y la maniobra siguiente debajo de la flecha. En zonas altas y estrechas la
+    /// instrucción va debajo de la flecha.
+    func dashTurnContent(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
+        let look = maneuverLook(n, p, street: false)
+        let pad = max(10 * k, min(15 * k, min(r.width, r.height) * 0.08))
+        let lineSize = min(20 * k, max(14 * k, r.height * 0.115))
+        if r.width >= r.height * 1.45 {
+            let thenRoom: CGFloat = look.then != nil ? 30 * k : 0
+            let t = max(24 * k, min(r.height - 2 * pad - thenRoom, r.width * 0.3, 100 * k))
+            let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
+            maneuverTile(look, tile, p, ctx)
+            let tx = tile.maxX + 14 * k
+            let tw = r.maxX - pad - tx
+            let ds = min(t * 0.52, 46 * k, (r.height - 2 * pad) * 0.42)
+            let m = maneuverDistance(look, x: tx, baseline: tile.minY + ds * 0.86, centerY: 0, size: ds, width: tw, p, ctx)
+            let top = tile.minY + ds * 0.86 + m.descent + 4 * k
+            let avail = r.maxY - pad - top
+            let lines = max(1, min(3, Int(avail / (lineSize * 1.3))))
+            if avail > lineSize {
+                paragraph(look.line, sizes: [lineSize, lineSize * 0.9, lineSize * 0.82], bold: true, color: look.lineColor,
+                          x: tx, top: top, width: tw, maxLines: lines, ctx)
+            }
+            if let then = look.then, r.maxY - pad - tile.maxY >= 24 * k {
+                let chip = min(24 * k, r.maxY - pad - tile.maxY - 4 * k)
+                let label = measure("Luego", size: 11.5 * k, bold: false, color: p.dim)
+                let total = label.width + 6 * k + chip
+                let x = tile.midX - total / 2
+                let y = tile.maxY + 6 * k
+                put(label, x: x, baseline: y + chip / 2 + (label.ascent - label.descent) / 2, ctx)
+                thenChip(then, CGRect(x: x + label.width + 6 * k, y: y, width: chip, height: chip), p, ctx)
+            }
+            return
+        }
+        // Zona alta y estrecha: flecha y distancia arriba, instrucción debajo.
+        let t = max(24 * k, min(r.height * 0.4, r.width * 0.32, 96 * k))
+        let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
+        maneuverTile(look, tile, p, ctx)
+        let chip = 24 * k
+        let tx = tile.maxX + 12 * k
+        let tw = r.maxX - pad - tx - (look.then != nil ? chip + 6 * k : 0)
+        maneuverDistance(look, x: tx, baseline: nil, centerY: tile.midY, size: min(t * 0.6, 46 * k), width: tw, p, ctx)
+        if let then = look.then {
+            thenChip(then, CGRect(x: r.maxX - pad - chip, y: tile.minY, width: chip, height: chip), p, ctx)
+        }
+        let top = tile.maxY + 10 * k
+        let avail = r.maxY - pad - top
+        if avail > lineSize {
+            let lines = max(1, min(3, Int(avail / (lineSize * 1.3))))
+            paragraph(look.line, sizes: [lineSize, lineSize * 0.9, lineSize * 0.82], bold: true, color: look.lineColor,
+                      x: r.minX + pad, top: top, width: r.width - 2 * pad, maxLines: lines, ctx)
         }
     }
 
+    /// Zona «Viaje»: los mismos tres bloques que sobre el mapa (Distancia, Restante, Llegada),
+    /// más grandes, con el avance debajo. En zonas estrechas, una fila por dato.
     func dashTrip(_ n: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         guard n.navigating && !n.arrived else {
             dashClock(p, now, r, ctx)
             return
         }
-        let pad = max(8, min(r.width, r.height) * 0.09)
-        let clock = n.eta.map { HUDFormat.clock($0) }
-        let items: [(String, String)] = [
-            ((clock?.time ?? "--:--") + " " + (clock?.suffix ?? ""), "Llegada"),
-            (HUDFormat.durationCompact(n.remainingTime), "Tiempo restante"),
-            (HUDFormat.distance(n.remainingDistance), "Distancia"),
-        ]
-        let barH = max(3, r.height * 0.035)
-        let inner = CGRect(x: r.minX + pad, y: r.minY + pad, width: r.width - 2 * pad, height: r.height - 2 * pad - barH - pad * 0.5)
-        if inner.width >= 300 {
-            let cw = inner.width / 3
-            let vs = min(inner.height * 0.42, cw * 0.3)
-            for (i, item) in items.enumerated() {
-                var v = measure(item.0, size: vs, bold: true, color: p.text)
-                if v.width > cw - 8 { v = measure(item.0, size: vs * max(0.6, (cw - 8) / v.width), bold: true, color: p.text) }
-                let l = measure(item.1, size: vs * 0.5, bold: false, color: p.dim)
-                let x = inner.minX + cw * CGFloat(i)
-                let y = inner.midY - (vs + vs * 0.75) / 2
-                put(v, x: x, baseline: y + v.ascent, ctx)
-                put(l, x: x, baseline: y + vs * 1.2 + l.ascent, ctx)
-            }
-        } else {
-            let rh = inner.height / 3
-            let vs = min(rh * 0.62, inner.width * 0.17)
-            for (i, item) in items.enumerated() {
-                let v = measure(item.0, size: vs, bold: true, color: p.text)
-                let l = measure(item.1, size: vs * 0.55, bold: false, color: p.dim)
-                let mid = inner.minY + rh * (CGFloat(i) + 0.5)
-                put(v, x: inner.minX, baseline: mid + (v.ascent - v.descent) / 2, ctx)
-                put(l, x: inner.maxX - l.width, baseline: mid + (l.ascent - l.descent) / 2, ctx)
+        let pad = max(8 * k, min(r.width, r.height) * 0.08)
+        let inner = r.insetBy(dx: pad, dy: pad)
+        if inner.width >= 260 * k {
+            let v = max(14 * k, min(inner.height * 0.32, inner.width / 3 * 0.24, 34 * k))
+            drawTripBlocks(n, p, inner, value: v, card: false, progress: true, ctx)
+            return
+        }
+        let t = HUDFormat.tripParts(n)
+        let items: [(String, String)] = [(t.distance, "Distancia"), (t.remaining, "Restante"), (t.eta + " " + t.suffix, t.label)]
+        let barH = max(3 * k, r.height * 0.03)
+        let rows = CGRect(x: inner.minX, y: inner.minY, width: inner.width, height: inner.height - barH - 6 * k)
+        let rh = rows.height / 3
+        let vs = max(12 * k, min(rh * 0.5, inner.width * 0.16))
+        for (i, item) in items.enumerated() {
+            let mid = rows.minY + rh * (CGFloat(i) + 0.5)
+            let v = measure(item.0, size: vs, bold: true, color: p.text)
+            let l = measure(item.1, size: vs * 0.58, bold: false, color: p.dim)
+            put(v, x: rows.minX, baseline: mid + (v.ascent - v.descent) / 2, ctx)
+            put(l, x: rows.maxX - l.width, baseline: mid + (l.ascent - l.descent) / 2, ctx)
+            if i > 0 {
+                ctx.setFillColor(p.divider)
+                ctx.fill(CGRect(x: rows.minX, y: rows.minY + rh * CGFloat(i) - 0.5 * k, width: rows.width, height: 1 * k))
             }
         }
-        let track = CGRect(x: r.minX + pad, y: r.maxY - pad - barH, width: r.width - 2 * pad, height: barH)
-        fillRounded(track, radius: barH / 2, color: p.line, ctx)
+        let track = CGRect(x: inner.minX, y: inner.maxY - barH, width: inner.width, height: barH)
+        fillRounded(track, radius: barH / 2, color: p.divider, ctx)
         let f = CGFloat(max(0, min(1, n.fraction)))
         if f > 0.01 {
             fillRounded(CGRect(x: track.minX, y: track.minY, width: track.width * f, height: barH), radius: barH / 2, color: p.accent, ctx)
@@ -613,6 +964,8 @@ extension HUDRenderer {
         let c = musicColors(s)
         let L = MusicPlayerLayout.make(r, k: k, artwork: s.showArtwork, size: s.artworkSize,
                                        reserve: card == nil ? statusReserve : nil, card: card)
+        // 0.6.3: sobre el mapa, la tarjeta de música lleva la misma sombra que las demás.
+        if L.card { glassCard(r, radius: 18 * k, p, ctx, shadow: true, body: false) }
         drawPlayerBackground(s, c, L, r, ctx)
         let has = m.available && !m.title.isEmpty
         ctx.saveGState()
@@ -621,10 +974,16 @@ extension HUDRenderer {
             ctx.addPath(CGPath(roundedRect: r, cornerWidth: 18 * k, cornerHeight: 18 * k, transform: nil))
             ctx.clip()
         }
-        // Nombre del servicio arriba a la izquierda (en las tarjetas va junto al estado).
+        // Nombre del servicio arriba a la izquierda (en las tarjetas va junto al estado), con un
+        // punto del color de la barra, como la marca del servicio en la referencia.
         if L.style != .row && s.showSource && has && L.header.width > 40 * k {
-            let src = textLines(m.source.uppercased(), sizes: [L.source], bold: true, color: sourceColor(m, c), width: L.header.width, maxLines: 1)
-            if let line = src.lines.first { put(line, x: L.header.minX, baseline: L.header.midY + (line.ascent - line.descent) / 2, ctx) }
+            let src = textLines(sourceName(m), sizes: [L.source], bold: true, color: sourceColor(m, c), width: L.header.width - L.source, maxLines: 1)
+            if let line = src.lines.first {
+                let d = L.source * 0.62
+                ctx.setFillColor(c.accent.cg)
+                ctx.fillEllipse(in: CGRect(x: L.header.minX, y: L.header.midY - d / 2, width: d, height: d))
+                put(line, x: L.header.minX + d + L.source * 0.45, baseline: L.header.midY + (line.ascent - line.descent) / 2, ctx)
+            }
         }
         // Al cambiar de canción la portada se funde de una a otra; los textos, uno después del
         // otro (la anterior sale hacia arriba y la nueva entra desde abajo), sin mezclarse.
@@ -642,6 +1001,15 @@ extension HUDRenderer {
             playerProgress(m, c, L, now, ctx)
         }
         ctx.restoreGState()
+        if L.card {
+            let e = musicEdge(c, s.night)
+            glassEdge(r, radius: 18 * k, top: e.top, bottom: e.bottom, width: 1.25 * k, ctx)
+        }
+    }
+
+    /// Nombre del servicio como lo escribe cada uno («Spotify», «Apple Music»).
+    func sourceName(_ m: MusicSnapshot) -> String {
+        m.source.isEmpty ? "Música" : m.source
     }
 
     /// Barra de progreso con el tiempo transcurrido y la duración (a los lados en la música
@@ -677,6 +1045,13 @@ extension HUDRenderer {
         if done > 1 {
             fillRounded(CGRect(x: bar.minX, y: bar.minY, width: done, height: bar.height), radius: L.bar / 2, color: c.accent.cg, ctx)
         }
+        // 0.6.3: punto en la posición actual con un halo del color de la barra (referencia).
+        let d = max(L.bar * 2.2, 7 * k)
+        let x = min(max(bar.minX + done, bar.minX + d / 2), bar.maxX - d / 2)
+        ctx.setFillColor(c.accent.cg.copy(alpha: 0.35) ?? c.accent.cg)
+        ctx.fillEllipse(in: CGRect(x: x - d, y: bar.midY - d, width: d * 2, height: d * 2))
+        ctx.setFillColor(c.text.cg)
+        ctx.fillEllipse(in: CGRect(x: x - d / 2, y: bar.midY - d / 2, width: d, height: d))
     }
 
     func dashTime(_ seconds: Double) -> String {
@@ -720,85 +1095,39 @@ extension HUDRenderer {
         ctx.restoreGState()
     }
 
-    // MARK: - Maniobra compacta (0.6.2)
+    // MARK: - Maniobra compacta
 
-    /// Tarjeta compacta de la maniobra: flecha pequeña, distancia y calle, con márgenes justos
-    /// para tapar poco mapa. La instrucción completa sigue en la tarjeta grande y en la pantalla
-    /// dividida; aquí el giro lo dice la flecha.
+    /// Tarjeta compacta de la maniobra (200×96, la misma en todos los modos con mapa): mosaico
+    /// con la flecha, la distancia en grande y la calle debajo, con márgenes justos para tapar
+    /// poco mapa. La instrucción completa está en la tarjeta grande; aquí el giro lo dice la
+    /// flecha.
     func dashTurnCompact(_ n: HUDSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
-        let pad = 9 * k
-        let preview = !n.navigating && n.previewRoutes.indices.contains(n.previewSelected)
-        if !n.navigating && !n.arrived && !preview {
+        let pad = 10 * k
+        let look = maneuverLook(n, p, street: true)
+        if look.idle {
             // Sin ruta: tarjeta baja.
-            let t = min(40 * k, r.height - 2 * pad)
+            let t = min(36 * k, r.height - 2 * pad)
             let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
-            fillRounded(tile, radius: t * 0.24, color: p.line, ctx)
-            HUDIcons.draw(.depart, in: tile.insetBy(dx: t * 0.16, dy: t * 0.16), color: p.dim, hole: p.line, ctx: ctx)
+            maneuverTile(look, tile, p, ctx)
             let tx = tile.maxX + 9 * k
             let tw = r.maxX - pad - tx
-            wrapped("Sin ruta", sizes: [19 * k, 17 * k], color: p.text, x: tx, top: r.minY + pad - 2 * k, width: tw, maxLines: 1, ctx)
-            wrapped("Elige un destino en el iPhone", sizes: [12 * k, 11 * k], color: p.dim, x: tx, top: r.minY + pad + 21 * k, width: tw, maxLines: 2, ctx)
+            let y = paragraph(look.big, sizes: [17 * k, 15.5 * k], bold: true, color: p.text, x: tx, top: r.minY + pad - 1 * k, width: tw, maxLines: 1, ctx)
+            paragraph(look.line, sizes: [12 * k, 11 * k], bold: false, color: p.dim, x: tx, top: y + 2 * k, width: tw, maxLines: 2, ctx)
             return
         }
-        let t = min(50 * k, r.height * 0.54)
+        let t = min(52 * k, r.height - 2 * pad - 24 * k)
         let tile = CGRect(x: r.minX + pad, y: r.minY + pad, width: t, height: t)
-        var color = p.accent
-        var kind = n.kind
-        var big = ""
-        var unit = ""
-        var line = HUDFormat.street(from: n.instruction) ?? n.instruction
-        var lineColor = p.text
-        if n.arrived {
-            color = p.good
-            kind = .arrive
-            big = "Llegaste"
-            line = n.destinationName
-        } else if preview {
-            let i = n.previewSelected
-            let parts = HUDFormat.distanceParts(n.previewDistances.indices.contains(i) ? n.previewDistances[i] : 0)
-            big = parts.value
-            unit = parts.unit
-            kind = .depart
-            line = n.previewRoutes.count > 1 ? "Ruta \(i + 1) de \(n.previewRoutes.count)" : "Ruta lista"
-            if n.previewTimes.indices.contains(i) { line += " · " + HUDFormat.durationCompact(n.previewTimes[i]) }
-        } else {
-            let parts = HUDFormat.distanceParts(n.distanceToManeuver)
-            big = parts.value
-            unit = parts.unit
-            if n.rerouting {
-                color = p.warn
-                line = "Recalculando…"
-                lineColor = p.warn
-            }
-        }
-        fillRounded(tile, radius: t * 0.24, color: color, ctx)
-        HUDIcons.draw(kind, in: tile.insetBy(dx: t * 0.13, dy: t * 0.13), color: p.onAccent, hole: color, ctx: ctx)
-
-        let showThen = n.thenKind != nil && n.navigating && !n.rerouting && !n.arrived
+        maneuverTile(look, tile, p, ctx)
         let chip = 22 * k
-        let tx = tile.maxX + 9 * k
-        let tw = r.maxX - pad - tx - (showThen ? chip + 4 * k : 0)
-        var size = unit.isEmpty ? 24 * k : 38 * k
-        var m = measure(big, size: size, bold: true, color: p.text)
-        var um = measure(unit, size: size * 0.45, bold: true, color: p.dim)
-        let need = m.width + (unit.isEmpty ? 0 : size * 0.1 + um.width)
-        if need > tw, need > 0 {
-            size *= max(0.5, tw / need)
-            m = measure(big, size: size, bold: true, color: p.text)
-            um = measure(unit, size: size * 0.45, bold: true, color: p.dim)
-        }
-        let base = tile.midY + (m.ascent - m.descent) / 2
-        put(m, x: tx, baseline: base, ctx)
-        if !unit.isEmpty { put(um, x: tx + m.width + size * 0.1, baseline: base, ctx) }
-        if showThen, let then = n.thenKind {
-            // La maniobra siguiente, pequeña y atenuada, arriba a la derecha.
-            let c = CGRect(x: r.maxX - pad - chip, y: tile.minY, width: chip, height: chip)
-            fillRounded(c, radius: chip * 0.28, color: alpha(p.text, 0.1), ctx)
-            HUDIcons.draw(then, in: c.insetBy(dx: chip * 0.15, dy: chip * 0.15), color: p.dim, hole: p.background, ctx: ctx)
+        let tx = tile.maxX + 10 * k
+        let tw = r.maxX - pad - tx - (look.then != nil ? chip + 4 * k : 0)
+        maneuverDistance(look, x: tx, baseline: nil, centerY: tile.midY, size: 36 * k, width: tw, p, ctx)
+        if let then = look.then {
+            thenChip(then, CGRect(x: r.maxX - pad - chip, y: tile.minY, width: chip, height: chip), p, ctx)
         }
         let top = tile.maxY + 5 * k
         if r.maxY - top > 12 * k {
-            wrapped(line, sizes: [19 * k, 17 * k, 15 * k], color: lineColor, x: r.minX + pad, top: top, width: r.width - 2 * pad, maxLines: 1, ctx)
+            wrapped(look.line, sizes: [17 * k, 15.5 * k, 14 * k], color: look.lineColor, x: r.minX + pad, top: top, width: r.width - 2 * pad, maxLines: 1, ctx)
         }
     }
 
@@ -969,7 +1298,7 @@ extension HUDRenderer {
             }
             var blocks: [PlayerBlock] = []
             if row && s.showSource {
-                let src = textLines(m.source.isEmpty ? "MÚSICA" : m.source.uppercased(), sizes: [L.source * scale], bold: true,
+                let src = textLines(sourceName(m), sizes: [L.source * scale], bold: true,
                                     color: sourceColor(m, c), width: max(10, w - L.source * scale * 1.6), maxLines: 1)
                 blocks.append(PlayerBlock(lines: src.lines, gap: 0, sourceLine: true))
             }
@@ -1046,6 +1375,8 @@ extension HUDRenderer {
                 let pw = 16 * k + g + 9 * k + label.width + 18 * k
                 let pill = CGRect(x: L.text.midX - pw / 2, y: y, width: pw, height: pillH)
                 fillRounded(pill, radius: pillH / 2, color: c.text.cg.copy(alpha: 0.13) ?? c.text.cg, ctx)
+                glassEdge(pill, radius: pillH / 2, top: c.text.cg.copy(alpha: 0.3) ?? c.text.cg,
+                          bottom: c.text.cg.copy(alpha: 0.06) ?? c.text.cg, width: 1 * k, ctx)
                 stateGlyph(m.playing, CGRect(x: pill.minX + 16 * k, y: pill.midY - g / 2, width: g, height: g), c.text.cg, ctx)
                 put(label, x: pill.minX + 16 * k + g + 9 * k, baseline: pill.midY + (label.ascent - label.descent) / 2, ctx)
                 y += pillH
@@ -1088,66 +1419,90 @@ extension HUDRenderer {
 
     // MARK: - Avisos
 
+    /// Zona de avisos (0.6.3): cabecera con la campana, tarjetas de vidrio con el icono de quién
+    /// lo envía, el título, el mensaje y cuánto hace; sin avisos, un estado vacío centrado (antes
+    /// quedaba casi toda la zona en blanco).
     func dashNotices(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
-        let pad = max(7, min(r.width, r.height) * 0.07)
-        let hs = max(10, min(r.height * 0.1, 15 * k))
-        let head = measure("AVISOS", size: hs, bold: true, color: p.dim)
-        put(head, x: r.minX + pad, baseline: r.minY + pad + head.ascent, ctx)
-        var y = r.minY + pad + hs * 1.6
-        let avail = r.maxY - pad - y
-        guard avail > 24 else { return }
+        let pad = max(9 * k, min(14 * k, min(r.width, r.height) * 0.05))
+        let hs = 14 * k
+        let bell = CGRect(x: r.minX + pad, y: r.minY + pad + 1 * k, width: hs, height: hs)
+        bellGlyph(bell, p.dim, ctx)
+        let head = measure("Avisos", size: hs, bold: true, color: p.dim)
+        put(head, x: bell.maxX + 6 * k, baseline: bell.midY + (head.ascent - head.descent) / 2, ctx)
+        if !s.notices.isEmpty {
+            let count = measure("\(s.notices.count)", size: 11 * k, bold: true, color: p.text)
+            let badge = CGRect(x: bell.maxX + 6 * k + head.width + 7 * k, y: bell.midY - 9 * k, width: max(18 * k, count.width + 10 * k), height: 18 * k)
+            fillRounded(badge, radius: 9 * k, color: p.accent.copy(alpha: 0.85) ?? p.accent, ctx)
+            put(count, x: badge.midX - count.width / 2, baseline: badge.midY + (count.ascent - count.descent) / 2, ctx)
+        }
+        let y0 = bell.maxY + 10 * k
+        let avail = r.maxY - pad - y0
+        guard avail > 24 * k else { return }
         if s.notices.isEmpty {
-            wrapped("Sin avisos", sizes: [hs * 1.3], color: p.dim, x: r.minX + pad, top: y + avail * 0.2, width: r.width - 2 * pad, maxLines: 1, ctx)
+            // Estado vacío centrado.
+            let d = min(52 * k, avail * 0.36)
+            let mid = y0 + avail * 0.42
+            let circle = CGRect(x: r.midX - d / 2, y: mid - d, width: d, height: d)
+            glassCard(circle, radius: d / 2, p, ctx, shadow: false)
+            bellGlyph(circle.insetBy(dx: d * 0.27, dy: d * 0.27), p.dim, ctx)
+            let w = r.width - 2 * pad
+            let y = paragraph("Sin avisos", sizes: [17 * k, 15 * k], bold: true, color: p.dim, x: r.minX + pad, top: mid + 10 * k,
+                              width: w, maxLines: 1, ctx, align: 0.5)
+            if r.maxY - pad - y > 30 * k {
+                paragraph("Aquí aparecen los avisos de la ruta, la moto y el iPhone", sizes: [12.5 * k, 11.5 * k], bold: false,
+                          color: p.faint, x: r.minX + pad, top: y + 5 * k, width: w, maxLines: 2, ctx, align: 0.5)
+            }
             return
         }
-        let gap: CGFloat = 4
-        let ch = min(max((avail - gap) / 2, 30), 60)
+        let gap = 7 * k
+        let ch = max(46 * k, min(66 * k, (avail - gap) / 2))
         let count = max(1, Int((avail + gap) / (ch + gap)))
-        let t = now.timeIntervalSinceReferenceDate
+        var y = y0
         for note in s.notices.sorted(by: { $0.time > $1.time }).prefix(count) {
             let card = CGRect(x: r.minX + pad, y: y, width: r.width - 2 * pad, height: min(ch, r.maxY - pad - y))
-            fillRounded(card, radius: ch * 0.22, color: alpha(p.background, 0.75), ctx)
-            let side = ch * 0.7
-            let ic = CGRect(x: card.minX + ch * 0.15, y: card.midY - side / 2, width: side, height: side)
+            glassCard(card, radius: 12 * k, p, ctx, shadow: false)
+            let side = min(card.height - 16 * k, 38 * k)
+            let ic = CGRect(x: card.minX + 10 * k, y: card.midY - side / 2, width: side, height: side)
             dashNoticeIcon(note.kind, ic, p, ctx)
-            let tx = ic.maxX + ch * 0.18
-            let tw = card.maxX - ch * 0.16 - tx
-            let ts = ch * 0.3
-            let minutes = Int(max(0, t - note.time) / 60)
-            let am = measure(minutes < 1 ? "ahora" : "\(minutes) min", size: ts * 0.78, bold: false, color: p.dim)
-            put(am, x: card.maxX - ch * 0.16 - am.width, baseline: card.minY + ch * 0.13 + ts * 0.95, ctx)
-            wrapped(note.title, sizes: [ts], color: p.text, x: tx, top: card.minY + ch * 0.13, width: tw - am.width - 6, maxLines: 1, ctx)
-            wrapped(s.privacy ? "Contenido oculto" : note.text, sizes: [ts * 0.85], color: p.dim, x: tx, top: card.minY + ch * 0.53, width: tw, maxLines: 1, ctx)
+            let tx = ic.maxX + 10 * k
+            let tw = card.maxX - 10 * k - tx
+            let age = measure(noticeAge(note, now), size: 11 * k, bold: false, color: p.dim)
+            // Remitente y hora arriba, título en negrita y mensaje debajo (con alto suficiente);
+            // si la tarjeta es baja, título y mensaje.
+            let tall = card.height >= 60 * k
+            var top = card.midY - (tall ? 25 : 17.5) * k
+            if tall {
+                textLine(noticeSender(note.kind), sizes: [10 * k], bold: true, color: p.faint, x: tx, top: top, width: tw - age.width - 8 * k, ctx)
+                put(age, x: card.maxX - 10 * k - age.width, baseline: top + age.ascent, ctx)
+                top += 14 * k
+            } else {
+                put(age, x: card.maxX - 10 * k - age.width, baseline: top + 1 * k + age.ascent, ctx)
+            }
+            wrapped(note.title, sizes: [15 * k, 14 * k, 13 * k], color: p.text, x: tx, top: top, width: tw - (tall ? 0 : age.width + 8 * k), maxLines: 1, ctx)
+            textLine(s.privacy ? "Contenido oculto" : note.text, sizes: [13 * k, 12 * k, 11.5 * k], bold: false, color: p.dim,
+                     x: tx, top: top + 19.5 * k, width: tw, ctx)
             y += ch + gap
         }
     }
 
+    /// Icono de cada aviso en su mosaico: navegación (azul), moto (verde, Wi-Fi), batería del
+    /// iPhone (ámbar) y prueba (violeta).
     func dashNoticeIcon(_ kind: NoticeKind, _ r: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
-        let color: CGColor
+        let colors: (CGColor, CGColor)
         switch kind {
-        case .nav: color = p.accent
-        case .link: color = p.good
-        case .battery: color = p.warn
-        case .test: color = p.dim
+        case .nav: colors = tileColors(.blue, p)
+        case .link: colors = tileColors(.good, p)
+        case .battery: colors = tileColors(.amber, p)
+        case .test: colors = tileColors(.violet, p)
         }
-        fillRounded(r, radius: r.width * 0.28, color: color, ctx)
-        let w = r.width
-        ctx.setFillColor(p.onAccent)
-        ctx.setStrokeColor(p.onAccent)
-        ctx.setLineWidth(w * 0.09)
+        iconTile(r, colors, ctx)
+        let g = r.insetBy(dx: r.width * 0.2, dy: r.height * 0.2)
+        let white = HUDRenderer.white(1)
         switch kind {
-        case .nav:
-            HUDIcons.draw(.straight, in: r.insetBy(dx: w * 0.16, dy: w * 0.16), color: p.onAccent, hole: color, ctx: ctx)
-        case .link:
-            ctx.fillEllipse(in: CGRect(x: r.midX - w * 0.09, y: r.midY - w * 0.09, width: w * 0.18, height: w * 0.18))
-            ctx.strokeEllipse(in: r.insetBy(dx: w * 0.24, dy: w * 0.24))
-        case .battery:
-            let body = CGRect(x: r.minX + w * 0.22, y: r.midY - w * 0.14, width: w * 0.48, height: w * 0.28)
-            ctx.stroke(body)
-            ctx.fill(CGRect(x: body.maxX + w * 0.03, y: r.midY - w * 0.06, width: w * 0.06, height: w * 0.12))
-            ctx.fill(CGRect(x: body.minX + w * 0.05, y: body.minY + w * 0.05, width: w * 0.12, height: w * 0.18))
-        case .test:
-            ctx.fillEllipse(in: r.insetBy(dx: w * 0.3, dy: w * 0.3))
+        case .nav: HUDIcons.draw(.straight, in: r.insetBy(dx: r.width * 0.17, dy: r.height * 0.17), color: white, hole: colors.1, ctx: ctx)
+        case .link: linkGlyph(g, white, ctx)
+        case .battery: batteryGlyph(g, white, ctx)
+        case .test: bellGlyph(g, white, ctx)
         }
     }
 }

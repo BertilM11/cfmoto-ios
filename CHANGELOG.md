@@ -1,5 +1,55 @@
 # Registro de cambios
 
+## 0.6.3 — Correcciones de diseño y navegación (18 de noviembre de 2026)
+
+Respaldo de la versión anterior: etiqueta `v0.6.2`, rama `backup/v0.6.2`, publicación
+`build-11` y carpeta `BACKUP_ORIGINAL_0.6.2` con sus huellas SHA-256 (ver `docs/ROLLBACK.md`).
+No cambian la conexión Wi-Fi Direct, el vídeo H.264, el protocolo con la moto ni sus
+indicadores (velocidad, RPM, marcha, combustible y testigos).
+
+### Música: el mismo reproductor en todos los modos
+- Un solo reproductor en tres formas que comparten fondo (degradado con los colores de la
+  portada y un resplandor detrás de ella), portada con sombra, letra, estado y barra:
+  - **Música sola**: la pantalla al estilo de CarPlay de la 0.6.2 (sin cambios de medidas).
+  - **Dividida** y **Música + Avisos**: columna con la portada arriba, título y artista
+    centrados, la píldora «Reproduciendo / En pausa» y la barra con el tiempo transcurrido y la
+    duración.
+  - **Nav + Música**, **Completo** y zonas bajas: tarjeta con la portada a la izquierda, el
+    servicio con el símbolo del estado, título, artista y barra (con tiempos en la tarjeta
+    grande). Antes la tarjeta tenía otro diseño.
+- Los textos se ajustan al sitio: si no caben, primero se quita lo secundario y se reduce la letra
+  un poco; un título muy largo termina en «…», nunca cortado por el borde.
+- Sin botones: el protocolo de la moto no envía teclas, así que solo se muestran el estado y el
+  progreso (la música se controla desde el iPhone o el intercomunicador).
+- El fundido al cambiar de canción funciona en todas las formas.
+
+### Navegación: instrucciones compactas en las pantallas compartidas
+- **Dividida** y diseños por zonas: la tarjeta del giro es la misma que en el mapa completo
+  (**200×96**, antes 426×155 a todo el ancho) y la barra del viaje es más baja. Más mapa a la
+  vista (ver `docs/DISENO_0.6.3.md`).
+- Respeta el **tamaño** (compacta o grande) y el **lugar** elegidos en el iPhone; en
+  Personalización aparecen también para la Dividida.
+- Nav + Música, Completo y Nav + Avisos siguen con la tarjeta compacta de la 0.6.2.
+- Las etiquetas (SIMULACIÓN, SIN SEÑAL GPS…) van dentro de la zona del mapa, sin tapar la música.
+
+### Mapa con el iPhone bloqueado
+- **3 imágenes a la vez** (antes 2) y hasta **800 imágenes / 96 MB** (antes 400 / 64 MB): cabe una
+  ruta de unos 140 km con el zoom por defecto (antes unos 70 km).
+- Si iOS avisa de poca memoria, se sueltan las imágenes más lejanas durante 2 minutos.
+- En Navegación y en la pantalla negra: **«Ruta completa guardada»**, **«Guardando el mapa: X de
+  Y km»** o **«Mapa parcial: X de Y km (límite de memoria)»**, con un consejo de qué hacer.
+- En la moto, con el iPhone bloqueado y menos de 2 km de mapa guardado: **MAPA GUARDADO: X KM**.
+- Informe completo de lo que permite Apple y de las alternativas: `docs/MAPA_IPHONE_BLOQUEADO.md`.
+
+### Hora actual y llegada
+- Se mantienen: hora actual fija arriba a la derecha y «Llegada 7:22 p. m. | 18 min | 7.4 km».
+  Las pruebas comprueban que ningún texto la tapa en ningún modo.
+
+### Pruebas
+- Nuevas pruebas automáticas: textos cortados, montados o sobre la hora en todos los modos (día,
+  noche, con y sin ruta y a 640×320), contraste del texto sobre el fondo real, forma del
+  reproductor en cada modo, maniobra en cada esquina y tamaño, cobertura del mapa y precarga.
+
 ## 0.6.2 — Diseño de la pantalla (17 de noviembre de 2026)
 
 Respaldo de la versión anterior: etiqueta `v0.6.1`, rama `backup/v0.6.1`, publicación

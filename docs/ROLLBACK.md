@@ -1,8 +1,25 @@
 # Volver a una versión anterior
 
-La 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.2 falla o no te gusta el diseño nuevo, se
-puede volver en un par de minutos. La 0.6.2 solo cambia el dibujo de la pantalla: la conexión
-con la moto, el vídeo y el protocolo son los de la 0.6.1.
+La 0.6.2, la 0.6.1 y la 0.6.0 se conservan intactas. Si la 0.6.3 falla o no te gusta el diseño
+nuevo, se puede volver en un par de minutos. La 0.6.3 cambia el dibujo de la pantalla y el mapa
+guardado: la conexión con la moto, el vídeo y el protocolo son los de la 0.6.2.
+
+## Dónde está la 0.6.2
+
+| Dónde | Qué |
+| --- | --- |
+| Entrega de la 0.6.3: `BACKUP_ORIGINAL_0.6.2\` | `CFMotoLink_0.6.2.ipa`, el paquete original, `SHA256SUMS.txt`, `MANIFEST_0.6.2.txt` y `VERSION.txt` |
+| Tu PC: `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.2\` | Los mismos archivos |
+| Tu PC: `Descargas\CFMotoLink_entrega_0.6.2\` y `CFMotoLink_0.6.2.ipa` en la carpeta del proyecto | La entrega completa de la 0.6.2 |
+| GitHub, publicación `build-11` | El IPA y el paquete de la 0.6.2 tal como se compilaron |
+| GitHub, rama `backup/v0.6.2` y etiqueta `v0.6.2` | El código exacto (commit `2268c2e`) |
+
+Huellas SHA-256 de la copia de la 0.6.2:
+
+```
+b4da3a4e6faecfba2de90493c5ec31cf25b0a57837581162ff3e58e65226248a  CFMotoLink_0.6.2.ipa
+bcc16fd5facff7879749bb33ef3890b6f834cdd52cde4362ff69e0e8027c8eba  CFMotoLink_0.6.2_Interfaz.zip
+```
 
 ## Dónde está la 0.6.1
 
@@ -36,18 +53,18 @@ Huellas SHA-256 de la copia de la 0.6.1:
 Comprobar una huella en Windows (PowerShell o CMD, dentro de la carpeta del respaldo):
 
 ```
-certutil -hashfile CFMotoLink_0.6.1.ipa SHA256
+certutil -hashfile CFMotoLink_0.6.2.ipa SHA256
 ```
 
-## Reinstalar la 0.6.1 (o la 0.6.0) en el iPhone
+## Reinstalar la 0.6.2 (o una anterior) en el iPhone
 
 1. Abre Sideloadly y conecta el iPhone con el cable.
-2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.1\CFMotoLink_0.6.1.ipa`
-   (o el de la 0.6.0).
+2. Toca el icono del IPA y elige `Descargas\CFMotoLink_BACKUP_ORIGINAL_0.6.2\CFMotoLink_0.6.2.ipa`
+   (o el de la 0.6.1 o la 0.6.0).
 3. Pulsa **Start**. Se instala encima (mismo identificador `io.github.cfmotolink.app`).
 
-Los ajustes se conservan: la 0.6.2 no cambia el formato guardado (sigue siendo la versión 3 de
-la configuración). El Client ID de Spotify también; el permiso de Spotify hay que pedirlo otra
+Los ajustes se conservan: la 0.6.3 no cambia el formato guardado (sigue siendo la versión 3 de
+la configuración; el tamaño y el lugar de la maniobra ya existían). El Client ID de Spotify también; el permiso de Spotify hay que pedirlo otra
 vez (dura una hora y vive en memoria).
 
 ## Volver al código anterior
@@ -56,10 +73,10 @@ Con Git:
 
 ```sh
 git fetch origin
-git checkout v0.6.1          # o: git checkout backup/v0.6.1   (v0.6.0 / backup/v0.6.0 para la 0.6.0)
+git checkout v0.6.2          # o: git checkout backup/v0.6.2   (v0.6.1 / backup/v0.6.1, v0.6.0 / backup/v0.6.0)
 ```
 
-Con GitHub Desktop: *Branch > backup/v0.6.1*.
+Con GitHub Desktop: *Branch > backup/v0.6.2*.
 
 Para que la rama `main` vuelva a ser la 0.6.1 (solo si se decide abandonar la 0.6.2):
 

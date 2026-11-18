@@ -94,6 +94,12 @@ extension HUDRenderer {
                 ctx.setStrokeColor(halo)
                 ctx.setLineWidth(31 * u)
                 ctx.strokePath()
+            } else {
+                // 0.6.3: resplandor suave alrededor de la ruta, como en la referencia.
+                ctx.addPath(line)
+                ctx.setStrokeColor(p.routeGlow)
+                ctx.setLineWidth((casingWidth + 11) * u)
+                ctx.strokePath()
             }
             ctx.addPath(line)
             ctx.setStrokeColor(p.routeCasing)
@@ -102,6 +108,11 @@ extension HUDRenderer {
             ctx.addPath(line)
             ctx.setStrokeColor(p.route)
             ctx.setLineWidth(lineWidth * u)
+            ctx.strokePath()
+            // Brillo en el centro de la línea (tubo de luz).
+            ctx.addPath(line)
+            ctx.setStrokeColor(p.routeLight)
+            ctx.setLineWidth(max(2, lineWidth * 0.27) * u)
             ctx.strokePath()
             ctx.restoreGState()
         }
@@ -263,73 +274,66 @@ extension HUDRenderer {
         return true
     }
 
-    /// Indicador de posición: halo, borde blanco y flecha del color de la ruta.
+    /// Indicador de posición (0.6.3: el de la referencia, igual en el mapa simple).
     func drawPuck(at c: CGPoint, angle: CGFloat?, u: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
-        ctx.saveGState()
-        ctx.setFillColor(alpha(p.accent, 0.22))
-        ctx.fillEllipse(in: CGRect(x: c.x - 30 * u, y: c.y - 30 * u, width: 60 * u, height: 60 * u))
-        guard let angle = angle else {
-            ctx.setFillColor(p.onAccent)
-            ctx.fillEllipse(in: CGRect(x: c.x - 13 * u, y: c.y - 13 * u, width: 26 * u, height: 26 * u))
-            ctx.setFillColor(p.accent)
-            ctx.fillEllipse(in: CGRect(x: c.x - 9 * u, y: c.y - 9 * u, width: 18 * u, height: 18 * u))
-            ctx.restoreGState()
-            return
-        }
-        ctx.translateBy(x: c.x, y: c.y)
-        ctx.rotate(by: angle)
-        func arrow(_ s: CGFloat) -> CGPath {
-            let a = CGMutablePath()
-            a.move(to: CGPoint(x: 0, y: -22 * s))
-            a.addLine(to: CGPoint(x: 16 * s, y: 16 * s))
-            a.addLine(to: CGPoint(x: 0, y: 7 * s))
-            a.addLine(to: CGPoint(x: -16 * s, y: 16 * s))
-            a.closeSubpath()
-            return a
-        }
-        ctx.setShadow(offset: .zero, blur: 6 * u, color: alpha(CGColor(gray: 0, alpha: 1), 0.6))
-        ctx.addPath(arrow(u * 1.12))
-        ctx.setFillColor(p.onAccent)
-        ctx.fillPath()
-        ctx.setShadow(offset: .zero, blur: 0, color: nil)
-        ctx.addPath(arrow(u * 0.78))
-        ctx.setFillColor(p.accent)
-        ctx.fillPath()
-        ctx.restoreGState()
+        positionMark(at: c, angle: angle, u: u, p, ctx)
     }
 
+    /// Destino (0.6.3): marcador rojo con punto blanco y su sombra en el suelo, como en la
+    /// referencia.
     func drawFlag(at d: CGPoint, u: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
         ctx.saveGState()
+        ctx.setFillColor(p.pin.copy(alpha: 0.32) ?? p.pin)
+        ctx.fillEllipse(in: CGRect(x: d.x - 10 * u, y: d.y - 4 * u, width: 20 * u, height: 8 * u))
         ctx.setFillColor(p.onAccent)
-        ctx.fillEllipse(in: CGRect(x: d.x - 13 * u, y: d.y - 13 * u, width: 26 * u, height: 26 * u))
-        ctx.setFillColor(p.good)
-        ctx.fillEllipse(in: CGRect(x: d.x - 9 * u, y: d.y - 9 * u, width: 18 * u, height: 18 * u))
+        ctx.fillEllipse(in: CGRect(x: d.x - 3 * u, y: d.y - 2 * u, width: 6 * u, height: 4 * u))
+        let head = CGPoint(x: d.x, y: d.y - 22 * u)
+        let r = 10.5 * u
+        let pin = CGMutablePath()
+        pin.move(to: CGPoint(x: d.x, y: d.y - 1 * u))
+        pin.addLine(to: CGPoint(x: head.x - r * 0.84, y: head.y + r * 0.55))
+        pin.addArc(center: head, radius: r, startAngle: .pi * 0.82, endAngle: .pi * 0.18, clockwise: false)
+        pin.closeSubpath()
+        ctx.setShadow(offset: .zero, blur: 5 * u, color: CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.5))
+        ctx.addPath(pin)
+        ctx.setFillColor(p.pin)
+        ctx.fillPath()
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        ctx.addPath(pin)
+        ctx.setStrokeColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.85))
+        ctx.setLineWidth(1.6 * u)
+        ctx.setLineJoin(.round)
+        ctx.strokePath()
+        ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        ctx.fillEllipse(in: CGRect(x: head.x - 4 * u, y: head.y - 4 * u, width: 8 * u, height: 8 * u))
         ctx.restoreGState()
     }
 
-    /// Brújula: círculo con la punta roja hacia el norte. `angle`: radianes desde arriba.
+    /// Brújula (0.6.3): círculo de vidrio como el resto de tarjetas, con la aguja roja hacia el
+    /// norte. `angle`: radianes desde arriba.
     func drawCompass(in box: CGRect, angle: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
         let c = CGPoint(x: box.midX, y: box.midY)
         let rad = min(box.width, box.height) / 2
+        glassCard(CGRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2), radius: rad, p, ctx)
         ctx.saveGState()
-        ctx.setFillColor(alpha(p.background, 0.86))
-        ctx.fillEllipse(in: CGRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2))
         ctx.translateBy(x: c.x, y: c.y)
         ctx.rotate(by: angle)
         ctx.beginPath()
-        ctx.move(to: CGPoint(x: 0, y: -rad * 0.72))
-        ctx.addLine(to: CGPoint(x: rad * 0.3, y: 0))
-        ctx.addLine(to: CGPoint(x: -rad * 0.3, y: 0))
+        ctx.move(to: CGPoint(x: 0, y: -rad * 0.68))
+        ctx.addLine(to: CGPoint(x: rad * 0.26, y: 0))
+        ctx.addLine(to: CGPoint(x: -rad * 0.26, y: 0))
         ctx.closePath()
-        ctx.setFillColor(CGColor(srgbRed: 1, green: 0.27, blue: 0.23, alpha: 1))
+        ctx.setFillColor(CGColor(srgbRed: 1, green: 0.3, blue: 0.3, alpha: 1))
         ctx.fillPath()
         ctx.beginPath()
-        ctx.move(to: CGPoint(x: 0, y: rad * 0.72))
-        ctx.addLine(to: CGPoint(x: rad * 0.3, y: 0))
-        ctx.addLine(to: CGPoint(x: -rad * 0.3, y: 0))
+        ctx.move(to: CGPoint(x: 0, y: rad * 0.68))
+        ctx.addLine(to: CGPoint(x: rad * 0.26, y: 0))
+        ctx.addLine(to: CGPoint(x: -rad * 0.26, y: 0))
         ctx.closePath()
-        ctx.setFillColor(p.dim)
+        ctx.setFillColor(p.text.copy(alpha: 0.82) ?? p.text)
         ctx.fillPath()
+        ctx.setFillColor(p.dark ? CGColor(srgbRed: 0.05, green: 0.1, blue: 0.19, alpha: 1) : CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1))
+        ctx.fillEllipse(in: CGRect(x: -rad * 0.1, y: -rad * 0.1, width: rad * 0.2, height: rad * 0.2))
         ctx.restoreGState()
     }
 }

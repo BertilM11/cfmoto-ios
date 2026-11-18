@@ -164,3 +164,20 @@ temperatura).
 | K | Pantalla negra (botón de la luna) en vez de bloquear | Calles en vivo todo el viaje | `mapa=en vivo`, batería y temperatura |
 
 Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.
+
+## 5. Pruebas en la moto de la 0.6.3
+
+Igual que antes: al terminar cada una, **Más > Diagnóstico > Exportar informe**.
+
+| Prueba | Qué hacer | Qué mirar en la moto | Qué mirar en el informe |
+| --- | --- | --- | --- |
+| L | Modo 3 · Dividida con una ruta | Tarjeta del giro pequeña (como en el mapa completo) arriba a la izquierda; se ve el mapa por delante; la barra «Llegada · min · km» abajo | — |
+| M | En Personalización, «Tarjeta de maniobra: Grande» y «Lugar de la maniobra: Arriba der.» con la Dividida | La moto cambia al momento (pasa a modo 5) y nada tapa la hora | — |
+| N | Música en Música sola, Nav + Música, Dividida, Completo y Música + Avisos (Spotify y Apple Music) | El mismo reproductor en todos: fondo con los colores de la portada, portada, título, artista, estado y barra; nada cortado; legible de día y de noche | — |
+| O | Cambiar de canción varias veces con la ruta activa | Fundido corto, sin tirones en el mapa | `envio≈10fps` |
+| P | Ruta de 15–30 km: cronometrar desde que eliges el destino hasta «Ruta completa guardada»; luego bloquear y recorrerla | Calles en toda la ruta, sin MAPA SIMPLE dentro de ella | `[MAPA] Ruta completa guardada`, `cobertura=` |
+| Q | Moto encendida y el iPhone bloqueado 10 minutos (con y sin ruta) | **La TFT sigue recibiendo imagen** (la hora avanza cada minuto). Que el GPS siga no basta | `envio≈10fps` y edad del último fotograma < 1 s durante todo el bloqueo |
+| R | Ruta muy larga (> 140 km) | En el iPhone, aviso naranja «Mapa parcial»; en la moto, al final de lo guardado, «MAPA GUARDADO: x KM» y después MAPA SIMPLE | `[MAPA] Mapa parcial…`, memoria (`mem=`) |
+| S | Vista previa de Mi pantalla y Personalización frente a la moto | Lo mismo en el iPhone y en la TFT | — |
+
+Ninguna de estas pruebas está hecha todavía: dependen de la moto y del iPhone real.

@@ -1279,7 +1279,9 @@ var backgroundProblems: [String] = []
 var glowProblems: [String] = []
 var stateMissing: [String] = []
 for ps in playerSnaps {
-    guard let r = ps.rect else { continue }
+    // Con ruta, los diseños sin mapa llevan la franja del próximo giro abajo: la zona de la
+    // música es la que queda encima (antes se medía la zona entera y el punto caía en la franja).
+    guard let r = ps.card != nil || ps.layout.showsRoute ? ps.rect : musicZone(ps.layout, area: stripArea) else { continue }
     for theme in [DashTheme.dark, .light] {
         for (artName, art) in [("neón", neon), ("roja", redBlack), ("azul", blue)] {
             let s = musicSnap(ps.layout, theme, art: art)
@@ -1563,24 +1565,154 @@ check("Dividida: «Llegada», hora de llegada, tiempo y distancia por separado, 
       ["Llegada", etaClock063.time, "18 min", "7.4 km"].allSatisfy { t in tripMarks.contains { $0.text == t } }
       && tripMarks.contains { $0.text == HUDFormat.clock(now).time && clockSpot.contains($0.rect) })
 
+// 10f. Rediseño premium (0.6.3): mismas posiciones que la 0.6.2, las mismas piezas en todas las
+// tarjetas (vidrio con borde luminoso), datos del viaje y avisos como en la referencia.
+func overlayRect(_ mode: DashMode, _ item: OverlayItem) -> CGRect? {
+    DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1, showNotices: true).first { $0.item == item }?.rect
+}
+let expectedOverlay: [(DashMode, OverlayItem, CGRect)] = [
+    (.gps, .maneuver, CGRect(x: 12, y: 12, width: 200, height: 96)),
+    (.gps, .trip, CGRect(x: 200, y: 342, width: 400, height: 46)),
+    (.gps, .time, CGRect(x: 672, y: 12, width: 116, height: 30)),
+    (.gpsMusic, .maneuver, CGRect(x: 12, y: 12, width: 200, height: 96)),
+    (.gpsMusic, .music, CGRect(x: 538, y: 50, width: 250, height: 84)),
+    (.gpsMusic, .trip, CGRect(x: 200, y: 342, width: 400, height: 46)),
+    (.full, .music, CGRect(x: 538, y: 50, width: 250, height: 84)),
+    (.full, .notices, CGRect(x: 526, y: 142, width: 262, height: 58)),
+    (.gpsNotices, .notices, CGRect(x: 526, y: 50, width: 262, height: 58)),
+]
+let expectedZones: [(DashMode, DashModule, CGRect)] = [
+    (.split, .nav, CGRect(x: 6, y: 6, width: 454, height: 388)),
+    (.split, .music, CGRect(x: 466, y: 6, width: 328, height: 388)),
+    (.music, .music, CGRect(x: 6, y: 6, width: 788, height: 388)),
+    (.musicNotices, .music, CGRect(x: 6, y: 6, width: 454, height: 388)),
+    (.musicNotices, .notices, CGRect(x: 466, y: 6, width: 328, height: 388)),
+]
+var moved: [String] = []
+for (mode, item, rect) in expectedOverlay where overlayRect(mode, item) != rect {
+    moved.append("\(mode.label) \(item.rawValue): \(overlayRect(mode, item).map { "\($0)" } ?? "no está")")
+}
+for (mode, module, rect) in expectedZones {
+    let got = DashLayoutEngine.frames(.preset(mode), in: zoneArea, gap: 6).first { $0.module == module }?.rect
+    if got != rect { moved.append("\(mode.label) \(module.rawValue): \(got.map { "\($0)" } ?? "no está")") }
+}
+check("Rediseño: tarjetas y zonas en el mismo sitio y del mismo tamaño que en la 0.6.2 (y la hora fija)", moved.isEmpty,
+      moved.isEmpty ? "\(expectedOverlay.count) tarjetas y \(expectedZones.count) zonas" : moved.joined(separator: "; "))
+
+// Las tarjetas comparten el borde luminoso del vidrio (de noche, más claro y azulado que el interior).
+let fullNight = render(musicSnap(.preset(.full), .dark, art: neon)).px
+let splitNight = render(musicSnap(.preset(.split), .dark, art: neon)).px
+var edgeProblems: [String] = []
+var edgeCount = 0
+let splitNavZone = DashLayoutEngine.frames(.preset(.split), in: zoneArea, gap: 6).first { $0.module == .nav }?.rect ?? .null
+let splitNavCards = NavZoneLayout.make(splitNavZone, OverlaySettings(), k: 1, reserve: nil, trip: true)
+let edgeCases: [(String, (image: CGImage?, data: [UInt8], rowBytes: Int), CGRect?)] = [
+    ("maniobra", fullNight, overlayRect(.full, .maneuver)), ("viaje", fullNight, overlayRect(.full, .trip)),
+    ("avisos", fullNight, overlayRect(.full, .notices)), ("hora", fullNight, overlayRect(.full, .time)),
+    ("maniobra en Dividida", splitNight, splitNavCards.card), ("viaje en Dividida", splitNight, splitNavCards.trip),
+]
+for (name, px, rect) in edgeCases {
+    guard let r = rect else { edgeProblems.append("\(name): no está"); continue }
+    edgeCount += 1
+    let x = r.minX + min(24, r.width / 4)
+    let edge = rgbAt(px, x, r.minY + 0.5)
+    let inside = rgbAt(px, x, r.minY + 6)
+    if !(edge.luminance > inside.luminance + 0.02 && edge.b > edge.r + 0.05) {
+        edgeProblems.append(String(format: "%@: borde %.2f,%.2f,%.2f / dentro %.2f,%.2f,%.2f", name, edge.r, edge.g, edge.b, inside.r, inside.g, inside.b))
+    }
+}
+check("Rediseño: maniobra, viaje, avisos, hora y zonas usan el mismo vidrio con borde luminoso", edgeProblems.isEmpty,
+      edgeProblems.isEmpty ? "\(edgeCount) tarjetas" : edgeProblems.joined(separator: "; "))
+
+// Los fondos de las tarjetas se guardan ya dibujados: se ven igual que dibujados cada vez.
+HUDRenderer.cacheCards = false
+let directCards = [DashMode.full, .split, .musicNotices, .gpsNotices].map { render(musicSnap(.preset($0), .dark, art: neon)).px.data }
+    + [render(musicSnap(.preset(.gpsMusic), .light, art: blue, source: "Apple Music")).px.data]
+HUDRenderer.cacheCards = true
+let cachedCards = [DashMode.full, .split, .musicNotices, .gpsNotices].map { render(musicSnap(.preset($0), .dark, art: neon)).px.data }
+    + [render(musicSnap(.preset(.gpsMusic), .light, art: blue, source: "Apple Music")).px.data]
+let cardCacheDiff = zip(directCards, cachedCards).map { maxDifference($0.0, $0.1) }.max() ?? 255
+check("Rediseño: las tarjetas guardadas ya dibujadas se ven igual que dibujadas cada vez", cardCacheDiff <= 4,
+      "diferencia máxima \(cardCacheDiff) de 255")
+
+// Datos del viaje como en la referencia: Distancia | Restante | Llegada, cada cifra sobre su nombre.
+let navMarks = render(musicSnap(.preset(.gps), .dark, art: neon)).marks
+func markRect(_ t: String, in marks: [HUDRenderer.TextMark]) -> CGRect? { marks.first { $0.text == t }?.rect }
+let tripOrder = ["Distancia", "Restante", "Llegada"].compactMap { markRect($0, in: navMarks)?.midX }
+let valueOverLabel = [("7.4 km", "Distancia"), ("18 min", "Restante")].allSatisfy { v, l in
+    guard let a = markRect(v, in: navMarks), let b = markRect(l, in: navMarks) else { return false }
+    return a.maxY <= b.minY + 1 && abs(a.midX - b.midX) < 2
+}
+check("Rediseño: datos del viaje en tres bloques (Distancia, Restante, Llegada), cada cifra sobre su nombre",
+      tripOrder.count == 3 && tripOrder[0] < tripOrder[1] && tripOrder[1] < tripOrder[2] && valueOverLabel,
+      tripOrder.map { String(format: "%.0f", $0) }.joined(separator: " < "))
+let clockTexts = navMarks.filter { clockSpot.contains($0.rect) }.map { $0.text }
+let etaText = HUDFormat.clock(now.addingTimeInterval(18 * 60)).time
+check("Rediseño: la hora actual (con su reloj, arriba) y la de llegada (con «Llegada», abajo) no se confunden",
+      clockTexts.contains(HUDFormat.clock(now).time) && !clockTexts.contains("Llegada") && !clockTexts.contains(etaText)
+      && navMarks.contains { $0.text == etaText && !clockSpot.intersects($0.rect) }
+      && navMarks.contains { $0.text == "Llegada" && $0.rect.minY > H / 2 },
+      "arriba: \(clockTexts.joined(separator: " ")); llegada: \(etaText)")
+
+// Avisos: remitente, título, mensaje y hora; sin avisos, un estado vacío centrado.
+let mnMarks = render(musicSnap(.preset(.musicNotices), .dark, art: neon, route: false)).marks
+let noticeTexts = ["NAVEGACIÓN", "Ruta iniciada", "18 min hasta el destino", "Ahora", "IPHONE", "Batería del iPhone", "2 min"]
+check("Rediseño: cada aviso con su remitente, título, mensaje y hora", noticeTexts.allSatisfy { t in mnMarks.contains { $0.text == t } },
+      noticeTexts.filter { t in !mnMarks.contains { $0.text == t } }.joined(separator: ", "))
+var emptyNotices = musicSnap(.preset(.musicNotices), .dark, art: neon, route: false)
+emptyNotices.notices = []
+let emptyMarks = render(emptyNotices).marks
+let noticesZone = DashLayoutEngine.frames(.preset(.musicNotices), in: zoneArea, gap: 6).first { $0.module == .notices }?.rect ?? .null
+check("Rediseño: sin avisos se ve un estado vacío centrado, no la zona en blanco",
+      markRect("Sin avisos", in: emptyMarks).map { abs($0.midX - noticesZone.midX) < 2 && $0.midY > noticesZone.minY + 120 } == true
+      && emptyMarks.contains { $0.text.hasPrefix("Aquí aparecen") } && textProblems(emptyMarks, clock: clockSpot).isEmpty)
+
+// Mapa: la ruta lleva resplandor y la posición la marca azul de la referencia.
+if let q = base?.project(center.moved(250, bearing: heading + 180).moved(380, bearing: heading)) {
+    let x = q.x * W
+    let y = q.y * H
+    let sides = [rgbAt(check1, x - 14, y), rgbAt(check1, x + 14, y)]
+    check("Rediseño: la ruta lleva un resplandor azul a los lados (más contraste sobre el mapa)", sides.allSatisfy { $0.b > $0.r + 0.12 },
+          sides.map { String(format: "%.2f,%.2f,%.2f", $0.r, $0.g, $0.b) }.joined(separator: " | "))
+}
+if let q = base?.project(center.moved(250, bearing: heading + 180)) {
+    let puck = rgbAt(check1, q.x * W, q.y * H)
+    check("Rediseño: la posición se marca con la flecha azul en su disco", puck.b > 0.75 && puck.r < 0.5,
+          String(format: "%.2f,%.2f,%.2f", puck.r, puck.g, puck.b))
+}
+
+// Rendimiento de todos los modos con el rediseño.
+var perfAll: [String] = []
+var perfMax = 0.0
+let perfAllRenderer = HUDRenderer(width: Int(W), height: Int(H))
+for mode in DashMode.allCases {
+    let snap = musicSnap(.preset(mode), .dark, art: neon)
+    _ = DashPreview.image(snap, now: now, renderer: perfAllRenderer)
+    let t0 = Date()
+    for _ in 0..<30 { _ = DashPreview.image(snap, now: now, renderer: perfAllRenderer) }
+    let ms = Date().timeIntervalSince(t0) * 1000 / 30
+    perfMax = max(perfMax, ms)
+    perfAll.append(String(format: "%@ %.1f", mode.label, ms))
+}
+check("Rediseño: ningún modo tarda más de 25 ms por fotograma (la moto recibe 10 por segundo)", perfMax < 25, perfAll.joined(separator: ", ") + " ms")
+
 // Capturas de la 0.6.3.
 let captures: [(String, DashSnapshot)] = [
-    ("063-musica-sola-noche", musicSnap(.preset(.music), .dark, art: neon, route: false)),
-    ("063-musica-sola-dia", musicSnap(.preset(.music), .light, art: blue, source: "Apple Music", route: false)),
-    ("063-nav-musica-noche", musicSnap(.preset(.gpsMusic), .dark, art: neon)),
-    ("063-nav-musica-dia", musicSnap(.preset(.gpsMusic), .light, art: blue, source: "Apple Music")),
-    ("063-dividida-noche", musicSnap(.preset(.split), .dark, art: neon)),
-    ("063-dividida-dia", musicSnap(.preset(.split), .light, art: blue, source: "Apple Music")),
-    ("063-completo-noche", musicSnap(.preset(.full), .dark, art: redBlack)),
-    ("063-completo-dia", musicSnap(.preset(.full), .light, art: blue, source: "Apple Music")),
-    ("063-musica-avisos-noche", musicSnap(.preset(.musicNotices), .dark, art: neon, route: false)),
-    ("063-musica-avisos-dia", musicSnap(.preset(.musicNotices), .light, art: blue, source: "Apple Music", route: false)),
     ("063-musica-avisos-con-ruta", musicSnap(.preset(.musicNotices), .dark, art: redBlack)),
     ("063-tarjeta-grande", musicSnap(largeMusicLayout, .dark, art: neon)),
     ("063-principal-mas-2", musicSnap(sideLayout, .dark, art: neon)),
-    ("063-nav-avisos", musicSnap(.preset(.gpsNotices), .dark, art: neon)),
-    ("063-navegacion", musicSnap(.preset(.gps), .dark, art: neon)),
+    ("063-completo-roja", musicSnap(.preset(.full), .dark, art: redBlack)),
 ]
+// Todos los modos, de noche y de día, con datos como los de un viaje real y con los de demostración.
+let modeCaptureNames: [(DashMode, String)] = [
+    (.gps, "navegacion"), (.gpsMusic, "nav-musica"), (.split, "dividida"), (.music, "musica-completa"), (.full, "completo"),
+    (.gpsNotices, "nav-avisos"), (.musicNotices, "musica-avisos"), (.custom, "personalizado"),
+]
+for (mode, name) in modeCaptureNames {
+    if let image = render(musicSnap(.preset(mode), .dark, art: neon, route: mode != .music && mode != .musicNotices)).px.image { save(image, "063-\(name)-noche") }
+    if let image = render(musicSnap(.preset(mode), .light, art: blue, source: "Apple Music", route: mode != .music && mode != .musicNotices)).px.image { save(image, "063-\(name)-dia") }
+    if let image = render(DashDemo.snapshot(layout: .preset(mode), theme: .dark, now: now)).px.image { save(image, "063-demo-\(name)") }
+}
 for (name, snap) in captures {
     if let image = render(snap).px.image { save(image, name) }
 }

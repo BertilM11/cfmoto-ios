@@ -21,6 +21,34 @@ struct HUDPalette {
     let good: CGColor
     let line: CGColor
 
+    // 0.6.3: sistema visual de la referencia (tarjetas de vidrio con borde luminoso, mosaicos
+    // con degradado y ruta con resplandor). Lo comparten todas las tarjetas del panel.
+    /// Tema oscuro (para las imágenes guardadas de las tarjetas).
+    let dark: Bool
+    /// Texto terciario (etiquetas pequeñas).
+    let faint: CGColor
+    /// Vidrio de las tarjetas: arriba y abajo.
+    let cardTop: CGColor
+    let cardBottom: CGColor
+    /// Borde luminoso: más claro arriba.
+    let edgeTop: CGColor
+    let edgeBottom: CGColor
+    /// Halo exterior muy suave (solo de noche).
+    let halo: CGColor
+    let shadow: CGColor
+    /// Zonas del panel (degradado de fondo).
+    let panelTop: CGColor
+    let panelBottom: CGColor
+    let divider: CGColor
+    /// Mosaico de la maniobra (degradado azul).
+    let tileTop: CGColor
+    let tileBottom: CGColor
+    /// Ruta: resplandor alrededor y brillo en el centro.
+    let routeGlow: CGColor
+    let routeLight: CGColor
+    /// Marca del destino.
+    let pin: CGColor
+
     private static func c(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
         CGColor(
             srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -31,33 +59,65 @@ struct HUDPalette {
     }
 
     static let night = HUDPalette(
-        background: c(0x06090E),
-        panel: c(0x0E151F),
+        background: c(0x04080F),
+        panel: c(0x0A1322),
         text: c(0xFFFFFF),
-        dim: c(0x98A5B9),
-        accent: c(0x1F7AFF),
+        dim: c(0xA7B4C9),
+        accent: c(0x2F86FF),
         onAccent: c(0xFFFFFF),
-        route: c(0x4C9AFF),
-        routeCasing: c(0x0A2550),
+        route: c(0x2B8CFF),
+        routeCasing: c(0x0A3A99),
         routeDone: c(0x3B4758),
         warn: c(0xFFB020),
-        good: c(0x24C26E),
-        line: c(0x243044)
+        good: c(0x22C46E),
+        line: c(0x22324A),
+        dark: true,
+        faint: c(0x7D8BA2),
+        cardTop: c(0x182740, 0.93),
+        cardBottom: c(0x0A1222, 0.94),
+        edgeTop: c(0x6EAAFF, 0.62),
+        edgeBottom: c(0x2A5BB0, 0.2),
+        halo: c(0x3D8BFF, 0.13),
+        shadow: c(0x000000, 0.55),
+        panelTop: c(0x111C30),
+        panelBottom: c(0x080F1C),
+        divider: c(0xFFFFFF, 0.14),
+        tileTop: c(0x52A3FF),
+        tileBottom: c(0x1A58DC),
+        routeGlow: c(0x2B8CFF, 0.26),
+        routeLight: c(0x8CC4FF),
+        pin: c(0xFF3B4A)
     )
 
     static let day = HUDPalette(
-        background: c(0xF4F6F9),
-        panel: c(0xE3E8EF),
-        text: c(0x0B1220),
-        dim: c(0x556173),
+        background: c(0xEDF1F6),
+        panel: c(0xE2E8F1),
+        text: c(0x0A1220),
+        dim: c(0x4A5667),
         accent: c(0x1463E0),
         onAccent: c(0xFFFFFF),
-        route: c(0x1463E0),
+        route: c(0x1A6FEA),
         routeCasing: c(0xFFFFFF),
         routeDone: c(0xA6B1C2),
         warn: c(0xC46A00),
         good: c(0x0E9F5B),
-        line: c(0xC7CFDB)
+        line: c(0xC7CFDB),
+        dark: false,
+        faint: c(0x667285),
+        cardTop: c(0xFFFFFF, 0.95),
+        cardBottom: c(0xEDF2F9, 0.95),
+        edgeTop: c(0xFFFFFF, 0.95),
+        edgeBottom: c(0x8FA6CC, 0.55),
+        halo: c(0x1463E0, 0),
+        shadow: c(0x0A1A33, 0.28),
+        panelTop: c(0xF7F9FC),
+        panelBottom: c(0xE3E9F2),
+        divider: c(0x0A1220, 0.12),
+        tileTop: c(0x3D8BFF),
+        tileBottom: c(0x1250CC),
+        routeGlow: c(0x1A6FEA, 0.2),
+        routeLight: c(0x7DB6FF),
+        pin: c(0xE5243B)
     )
 }
 
@@ -241,6 +301,10 @@ final class HUDRenderer {
     var stageBackground: (key: String, image: CGImage)?
     /// Las pruebas lo apagan para comparar con el dibujo directo.
     static var cacheStageBackground = true
+    /// 0.6.3: fondos de las tarjetas de vidrio ya dibujados (sombra, degradado y borde), por
+    /// tamaño y tema. Solo cambian si cambia el tamaño, así que se reutilizan en cada fotograma.
+    var cardImages: [String: CGImage] = [:]
+    static var cacheCards = true
     /// Solo para las pruebas (0.6.3): cada texto que se dibuja, con su caja y el recorte vigente,
     /// para comprobar que nada se corta, se monta ni tapa la hora. En la app está apagado.
     struct TextMark {
@@ -370,8 +434,9 @@ final class HUDRenderer {
         let u = unit ?? k
         ctx.saveGState()
         ctx.clip(to: rect)
-        ctx.setFillColor(p.panel)
-        ctx.fill(rect)
+        // 0.6.3: fondo azul oscuro con degradado, como el mapa de la referencia (sin calles
+        // inventadas: este es el dibujo simple de la ruta, sin mapa).
+        fillVertical(rect, p.panelTop, p.panelBottom, ctx)
 
         let anchor = fixed ?? CGPoint(x: rect.midX, y: rect.maxY - 80 * u)
 
@@ -425,21 +490,32 @@ final class HUDRenderer {
 
             ctx.setLineCap(.round)
             ctx.setLineJoin(.round)
-            let whole = trace(from, to)
-            ctx.addPath(whole)
-            ctx.setStrokeColor(p.routeCasing)
-            ctx.setLineWidth(22 * u)
-            ctx.strokePath()
-            ctx.addPath(whole)
-            ctx.setStrokeColor(p.route)
-            ctx.setLineWidth(14 * u)
-            ctx.strokePath()
+            // Lo recorrido, gris; lo que falta, con resplandor, borde, línea y brillo central (la
+            // misma ruta que sobre el mapa de calles).
             if progress - from > 1 {
-                ctx.addPath(trace(from, progress))
+                let done = trace(from, progress)
+                ctx.addPath(done)
                 ctx.setStrokeColor(p.routeDone)
                 ctx.setLineWidth(14 * u)
                 ctx.strokePath()
             }
+            let ahead = trace(progress, to)
+            ctx.addPath(ahead)
+            ctx.setStrokeColor(p.routeGlow)
+            ctx.setLineWidth(32 * u)
+            ctx.strokePath()
+            ctx.addPath(ahead)
+            ctx.setStrokeColor(p.routeCasing)
+            ctx.setLineWidth(21 * u)
+            ctx.strokePath()
+            ctx.addPath(ahead)
+            ctx.setStrokeColor(p.route)
+            ctx.setLineWidth(14 * u)
+            ctx.strokePath()
+            ctx.addPath(ahead)
+            ctx.setStrokeColor(p.routeLight)
+            ctx.setLineWidth(4 * u)
+            ctx.strokePath()
 
             // Punto de la próxima maniobra.
             if let at = s.maneuverAt, at > progress + 4, at <= to {
@@ -452,20 +528,9 @@ final class HUDRenderer {
 
             // Indicador del norte.
             if miniCompass {
-            let compass = CGPoint(x: rect.maxX - 36 * u, y: rect.minY + 36 * u + compassDrop)
-            ctx.setFillColor(p.background)
-            ctx.fillEllipse(in: CGRect(x: compass.x - 22 * u, y: compass.y - 22 * u, width: 44 * u, height: 44 * u))
-            let north = CGPoint(x: -sinB, y: -cosB)
-            let side = CGPoint(x: -north.y, y: north.x)
-            ctx.beginPath()
-            ctx.move(to: CGPoint(x: compass.x + north.x * 17 * u, y: compass.y + north.y * 17 * u))
-            ctx.addLine(to: CGPoint(x: compass.x + side.x * 7 * u, y: compass.y + side.y * 7 * u))
-            ctx.addLine(to: CGPoint(x: compass.x - side.x * 7 * u, y: compass.y - side.y * 7 * u))
-            ctx.closePath()
-            ctx.setFillColor(p.warn)
-            ctx.fillPath()
-            ctx.setFillColor(p.dim)
-            ctx.fillEllipse(in: CGRect(x: compass.x - 4 * u, y: compass.y - 4 * u, width: 8 * u, height: 8 * u))
+                // La misma brújula de vidrio que sobre el mapa de calles.
+                let box = CGRect(x: rect.maxX - 58 * u, y: rect.minY + 14 * u + compassDrop, width: 44 * u, height: 44 * u)
+                drawCompass(in: box, angle: CGFloat(-bearing), p, ctx)
             }
             lastBearing = bearing
         }
@@ -481,27 +546,51 @@ final class HUDRenderer {
 
     /// Marca de posición: una punta de flecha que mira hacia arriba.
     func cursor(at c: CGPoint, size: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
-        let u = k * size
-        ctx.saveGState()
-        ctx.setFillColor(p.accent)
-        ctx.setAlpha(0.20)
-        ctx.fillEllipse(in: CGRect(x: c.x - 34 * u, y: c.y - 34 * u, width: 68 * u, height: 68 * u))
-        ctx.restoreGState()
+        positionMark(at: c, angle: 0, u: k * size * 1.1, p, ctx)
+    }
 
-        let shape = CGMutablePath()
-        shape.move(to: CGPoint(x: c.x, y: c.y - 24 * u))
-        shape.addLine(to: CGPoint(x: c.x + 18 * u, y: c.y + 18 * u))
-        shape.addLine(to: CGPoint(x: c.x, y: c.y + 8 * u))
-        shape.addLine(to: CGPoint(x: c.x - 18 * u, y: c.y + 18 * u))
-        shape.closeSubpath()
+    /// Marca de posición (0.6.3, como en la referencia): halo azul, disco de vidrio con borde
+    /// claro y la flecha con degradado azul y borde blanco. Sin rumbo, un punto azul.
+    /// `angle`: radianes desde arriba, en el sentido de las agujas del reloj.
+    func positionMark(at c: CGPoint, angle: CGFloat?, u: CGFloat, _ p: HUDPalette, _ ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setFillColor(p.accent.copy(alpha: p.dark ? 0.2 : 0.16) ?? p.accent)
+        ctx.fillEllipse(in: CGRect(x: c.x - 31 * u, y: c.y - 31 * u, width: 62 * u, height: 62 * u))
+        let disk = CGRect(x: c.x - 20 * u, y: c.y - 20 * u, width: 40 * u, height: 40 * u)
+        ctx.setShadow(offset: .zero, blur: 6 * u, color: CGColor(srgbRed: 0, green: 0, blue: 0, alpha: p.dark ? 0.6 : 0.3))
+        ctx.setFillColor(p.dark ? CGColor(srgbRed: 0.05, green: 0.1, blue: 0.19, alpha: 0.95) : CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.97))
+        ctx.fillEllipse(in: disk)
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        ctx.setStrokeColor(p.dark ? CGColor(srgbRed: 0.62, green: 0.8, blue: 1, alpha: 0.9) : p.accent)
+        ctx.setLineWidth(2 * u)
+        ctx.strokeEllipse(in: disk.insetBy(dx: 1 * u, dy: 1 * u))
+        guard let angle = angle else {
+            ctx.setFillColor(p.onAccent)
+            ctx.fillEllipse(in: CGRect(x: c.x - 9 * u, y: c.y - 9 * u, width: 18 * u, height: 18 * u))
+            ctx.setFillColor(p.accent)
+            ctx.fillEllipse(in: CGRect(x: c.x - 6.5 * u, y: c.y - 6.5 * u, width: 13 * u, height: 13 * u))
+            ctx.restoreGState()
+            return
+        }
+        ctx.translateBy(x: c.x, y: c.y)
+        ctx.rotate(by: angle)
+        let arrow = CGMutablePath()
+        arrow.move(to: CGPoint(x: 0, y: -14 * u))
+        arrow.addLine(to: CGPoint(x: 10.5 * u, y: 11 * u))
+        arrow.addLine(to: CGPoint(x: 0, y: 5 * u))
+        arrow.addLine(to: CGPoint(x: -10.5 * u, y: 11 * u))
+        arrow.closeSubpath()
+        ctx.saveGState()
+        ctx.addPath(arrow)
+        ctx.clip()
+        fillVertical(CGRect(x: -11 * u, y: -14 * u, width: 22 * u, height: 25 * u), p.tileTop, p.tileBottom, ctx)
+        ctx.restoreGState()
+        ctx.addPath(arrow)
         ctx.setLineJoin(.round)
-        ctx.addPath(shape)
         ctx.setStrokeColor(p.onAccent)
-        ctx.setLineWidth(7 * u)
+        ctx.setLineWidth(1.8 * u)
         ctx.strokePath()
-        ctx.addPath(shape)
-        ctx.setFillColor(p.accent)
-        ctx.fillPath()
+        ctx.restoreGState()
     }
 
     // MARK: - Sin destino y llegada

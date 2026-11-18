@@ -1126,14 +1126,17 @@ struct NavZoneLayout: Equatable {
         // Barra del viaje: en el borde contrario a la tarjeta. A la derecha, para que el logotipo
         // de Mapas de Apple (abajo a la izquierda) quede a la vista.
         var tripRect = CGRect.zero
-        let tripH = 34 * k
+        // 0.6.3: los tres bloques del viaje (Distancia, Restante, Llegada) de la referencia, con
+        // su nombre debajo; como mucho 300 de ancho para tapar poco mapa.
+        let tripH = 44 * k
         if trip {
             let left = zone.minX + m + (top ? 70 * k : 0)
             var right = zone.maxX - m
             var ty = top ? zone.maxY - m - tripH : zone.minY + m
             if !top, let c = clock, c.maxY > ty, c.minX < right { right = min(right, c.minX - 8 * k) }
             if !top && card.minY < ty + tripH + 6 * k { ty = min(ty, card.minY - 6 * k - tripH) }
-            tripRect = CGRect(x: left, y: ty, width: max(0, right - left), height: tripH)
+            let tw = max(0, min(right - left, 300 * k))
+            tripRect = CGRect(x: top ? right - tw : left, y: ty, width: tw, height: tripH)
         }
 
         // Brújula: abajo a la derecha si está libre; si no, arriba a la derecha (debajo de la
@@ -1143,6 +1146,10 @@ struct NavZoneLayout: Equatable {
         let bottomY = (top && trip ? tripRect.minY - 6 * k : zone.maxY - m) - cs
         candidates.append(CGRect(x: zone.maxX - m - cs, y: bottomY, width: cs, height: cs))
         candidates.append(CGRect(x: zone.maxX - m - cs, y: max(zone.minY + m, (clock?.maxY ?? 0) + 6 * k), width: cs, height: cs))
+        if trip && !top {
+            // Viaje arriba (tarjeta abajo): debajo de los datos del viaje.
+            candidates.append(CGRect(x: zone.maxX - m - cs, y: max(tripRect.maxY, (clock?.maxY ?? 0)) + 6 * k, width: cs, height: cs))
+        }
         candidates.append(CGRect(x: zone.minX + m, y: zone.maxY - m - cs - (trip && top ? tripH + 6 * k : 0), width: cs, height: cs))
         let busy = [card, tripRect, clock ?? .zero].filter { !$0.isEmpty }
         let compass = candidates.first { cand in zone.contains(cand) && !busy.contains { $0.intersects(cand.insetBy(dx: -3 * k, dy: -3 * k)) } }
