@@ -298,7 +298,9 @@ final class HUDRenderer {
     var statusReserve: CGRect?
     /// Fondo de la pantalla de música ya dibujado (los degradados cambian solo con la canción):
     /// se reutiliza en cada fotograma para gastar menos CPU.
-    var stageBackground: (key: String, image: CGImage)?
+    /// 0.6.4: los últimos fondos (el de la canción de ahora y, durante el cambio, el de la
+    /// anterior: el cambio es un fundido entre los dos, sin volver a dibujarlos).
+    var stageBackgrounds: [(key: String, image: CGImage)] = []
     /// Las pruebas lo apagan para comparar con el dibujo directo.
     static var cacheStageBackground = true
     /// 0.6.3: fondos de las tarjetas de vidrio ya dibujados (sombra, degradado y borde), por
@@ -308,6 +310,8 @@ final class HUDRenderer {
     /// 0.6.4: «luz» de las últimas portadas (sus colores reducidos a 4×4 y ampliados), para el
     /// fondo de la música. Se calcula una vez por portada y tema.
     var ambientCache: [(art: CGImage, night: Bool, image: CGImage, signature: String)] = []
+    /// 0.6.4: la luz de la portada ya ampliada al tamaño del reproductor.
+    var ambientScaledCache: [(art: CGImage, night: Bool, w: Int, h: Int, image: CGImage)] = []
     /// 0.6.4: sombras difuminadas de la portada ya dibujadas, por tamaño y tema.
     var shadowImages: [String: CGImage] = [:]
     /// Solo para las pruebas (0.6.4): cada botón del reproductor que se dibuja (anterior,

@@ -1328,13 +1328,11 @@ extension HUDRenderer {
     /// detrás de ella (en las tarjetas, más pequeño y suave para que el texto se siga leyendo).
     /// 0.6.4: encima, la luz de la portada (sus colores, difuminados, como el fondo de CarPlay) y,
     /// de noche, un velo algo más oscuro abajo. Solo cambia con la canción, así que se dibuja una
-    /// vez y se reutiliza (salvo en el fundido).
+    /// vez y se reutiliza; al cambiar de canción, el fondo anterior y el nuevo se funden.
     func drawPlayerBackground(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicPlayerLayout, _ r: CGRect, _ ctx: CGContext) {
-        var glow = c.accent
-        if let base = s.music.palette?.base {
-            let h = base.hsl
-            glow = s.night ? RGB(h: h.h, s: min(h.s, 0.6), l: 0.42) : RGB(h: h.h, s: min(h.s, 0.6) * 0.8, l: 0.8)
-        }
+        let w = Int(r.width.rounded())
+        let h = Int(r.height.rounded())
+        guard w > 0, h > 0 else { return }
         let center: CGPoint
         if L.artwork.width > 0 {
             center = CGPoint(x: L.artwork.midX, y: L.artwork.midY)
@@ -1345,74 +1343,120 @@ extension HUDRenderer {
         let alpha: CGFloat = L.card ? 0.94 : 1
         let reach = L.style == .row ? max(L.artwork.width * 1.6, r.height) : max(r.width, r.height) * 0.55
         let strength: CGFloat = (s.night ? 0.5 : 0.4) * (L.style == .row ? 0.8 : 1) * alpha
-        // Luz de la portada: la de ahora y, durante el cambio de canción, la anterior.
         let dynamic = s.musicStyle == .dynamic
-        let fadeIn = CGFloat(max(0, min(1, s.paletteFade)))
-        let lightNow = dynamic && s.music.available ? s.music.artwork.flatMap { ambientLight($0, night: s.night) } : nil
-        let lightOld = dynamic && fadeIn < 1 ? s.musicFrom?.artwork.flatMap { ambientLight($0, night: s.night) } : nil
         let lightAlpha = (L.card ? 0.42 : 0.6) * CGFloat(max(0, min(1, s.musicIntensity / 0.75)))
-        let veil = c.text.luminance > 0.5 ? (L.card ? 0.12 : 0.2) as CGFloat : 0
-        func paint(_ g: CGContext) {
-            drawMusicBackground(r, c, radius: radius, alpha: alpha, g)
+        let fadeIn = CGFloat(max(0, min(1, s.paletteFade)))
+        func glowColor(_ palette: ArtPalette?, _ colors: MusicCardColors) -> RGB {
+            guard let base = palette?.base else { return colors.accent }
+            let hsl = base.hsl
+            return s.night ? RGB(h: hsl.h, s: min(hsl.s, 0.6), l: 0.42) : RGB(h: hsl.h, s: min(hsl.s, 0.6) * 0.8, l: 0.8)
+        }
+        func light(_ art: CGImage?) -> (image: CGImage, signature: String)? {
+            guard dynamic, let art = art else { return nil }
+            return ambientScaled(art, night: s.night, width: w, height: h)
+        }
+        // Un fondo completo: degradado, luz de la portada, resplandor y velo.
+        func paint(_ g: CGContext, _ colors: MusicCardColors, _ glow: RGB, _ lights: [(CGImage, CGFloat)]) {
+            drawMusicBackground(r, colors, radius: radius, alpha: alpha, g)
             g.saveGState()
             g.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
             g.clip()
-            func light(_ image: CGImage, _ a: CGFloat) {
-                guard a > 0.005 else { return }
+            for (image, a) in lights where a > 0.005 {
                 g.saveGState()
                 g.setAlpha(a * alpha)
-                g.interpolationQuality = .medium
+                g.interpolationQuality = .none
                 g.translateBy(x: r.minX, y: r.maxY)
                 g.scaleBy(x: 1, y: -1)
-                g.draw(image, in: CGRect(x: 0, y: 0, width: r.width, height: r.height))
+                g.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
                 g.restoreGState()
             }
-            if let o = lightOld { light(o.image, lightAlpha * (1 - fadeIn)) }
-            if let n = lightNow { light(n.image, lightAlpha * fadeIn) }
-            let colors = [glow.cg.copy(alpha: strength) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) {
+            let stops = [glow.cg.copy(alpha: strength) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: stops, locations: [0, 1]) {
                 g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center, endRadius: reach, options: [])
             }
+            let veil: CGFloat = colors.text.luminance > 0.5 ? (L.card ? 0.12 : 0.2) : 0
             if veil > 0 {
                 fillVertical(r, CGColor(gray: 0, alpha: 0), CGColor(gray: 0, alpha: veil), g)
             }
             g.restoreGState()
         }
-        let w = Int(r.width.rounded())
-        let h = Int(r.height.rounded())
-        guard HUDRenderer.cacheStageBackground, s.paletteFade >= 1, w > 0, h > 0 else {
-            paint(ctx)
+        let lightNow = light(s.music.available ? s.music.artwork : nil)
+        guard HUDRenderer.cacheStageBackground else {
+            // Sin guardar (pruebas): todo directo, con los colores ya mezclados del cambio.
+            var lights: [(CGImage, CGFloat)] = []
+            if fadeIn < 1, let old = light(s.musicFrom?.artwork) { lights.append((old.image, lightAlpha * (1 - fadeIn))) }
+            if let now = lightNow { lights.append((now.image, lightAlpha * (fadeIn < 1 ? fadeIn : 1))) }
+            paint(ctx, c, glowColor(s.music.palette, c), lights)
             return
         }
         func rgb(_ x: RGB) -> String { String(format: "%.3f,%.3f,%.3f", x.r, x.g, x.b) }
-        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f,%.0f,%.2f,%.3f", r.minX, r.minY, w, h, center.x, center.y, reach, alpha, lightAlpha),
-                   L.style.rawValue, rgb(c.top), rgb(c.bottom), rgb(c.text), rgb(glow), s.night ? "n" : "d", lightNow?.signature ?? "-"].joined(separator: "|")
-        if stageBackground?.key != key {
+        /// Fondo guardado para unos colores y una luz (lo dibuja si no lo tiene).
+        func backdrop(_ colors: MusicCardColors, _ glow: RGB, _ lit: (image: CGImage, signature: String)?) -> CGImage? {
+            let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f,%.0f,%.2f,%.3f", r.minX, r.minY, w, h, center.x, center.y, reach, alpha, lightAlpha),
+                       L.style.rawValue, rgb(colors.top), rgb(colors.bottom), rgb(colors.text), rgb(glow), s.night ? "n" : "d",
+                       lit?.signature ?? "-"].joined(separator: "|")
+            if let i = stageBackgrounds.firstIndex(where: { $0.key == key }) {
+                let hit = stageBackgrounds.remove(at: i)
+                stageBackgrounds.insert(hit, at: 0)
+                return hit.image
+            }
             let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
             guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else {
-                paint(ctx)
-                return
-            }
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
             off.clear(CGRect(x: 0, y: 0, width: w, height: h))
             // Misma orientación que la imagen de la moto (origen arriba a la izquierda).
             off.translateBy(x: 0, y: CGFloat(h))
             off.scaleBy(x: 1, y: -1)
             off.translateBy(x: -r.minX, y: -r.minY)
-            paint(off)
-            guard let image = off.makeImage() else {
-                paint(ctx)
+            paint(off, colors, glow, lit.map { [($0.image, lightAlpha)] } ?? [])
+            guard let image = off.makeImage() else { return nil }
+            stageBackgrounds.insert((key, image), at: 0)
+            if stageBackgrounds.count > 3 { stageBackgrounds.removeLast() }
+            return image
+        }
+        func blit(_ image: CGImage, _ a: CGFloat) {
+            ctx.saveGState()
+            ctx.setAlpha(a)
+            ctx.translateBy(x: r.minX, y: r.minY + CGFloat(h))
+            ctx.scaleBy(x: 1, y: -1)
+            ctx.interpolationQuality = .none
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            ctx.restoreGState()
+        }
+        let spotify = s.music.source == "Spotify"
+        let target = MusicCardColors.make(style: s.musicStyle, palette: s.music.palette, night: s.night, intensity: s.musicIntensity, spotify: spotify)
+        guard let now = backdrop(target, glowColor(s.music.palette, target), lightNow) else {
+            paint(ctx, c, glowColor(s.music.palette, c), lightNow.map { [($0.image, lightAlpha)] } ?? [])
+            return
+        }
+        if fadeIn < 1 {
+            // Cambio de canción: el fondo anterior debajo y el nuevo apareciendo encima.
+            let before = MusicCardColors.make(style: s.musicStyle, palette: s.paletteFrom, night: s.night, intensity: s.musicIntensity, spotify: spotify)
+            if let old = backdrop(before, glowColor(s.paletteFrom, before), light(s.musicFrom?.artwork)) {
+                blit(old, 1)
+                blit(now, fadeIn)
                 return
             }
-            stageBackground = (key, image)
         }
-        guard let image = stageBackground?.image else { return }
-        ctx.saveGState()
-        ctx.translateBy(x: r.minX, y: r.minY + CGFloat(h))
-        ctx.scaleBy(x: 1, y: -1)
-        ctx.interpolationQuality = .none
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-        ctx.restoreGState()
+        blit(now, 1)
+    }
+
+    /// 0.6.4: la luz de la portada ya ampliada al tamaño del reproductor (se amplía una vez por
+    /// canción; luego solo se copia).
+    func ambientScaled(_ art: CGImage, night: Bool, width w: Int, height h: Int) -> (image: CGImage, signature: String)? {
+        guard let small = ambientLight(art, night: night) else { return nil }
+        if let e = ambientScaledCache.first(where: { $0.art === art && $0.night == night && $0.w == w && $0.h == h }) {
+            return (e.image, small.signature)
+        }
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard w > 0, h > 0, let g = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+        g.interpolationQuality = .high
+        g.draw(small.image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let image = g.makeImage() else { return nil }
+        ambientScaledCache.insert((art, night, w, h, image), at: 0)
+        if ambientScaledCache.count > 3 { ambientScaledCache.removeLast() }
+        return (image, small.signature)
     }
 
     /// 0.6.4: la luz de la portada para el fondo, como en CarPlay: la portada reducida a 4×4
