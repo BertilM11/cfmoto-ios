@@ -123,7 +123,7 @@ final class OSMSearch {
         for i in 0..<n {
             let p = map.place(i)
             guard p.name != OSMMapData.noName else { continue }
-            raw.append((i, p.name, p.point.geo, p.kind))
+            raw.append((place: i, name: p.name, point: p.point.geo, kind: p.kind))
         }
         // Zonas, colonias, ciudades, pueblos y aldeas: dan el «dónde» de cada resultado.
         var areaIndex: [Int: Int32] = [:]

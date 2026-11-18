@@ -37,7 +37,7 @@ final class PlannedRoute {
         expectedTravelTime = route.expectedTravelTime
         name = route.name
         osmManeuvers = []
-        steps = route.steps.map { ($0.distance, $0.instructions) }
+        steps = route.steps.map { (distance: $0.distance, text: $0.instructions) }
         polyline = route.polyline
     }
 
@@ -54,7 +54,7 @@ final class PlannedRoute {
         var list: [(distance: Double, text: String)] = []
         var previous = 0.0
         for m in route.maneuvers {
-            list.append((m.at - previous, m.text))
+            list.append((distance: m.at - previous, text: m.text))
             previous = m.at
         }
         steps = list

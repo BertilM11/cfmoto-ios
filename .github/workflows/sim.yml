@@ -2,7 +2,7 @@ name: Prueba en simulador
 
 on:
   push:
-    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5]
+    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5, dev/0.7]
   workflow_dispatch:
 
 permissions:
@@ -14,6 +14,16 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - name: Mapa de Guatemala (OpenStreetMap, versión mapa-guatemala)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p App/Map
+          gh release download mapa-guatemala -p Guatemala.cfmap -D App/Map --clobber
+          GOT=$(shasum -a 256 App/Map/Guatemala.cfmap | cut -d' ' -f1)
+          WANT=$(cut -d' ' -f1 Tools/OSM/Guatemala.cfmap.sha256)
+          echo "SHA-256 del mapa: $GOT (esperado $WANT)"
+          test "$GOT" = "$WANT"
       - name: Instalar XcodeGen
         run: brew install xcodegen
       - name: Generar proyecto
@@ -29,7 +39,7 @@ jobs:
         if: always()
         run: |
           mkdir -p shots
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
           tail -n 40 hud.log
       - name: Recorrido de demostración
         if: always()
@@ -43,18 +53,21 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl privacy "$UDID" grant location io.github.cfmotolink.app
           xcrun simctl location "$UDID" set 14.6419,-90.5133
-          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion"; do
+          # 0.7: el cuarto dato elige el mapa (osm por defecto, apple para probar el modo Apple).
+          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion" "search 0 lista" "light 0 lista apple" "night 0 lista apple"; do
             set -- $run
+            MAPA="${4:-osm}"
+            TAG="$1-tab$2$( [ "$MAPA" = osm ] || echo "-$MAPA" )"
             xcrun simctl terminate "$UDID" io.github.cfmotolink.app || true
-            xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo $1 -tab $2 -more "${3:-lista}"
+            xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo $1 -tab $2 -more "${3:-lista}" -mapa "$MAPA"
             sleep 34
             xcrun simctl io "$UDID" screenshot "raw-$2.png"
-            sips -Z 1100 -s format jpeg -s formatOptions 65 "raw-$2.png" --out "shots/app-$1-tab$2.jpg" > /dev/null
+            sips -Z 1100 -s format jpeg -s formatOptions 65 "raw-$2.png" --out "shots/app-$TAG.jpg" > /dev/null
             DATA=$(xcrun simctl get_app_container "$UDID" io.github.cfmotolink.app data)
-            cp "$DATA/Documents/demo-log.txt" "shots/log-$1-tab$2.txt" 2>/dev/null || true
-            cp "$DATA/Documents/hud.png" "shots/moto-$1-tab$2.png" 2>/dev/null || true
+            cp "$DATA/Documents/demo-log.txt" "shots/log-$TAG.txt" 2>/dev/null || true
+            cp "$DATA/Documents/hud.png" "shots/moto-$TAG.png" 2>/dev/null || true
             for f in "$DATA"/Documents/hud-*.png; do
-              test -f "$f" && cp "$f" "shots/tft-$1-$(basename "$f" .png | sed 's/hud-//').png"
+              test -f "$f" && cp "$f" "shots/tft-$1$( [ "$MAPA" = osm ] || echo "-$MAPA" )-$(basename "$f" .png | sed 's/hud-//').png"
             done
             rm -f "$DATA"/Documents/hud-*.png
           done
@@ -66,8 +79,8 @@ jobs:
           UDID=$(cat udid.txt)
           mkdir -p shots
           xcrun simctl terminate "$UDID" io.github.cfmotolink.app || true
-          xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo light -tab 1 -more lista
-          # Ruta simulada en marcha y mapa guardándose con la app al frente.
+          xcrun simctl launch "$UDID" io.github.cfmotolink.app -demo light -tab 1 -more lista -mapa osm
+          # Ruta simulada en marcha (mapa propio de OpenStreetMap) con la app al frente.
           sleep 45
           DATA=$(xcrun simctl get_app_container "$UDID" io.github.cfmotolink.app data)
           cp "$DATA/Documents/hud.png" shots/bg-1-al-frente.png 2>/dev/null || true

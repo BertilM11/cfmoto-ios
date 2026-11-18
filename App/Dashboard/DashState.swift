@@ -166,7 +166,9 @@ final class DashState {
         s.nav = nav
         s.notices = s.notices.filter { t - $0.time <= keep }
         s.night = isNight(nav.style, now: now)
-        if s.layout.showsMap {
+        // 0.7: en el modo OpenStreetMap no se usan imágenes de Apple (ni guardadas de antes):
+        // el mapa se dibuja en cada fotograma con el tema elegido.
+        if s.layout.showsMap && s.mapSettings.provider == .apple {
             s.map = TFTMap.shared.base(for: nav, now: now)
             s.mapCoverage = TFTMap.shared.coverageState()
             if anim, let fade = TFTMap.shared.styleFade(now: now), fade.to === s.map {

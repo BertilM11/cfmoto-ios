@@ -17,6 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mapa de Guatemala (OpenStreetMap, versión mapa-guatemala)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p App/Map
+          gh release download mapa-guatemala -p Guatemala.cfmap -D App/Map --clobber
+          GOT=$(shasum -a 256 App/Map/Guatemala.cfmap | cut -d' ' -f1)
+          WANT=$(cut -d' ' -f1 Tools/OSM/Guatemala.cfmap.sha256)
+          echo "SHA-256 del mapa: $GOT (esperado $WANT)"
+          test "$GOT" = "$WANT"
       - name: Instalar XcodeGen
         run: brew install xcodegen
 
@@ -51,21 +61,21 @@ jobs:
         run: |
           # Si alguna prueba falla, no se publica la versión.
           set -o pipefail
-          mkdir -p paquete/CFMotoLink_0.6.5/docs/laminas
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift -o dashcheck
-          ./dashcheck paquete/CFMotoLink_0.6.5/docs/laminas | tee resultados.txt
-          D=paquete/CFMotoLink_0.6.5
+          mkdir -p paquete/CFMotoLink_0.7/docs/laminas
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck
+          ./dashcheck paquete/CFMotoLink_0.7/docs/laminas | tee resultados.txt
+          D=paquete/CFMotoLink_0.7
           cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md CHANGELOG.md LICENSE .github "$D"/ 2>/dev/null || true
           mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
           cp CFMotoLink.ipa "$D"/
-          (cd paquete && zip -qry ../CFMotoLink_0.6.5_MapaGuardado.zip CFMotoLink_0.6.5)
-          ls -la CFMotoLink_0.6.5_MapaGuardado.zip
+          (cd paquete && zip -qry ../CFMotoLink_0.7_MapaPropio.zip CFMotoLink_0.7)
+          ls -la CFMotoLink_0.7_MapaPropio.zip
 
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.6.5_MapaGuardado.zip \
+          gh release create "build-${{ github.run_number }}" CFMotoLink.ipa CFMotoLink_0.7_MapaPropio.zip \
             --title "CFMoto Link · compilación ${{ github.run_number }}" \
             --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
 

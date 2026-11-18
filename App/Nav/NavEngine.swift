@@ -72,6 +72,8 @@ final class NavEngine: ObservableObject {
     private let osmQueue = DispatchQueue(label: "cfmoto.osm.rutas", qos: .userInitiated)
     /// Con qué mapa se calculó la ruta actual (si se cambia el ajuste, se vuelve a calcular).
     private var routeProvider: MapProvider?
+    /// La última ruta calculada con el mapa propio (para el diagnóstico).
+    static var lastOSMRoute: String?
     private var pendingPlan = false
     private let voice = VoiceGuide()
     private var cancellables = Set<AnyCancellable>()
@@ -232,9 +234,11 @@ final class NavEngine: ObservableObject {
             message = nil
         }
         // Al recalcular en marcha no se propone dar la vuelta si se puede seguir de frente.
-        var heading: Double?
+        let heading: Double?
         if reroute, let last = LocationService.shared.last, last.course >= 0, last.speed > 2 {
             heading = last.course
+        } else {
+            heading = nil
         }
         let a = GeoPoint(lat: origin.latitude, lon: origin.longitude)
         let b = GeoPoint(lat: target.latitude, lon: target.longitude)
@@ -251,6 +255,8 @@ final class NavEngine: ObservableObject {
                     return
                 }
                 logLine(String(format: "[RUTA] OpenStreetMap: %d ruta(s) en %.2f s (app: %@)", planned.count, seconds, AppRuntime.description))
+                NavEngine.lastOSMRoute = String(format: "%@ · %.1f km · calculada en %.2f s · %@", reroute ? "recálculo" : "nueva",
+                                                planned[0].distance / 1000, seconds, AppRuntime.description)
                 self.routeProvider = .osm
                 if reroute {
                     self.applyReroute(planned[0])

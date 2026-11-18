@@ -2160,6 +2160,131 @@ if let osm = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/zona10.c
     check("0.7: mapa de prueba de OpenStreetMap leído (zona 10)", false, "no se pudo abrir Tools/DashboardCheck/zona10.cfmap")
 }
 
+// 10i. Versión 0.7 con el mapa completo de Guatemala (el flujo lo descarga de la versión
+// «mapa-guatemala» del repositorio): búsqueda sin internet, rutas largas, maniobras situadas
+// sobre la ruta y recálculo. Sin el archivo, estas pruebas no se hacen (y se dice).
+if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala.cfmap"))
+    ?? OSMMapData(url: URL(fileURLWithPath: "App/Map/Guatemala.cfmap")) {
+    check("0.7: mapa completo de Guatemala leído", gt.tileCount > 50_000 && gt.placeCount > 40_000,
+          "\(gt.tileCount) cuadros, \(gt.nameCount) nombres, \(gt.placeCount) lugares, datos del \(gt.date)")
+    let tIndex = Date()
+    let finder = OSMSearch(map: gt)
+    let indexMs = Date().timeIntervalSince(tIndex) * 1000
+    check("0.7: índice de la búsqueda sin internet listo en menos de 3 s", indexMs < 3000,
+          String(format: "%d lugares en %.0f ms", finder.count, indexMs))
+    let zona10 = GeoPoint(lat: 14.6029, lon: -90.5108)
+    func shown(_ r: [OSMSearchResult]) -> String {
+        r.prefix(3).map { "\($0.title) (\($0.subtitle))" }.joined(separator: " | ")
+    }
+    var searchTimes: [Double] = []
+    func find(_ q: String) -> [OSMSearchResult] {
+        let t0 = Date()
+        let r = finder.search(q, near: zona10)
+        searchTimes.append(Date().timeIntervalSince(t0) * 1000)
+        return r
+    }
+    let searchCases: [(query: String, what: String, top: Int, ok: (OSMSearchResult) -> Bool)] = [
+        ("antigua", "Antigua Guatemala", 1, { $0.title == "Antigua Guatemala" }),
+        ("zona 10", "la Zona 10 de la capital", 1, { $0.title == "Zona 10" && $0.subtitle.contains("Guatemala") }),
+        ("14 calle zona 10", "la 14 Calle de la zona 10", 1, { $0.title.contains("14 Calle") && $0.subtitle.contains("Zona 10") }),
+        ("oakland", "Oakland, en la zona 10", 3, { $0.title.contains("Oakland") && $0.point.distance(to: zona10) < 3000 }),
+        ("quetzaltenango", "la ciudad de Quetzaltenango", 1, { $0.title == "Quetzaltenango" }),
+        ("cayala", "Cayalá (sin escribir la tilde)", 3, { $0.title.contains("Cayalá") }),
+        ("6 avenida", "una 6a Avenida («6» y «6a» valen igual)", 3, { OSMSearch.tokens($0.title) == ["6", "avenida"] }),
+        ("aeropuerto", "el aeropuerto La Aurora", 3, { $0.title.contains("Aurora") }),
+        ("gasolinera", "una gasolinera cerca", 3, { $0.kind == 10 && $0.point.distance(to: zona10) < 5000 }),
+    ]
+    for c in searchCases {
+        let r = find(c.query)
+        check("0.7: buscar sin internet «\(c.query)» encuentra \(c.what)", r.prefix(c.top).contains(where: c.ok), shown(r))
+    }
+    let partial = find("14")
+    check("0.7: mientras se escribe un número, «14» ya propone la 14 Calle o la 14 Avenida",
+          partial.contains { OSMSearch.tokens($0.title).first == "14" }, shown(partial))
+    let exact = find("zona 1 ")
+    check("0.7: «zona 1» no se confunde con la zona 10 ni la 14", exact.first.map { $0.title == "Zona 1" } ?? false, shown(exact))
+    let xela = find("xela")
+    check("0.7: «xela» (otro nombre en OpenStreetMap) lleva a Quetzaltenango",
+          xela.first.map { $0.point.distance(to: GeoPoint(lat: 14.8465, lon: -91.5194)) < 15_000 } ?? false, shown(xela))
+    let searchMs = searchTimes.sorted()[searchTimes.count / 2]
+    check("0.7: cada búsqueda sin internet tarda menos de 60 ms", searchMs < 60, String(format: "%.1f ms (mediana de %d)", searchMs, searchTimes.count))
+
+    func longRoute(_ name: String, _ to: GeoPoint, _ meters: ClosedRange<Double>, seconds: Double) -> OSMRoute? {
+        let router = OSMRouter(map: gt)
+        let t0 = Date()
+        let found = router.routes(from: zona10, to: to, alternatives: 0)
+        let sec = Date().timeIntervalSince(t0)
+        let st = router.lastStats
+        check("0.7: ruta larga sin internet: zona 10 → \(name)", found.first.map { meters.contains($0.distance) } ?? false,
+              found.first.map { String(format: "%.1f km, %.0f min, %.2f s, %d cuadros, %d nudos, %@", $0.distance / 1000, $0.time / 60, sec, st.tiles, st.nodes, $0.summary) }
+                ?? String(format: "sin ruta (%.2f s, %d cuadros, %d nudos)", sec, st.tiles, st.nodes))
+        check("0.7: la ruta a \(name) se calcula en menos de \(Int(seconds)) s", sec < seconds, String(format: "%.2f s", sec))
+        return found.first
+    }
+    let toAntigua = longRoute("Antigua Guatemala", GeoPoint(lat: 14.5568, lon: -90.7337), 30_000...65_000, seconds: 3)
+    let toXela = longRoute("Quetzaltenango", GeoPoint(lat: 14.8465, lon: -91.5194), 170_000...290_000, seconds: 8)
+    _ = longRoute("Flores (Petén)", GeoPoint(lat: 16.9300, lon: -89.8910), 400_000...720_000, seconds: 15)
+
+    // Las maniobras de una ruta de 200 km caen en su cruce en la ruta guiada (la guía mide la
+    // ruta con otra aproximación de la Tierra que el router).
+    if let r = toXela, r.points.count > 2 {
+        let guided = GuidedRoute(route: PlannedRoute(osm: r))
+        var cum: [Double] = [0]
+        for i in 1..<r.points.count { cum.append(cum[i - 1] + r.points[i - 1].distance(to: r.points[i])) }
+        func routerPoint(_ d: Double) -> GeoPoint {
+            var lo = 0
+            var hi = cum.count - 1
+            while hi - lo > 1 {
+                let mid = (lo + hi) / 2
+                if cum[mid] <= d { lo = mid } else { hi = mid }
+            }
+            let f = cum[hi] > cum[lo] ? (d - cum[lo]) / (cum[hi] - cum[lo]) : 0
+            return GeoPoint(lat: r.points[lo].lat + (r.points[hi].lat - r.points[lo].lat) * f,
+                            lon: r.points[lo].lon + (r.points[hi].lon - r.points[lo].lon) * f)
+        }
+        func geo(_ x: Double) -> GeoPoint {
+            let c = guided.coordinate(guided.shape.point(at: x))
+            return GeoPoint(lat: c.latitude, lon: c.longitude)
+        }
+        let turns = r.maneuvers.filter { $0.kind != .arrive && $0.at >= 3 }
+        let placed = guided.maneuvers.filter { $0.kind != .arrive }
+        var worst = 0.0
+        var naive = 0.0
+        for (m, g) in zip(turns, placed) {
+            worst = max(worst, geo(g.at).distance(to: routerPoint(m.at)))
+            naive = max(naive, geo(min(m.at, guided.shape.length)).distance(to: routerPoint(m.at)))
+        }
+        check("0.7: en la ruta de 200 km cada maniobra cae en su cruce (menos de 5 m)",
+              turns.count == placed.count && !turns.isEmpty && worst < 5,
+              String(format: "%d maniobras, error máximo %.1f m (sin ajustar sería %.0f m)", turns.count, worst, naive))
+    }
+
+    // Recálculo en marcha: salirse de la ruta a Antigua y pedir otra desde ahí, sin dar la vuelta.
+    if let r = toAntigua, r.points.count > 10 {
+        var cum: [Double] = [0]
+        for i in 1..<r.points.count { cum.append(cum[i - 1] + r.points[i - 1].distance(to: r.points[i])) }
+        let i = cum.firstIndex { $0 > 6000 } ?? r.points.count / 2
+        let heading = r.points[i - 1].bearing(to: r.points[i])
+        let off = r.points[i].moved(120, bearing: heading + 90)
+        let router = OSMRouter(map: gt)
+        let t0 = Date()
+        let again = router.routes(from: off, to: GeoPoint(lat: 14.5568, lon: -90.7337), alternatives: 0, heading: heading)
+        let sec = Date().timeIntervalSince(t0)
+        var startTurn = 0.0
+        if let n = again.first, n.points.count > 3 {
+            let first = n.points[0].bearing(to: n.points[min(n.points.count - 1, 3)])
+            var d = abs(first - heading).truncatingRemainder(dividingBy: 360)
+            if d > 180 { d = 360 - d }
+            startTurn = d
+        }
+        check("0.7: recálculo en marcha sin internet (desvío de 120 m camino a Antigua) en menos de 3 s",
+              again.first != nil && sec < 3, String(format: "%.2f s, %.1f km, sale a %.0f° del rumbo", sec, (again.first?.distance ?? 0) / 1000, startTurn))
+    }
+} else {
+    report.append("nota: sin Tools/DashboardCheck/Guatemala.cfmap no se probaron la búsqueda ni las rutas largas")
+    print(report.last!)
+}
+
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
 var snap = streetsSnapshot(.preset(.full), theme: .dark)

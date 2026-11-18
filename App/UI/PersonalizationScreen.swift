@@ -40,8 +40,10 @@ struct PersonalizationScreen: View {
                 }
                 .pickerStyle(.segmented)
                 Text(store.config.map.provider == .osm
-                     ? "Mapa de Guatemala guardado en el iPhone: no descarga nada, funciona con el iPhone bloqueado y la ruta se calcula en el teléfono (sin tráfico en vivo). © OpenStreetMap."
-                     : "Imágenes y rutas de Apple: necesita internet y se guardan por tramos antes de bloquear el iPhone.")
+                     ? (OSMMapData.current == nil
+                        ? "Esta copia de la app no trae el mapa de Guatemala: elige Apple Maps."
+                        : "Mapa de Guatemala guardado en el iPhone: no descarga nada, funciona sin internet y con el iPhone bloqueado. La ruta, la búsqueda y el recálculo se hacen en el teléfono (sin tráfico en vivo). © colaboradores de OpenStreetMap.")
+                     : "Imágenes, búsqueda y rutas de Apple: necesita internet y el mapa se guarda por tramos antes de bloquear el iPhone.")
                     .font(.caption).foregroundColor(Brand.dim)
             }
             .tint(Brand.blue)
@@ -52,6 +54,11 @@ struct PersonalizationScreen: View {
                     Text("3D inclinada").tag(true)
                 }
                 .pickerStyle(.segmented)
+                .disabled(store.config.map.provider == .osm)
+                if store.config.map.provider == .osm {
+                    Text("La vista 3D es solo con Apple Maps; el mapa propio se ve en 2D.")
+                        .font(.caption).foregroundColor(Brand.dim)
+                }
                 Toggle("Zoom automático (velocidad y giros)", isOn: $store.config.map.autoZoom)
                 Text("Estilo de la ruta").font(.footnote).foregroundColor(Brand.dim)
                 Picker("Ruta", selection: $store.config.map.routeStyle) {

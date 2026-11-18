@@ -22,6 +22,8 @@ struct OSMRoute {
 
 final class OSMRouter {
     let map: OSMMapData
+    /// Tamaño del último grafo (para el diagnóstico y las pruebas de rendimiento).
+    private(set) var lastStats = (tiles: 0, nodes: 0, edges: 0)
 
     init(map: OSMMapData) {
         self.map = map
@@ -135,6 +137,7 @@ final class OSMRouter {
                 let center = GeoPoint(lat: (Double(r * map.step) + half) / 1e6, lon: (Double(c * map.step) + half) / 1e6)
                 let near = direct < 15_000 || center.distance(to: a) < detail || center.distance(to: b) < detail
                 guard let t = map.tileUncached(row: r, col: c, minClass: near ? 1 : 3) else { continue }
+                lastStats.tiles += 1
                 for road in t.roads {
                     for i in 0..<(road.points.count - 1) {
                         g.add(road.points[i], road.points[i + 1], road: road)
@@ -150,7 +153,10 @@ final class OSMRouter {
     /// Hasta 1 + `alternatives` rutas, la más rápida primero. `heading`: rumbo actual (para no
     /// proponer dar la vuelta al recalcular).
     func routes(from a: GeoPoint, to b: GeoPoint, alternatives: Int = 2, heading: Double? = nil) -> [OSMRoute] {
+        lastStats = (0, 0, 0)
         let g = graph(from: a, to: b)
+        lastStats.nodes = g.nodes.count
+        lastStats.edges = g.edges.count
         guard !g.edges.isEmpty, let s = snap(g, a), let t = snap(g, b) else { return [] }
         let start = g.split(s.edge, at: s.point)
         let end = g.split(t.edge, at: t.point)

@@ -42,6 +42,11 @@ enum Demo {
         // Solo en la prueba automática: tema del panel según el modo de la prueba y música de
         // ejemplo con una portada dibujada aquí (rojo y negro), para ver los colores dinámicos.
         DashStore.shared.config.theme = mode == "night" ? .dark : .light
+        // 0.7: «-mapa apple» prueba el modo Apple Maps; si no, el mapa propio de OpenStreetMap.
+        let arguments = ProcessInfo.processInfo.arguments
+        if let i = arguments.firstIndex(of: "-mapa"), i + 1 < arguments.count {
+            DashStore.shared.config.map.provider = arguments[i + 1] == "apple" ? .apple : .osm
+        }
         DashState.shared.setMusic(MusicSnapshot(
             available: true, source: "Demo", title: "Canción de demostración", artist: "Prueba automática",
             album: "Álbum de demostración", playing: true, duration: 214, position: 60, positionTime: Date().timeIntervalSinceReferenceDate,
@@ -75,7 +80,7 @@ enum Demo {
         for mode in [DashMode.gps, .gpsMusic, .split, .music, .full] {
             var s = DashState.shared.snapshot(now: now)
             s.layout = DashLayout.preset(mode)
-            if s.map == nil && s.layout.showsMap { s.map = TFTMap.shared.base(for: s.nav, now: now) }
+            if s.map == nil && s.layout.showsMap && s.mapSettings.provider == .apple { s.map = TFTMap.shared.base(for: s.nav, now: now) }
             let frame = renderer.image { context in
                 HUDRenderer(width: width, height: height).drawDashboard(s, now: now, in: context.cgContext)
             }

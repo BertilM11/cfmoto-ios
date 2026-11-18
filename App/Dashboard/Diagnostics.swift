@@ -262,7 +262,23 @@ final class Diagnostics {
             mapRows.append(Row(label: "Objetivo de guardado", value: Diagnostics.km(map.target) + String(format: " · una imagen cada %.0f m y en cada giro", map.step)))
         }
         if !map.lastError.isEmpty { mapRows.append(Row(label: "Último error", value: map.lastError, warn: true)) }
-        out.append(Section(title: "Mapa de calles", rows: mapRows))
+        // 0.7: qué mapa se usa y el estado del mapa propio de OpenStreetMap.
+        let provider = DashStore.shared.config.map.provider
+        var osmRows: [Row] = [Row(label: "Mapa elegido", value: provider.title)]
+        if let osm = OSMMapData.current {
+            let date = DateFormatter.localizedString(from: osm.date, dateStyle: .medium, timeStyle: .none)
+            osmRows.append(Row(label: "Mapa de Guatemala (OpenStreetMap)", value: String(format: "datos del %@ · %.1f MB · %d cuadros · %d lugares", date, Double(osm.data.count) / 1_048_576, osm.tileCount, osm.placeCount)))
+        } else {
+            osmRows.append(Row(label: "Mapa de Guatemala (OpenStreetMap)", value: "no viene en esta copia de la app", warn: provider == .osm))
+        }
+        if let last = NavEngine.lastOSMRoute {
+            osmRows.append(Row(label: "Última ruta propia", value: last))
+        }
+        if provider == .osm {
+            out.append(Section(title: "Mapa de calles", rows: osmRows))
+        } else {
+            out.append(Section(title: "Mapa de calles", rows: osmRows + mapRows))
+        }
 
         var appRows: [Row] = [
             Row(label: "Estado", value: AppRuntime.description),
