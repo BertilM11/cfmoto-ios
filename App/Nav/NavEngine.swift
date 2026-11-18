@@ -25,8 +25,9 @@ struct Guidance {
     var bearing: Double = 0
 }
 
-/// Motor de navegación: calcula rutas reales con Apple Maps, sigue la posición sobre la ruta,
-/// anuncia las maniobras, recalcula al desviarse y mantiene al día la pantalla de la moto.
+/// Motor de navegación: calcula rutas reales (con el mapa propio de OpenStreetMap, en el
+/// iPhone y sin internet, o con Apple Maps), sigue la posición sobre la ruta, anuncia las
+/// maniobras, recalcula al desviarse y mantiene al día la pantalla de la moto.
 final class NavEngine: ObservableObject {
     static let shared = NavEngine()
 
@@ -39,7 +40,7 @@ final class NavEngine: ObservableObject {
     }
 
     @Published private(set) var phase: Phase = .idle
-    @Published private(set) var routes: [MKRoute] = []
+    @Published private(set) var routes: [PlannedRoute] = []
     @Published private(set) var selectedIndex = 0
     /// Cambia cuando cambian las rutas o la elegida, para que el mapa las redibuje.
     @Published private(set) var routesVersion = 0
@@ -66,6 +67,11 @@ final class NavEngine: ObservableObject {
 
     private var destinationItem: MKMapItem?
     private var directions: MKDirections?
+    /// Cálculo de OpenStreetMap en curso (el número cambia para descartar respuestas viejas).
+    private var osmToken = 0
+    private let osmQueue = DispatchQueue(label: "cfmoto.osm.rutas", qos: .userInitiated)
+    /// Con qué mapa se calculó la ruta actual (si se cambia el ajuste, se vuelve a calcular).
+    private var routeProvider: MapProvider?
     private var pendingPlan = false
     private let voice = VoiceGuide()
     private var cancellables = Set<AnyCancellable>()
@@ -94,6 +100,13 @@ final class NavEngine: ObservableObject {
             .compactMap { $0 }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] location in self?.onFix(location) }
+            .store(in: &cancellables)
+        DashStore.shared.$config
+            .map { $0.map.provider }
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] provider in self?.providerChanged(provider) }
             .store(in: &cancellables)
         let timer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
@@ -137,6 +150,8 @@ final class NavEngine: ObservableObject {
     func cancel() {
         directions?.cancel()
         directions = nil
+        osmToken += 1
+        routeProvider = nil
         pendingPlan = false
         stopSimulationTimer()
         simulating = false
@@ -157,9 +172,20 @@ final class NavEngine: ObservableObject {
         pushHUD()
     }
 
+    /// El mapa elegido en Ajustes (OpenStreetMap si la app trae el mapa de Guatemala).
+    private var provider: MapProvider {
+        DashStore.shared.config.map.provider
+    }
+
     private func calculate(from origin: CLLocationCoordinate2D, reroute: Bool) {
         guard let destination = destinationItem else { return }
         directions?.cancel()
+        directions = nil
+        osmToken += 1
+        if provider == .osm {
+            calculateOSM(from: origin, to: destination.placemark.coordinate, reroute: reroute)
+            return
+        }
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin))
         request.destination = destination
@@ -176,30 +202,108 @@ final class NavEngine: ObservableObject {
                 guard let self = self, self.directions === d else { return }
                 self.directions = nil
                 if let found = response?.routes, !found.isEmpty {
+                    let planned = found.map { PlannedRoute(apple: $0) }
+                    self.routeProvider = .apple
                     if reroute {
-                        self.applyReroute(found[0])
+                        self.applyReroute(planned[0])
                     } else {
-                        self.applyPreview(found)
+                        self.applyPreview(planned)
                     }
                     return
                 }
                 let reason = error?.localizedDescription ?? "sin respuesta"
                 logLine("[RUTA] no se pudo calcular: \(reason)")
+                self.routeFailed(reroute: reroute, message: "No se pudo calcular la ruta. Revisa la conexión e inténtalo de nuevo.")
+            }
+        }
+    }
+
+    /// Ruta con el mapa de OpenStreetMap que viene en la app: se calcula en el iPhone, sin
+    /// internet, también con la pantalla bloqueada.
+    private func calculateOSM(from origin: CLLocationCoordinate2D, to target: CLLocationCoordinate2D, reroute: Bool) {
+        guard let map = OSMMapData.current else {
+            logLine("[RUTA] OpenStreetMap: el mapa de Guatemala no está en esta copia de la app")
+            routeFailed(reroute: reroute, message: "Esta copia de la app no trae el mapa de Guatemala. Elige Apple Maps en Personalizar > Mapa y navegación.")
+            return
+        }
+        let token = osmToken
+        if !reroute {
+            phase = .planning
+            message = nil
+        }
+        // Al recalcular en marcha no se propone dar la vuelta si se puede seguir de frente.
+        var heading: Double?
+        if reroute, let last = LocationService.shared.last, last.course >= 0, last.speed > 2 {
+            heading = last.course
+        }
+        let a = GeoPoint(lat: origin.latitude, lon: origin.longitude)
+        let b = GeoPoint(lat: target.latitude, lon: target.longitude)
+        let started = Date()
+        osmQueue.async { [weak self] in
+            let found = OSMRouter(map: map).routes(from: a, to: b, alternatives: reroute ? 0 : 2, heading: heading)
+            let seconds = Date().timeIntervalSince(started)
+            let planned = found.map { PlannedRoute(osm: $0) }
+            DispatchQueue.main.async {
+                guard let self = self, self.osmToken == token else { return }
+                guard !planned.isEmpty else {
+                    logLine(String(format: "[RUTA] OpenStreetMap: sin ruta (%.2f s, %.0f m en línea recta)", seconds, a.distance(to: b)))
+                    self.routeFailed(reroute: reroute, message: "No se encontró una ruta en el mapa de Guatemala. Elige un destino junto a una calle.")
+                    return
+                }
+                logLine(String(format: "[RUTA] OpenStreetMap: %d ruta(s) en %.2f s (app: %@)", planned.count, seconds, AppRuntime.description))
+                self.routeProvider = .osm
                 if reroute {
-                    self.rerouting = false
-                    self.guidance.rerouting = false
-                    self.pushHUD()
+                    self.applyReroute(planned[0])
                 } else {
-                    self.routes = []
-                    self.routesVersion += 1
-                    self.phase = .idle
-                    self.message = "No se pudo calcular la ruta. Revisa la conexión e inténtalo de nuevo."
+                    self.applyPreview(planned)
                 }
             }
         }
     }
 
-    private func applyPreview(_ found: [MKRoute]) {
+    private func routeFailed(reroute: Bool, message text: String) {
+        if reroute {
+            rerouting = false
+            guidance.rerouting = false
+            pushHUD()
+        } else {
+            routes = []
+            routesVersion += 1
+            phase = .idle
+            message = text
+        }
+    }
+
+    /// Se cambió el mapa en Ajustes con una ruta en pantalla: se vuelve a calcular con el mapa
+    /// nuevo (una ruta de Apple no se dibuja sobre el mapa de OpenStreetMap).
+    private func providerChanged(_ provider: MapProvider) {
+        logLine("[RUTA] mapa elegido: \(provider.title)")
+        switch phase {
+        case .planning:
+            // Un cálculo en curso con el mapa anterior se descarta y se pide con el nuevo.
+            if !pendingPlan, let here = LocationService.shared.last {
+                calculate(from: here.coordinate, reroute: false)
+            }
+        case .preview:
+            if routeProvider != provider, let here = LocationService.shared.last {
+                calculate(from: here.coordinate, reroute: false)
+            }
+        case .navigating:
+            guard routeProvider != provider else { return }
+            // En la simulación se recalcula desde el punto simulado, no desde el GPS real.
+            let origin = simulating ? guidance.snapped : LocationService.shared.last?.coordinate
+            guard let from = origin else { return }
+            rerouting = true
+            lastReroute = Date()
+            guidance.rerouting = true
+            pushHUD()
+            calculate(from: from, reroute: true)
+        default:
+            break
+        }
+    }
+
+    private func applyPreview(_ found: [PlannedRoute]) {
         routes = Array(found.prefix(3))
         selectedIndex = 0
         routesVersion += 1
@@ -209,7 +313,7 @@ final class NavEngine: ObservableObject {
         logLine("[RUTA] \(routes.count) ruta(s) a «\(destinationName)»: \(summary)")
     }
 
-    private func applyReroute(_ route: MKRoute) {
+    private func applyReroute(_ route: PlannedRoute) {
         guard phase == .navigating else { return }
         routes = [route]
         selectedIndex = 0
@@ -217,7 +321,10 @@ final class NavEngine: ObservableObject {
         startGuidance(route)
         rerouting = false
         logLine(String(format: "[RUTA] ruta recalculada en %.1f s: %d m (app: %@)", Date().timeIntervalSince(lastReroute), Int(route.distance), AppRuntime.description))
-        if let location = LocationService.shared.last {
+        if simulating {
+            // La simulación sigue por la ruta nueva desde su inicio (el punto simulado).
+            simulationDistance = 0
+        } else if let location = LocationService.shared.last {
             process(location)
         }
     }
@@ -265,7 +372,7 @@ final class NavEngine: ObservableObject {
         }
     }
 
-    private func startGuidance(_ route: MKRoute) {
+    private func startGuidance(_ route: PlannedRoute) {
         let g = GuidedRoute(route: route)
         guided = g
         lastSegment = 0
@@ -275,7 +382,7 @@ final class NavEngine: ObservableObject {
         spoken = [:]
         logLine("[RUTA] guía lista: \(Int(g.shape.length)) m, \(g.maneuvers.count) maniobras, textos al \(g.convention)")
         for (i, step) in route.steps.prefix(12).enumerated() {
-            logLine("[RUTA] paso \(i): \(Int(step.distance)) m «\(step.instructions)»")
+            logLine("[RUTA] paso \(i): \(Int(step.distance)) m «\(step.text)»")
         }
         for (i, m) in g.maneuvers.prefix(12).enumerated() {
             logLine("[RUTA] maniobra \(i): a \(Int(m.at)) m, tipo \(m.kind), «\(m.text)»")
@@ -491,7 +598,7 @@ final class NavEngine: ObservableObject {
     }
 
     /// Rutas que no se eligieron al empezar (se muestran en gris los primeros metros).
-    private var startAlternates: [MKRoute] = []
+    private var startAlternates: [PlannedRoute] = []
     /// Rutas alternativas en metros locales de la ruta elegida (se recalculan si cambian).
     private var alternateCache: (version: Int, routes: [[CGPoint]]) = (-1, [])
     /// Rutas propuestas en coordenadas, para la vista previa en la moto.
@@ -501,7 +608,7 @@ final class NavEngine: ObservableObject {
         if alternateCache.version == routesVersion { return alternateCache.routes }
         var out: [[CGPoint]] = []
         for r in startAlternates where r !== g.route {
-            let c = GuidedRoute.coordinates(of: r.polyline)
+            let c = r.coordinates
             let step = max(1, c.count / 400)
             out.append(stride(from: 0, to: c.count, by: step).map { g.local(c[$0]) })
         }
@@ -512,7 +619,7 @@ final class NavEngine: ObservableObject {
     private func previewRoutes() -> [[GeoPoint]] {
         if previewCache.version == routesVersion { return previewCache.routes }
         let out: [[GeoPoint]] = routes.map { r in
-            let c = GuidedRoute.coordinates(of: r.polyline)
+            let c = r.coordinates
             let step = max(1, c.count / 500)
             return stride(from: 0, to: c.count, by: step).map { GeoPoint(lat: c[$0].latitude, lon: c[$0].longitude) }
                 + (c.last.map { [GeoPoint(lat: $0.latitude, lon: $0.longitude)] } ?? [])
@@ -557,6 +664,7 @@ final class NavEngine: ObservableObject {
             s.fixTime = fixTime
             s.geo = g.geoFrame
             s.course = current.bearing
+            s.routeFromApple = g.route.source == .apple
             if let snapped = current.snapped {
                 s.here = GeoPoint(lat: snapped.latitude, lon: snapped.longitude)
             }
@@ -567,6 +675,7 @@ final class NavEngine: ObservableObject {
             s.previewSelected = selectedIndex
             s.previewDistances = routes.map { $0.distance }
             s.previewTimes = routes.map { $0.expectedTravelTime }
+            s.routeFromApple = routes.contains { $0.source == .apple }
         }
         HUDState.shared.set(s)
     }

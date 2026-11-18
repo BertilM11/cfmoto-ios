@@ -130,6 +130,8 @@ struct HUDSnapshot {
     var previewSelected = 0
     /// Distancia (m) y tiempo (s) de cada ruta propuesta.
     var previewDistances: [Double] = []
+    /// 0.7: la ruta en pantalla viene de Apple Maps (no se dibuja sobre el mapa de OpenStreetMap).
+    var routeFromApple = false
     var previewTimes: [Double] = []
 }
 

@@ -98,6 +98,7 @@ struct OSMPlace {
         case 29: return "Estadio"
         case 30: return "Calle"
         case 31: return "Municipalidad"
+        case 32: return "Aeropuerto"
         default: return "Lugar"
         }
     }
@@ -139,7 +140,7 @@ final class OSMMapData {
     /// Cuadros descomprimidos que se guardan (los más recientes). Unos 30 KB cada uno.
     static let cacheLimit = 160
 
-    init?(url: URL) {
+    convenience init?(url: URL) {
         guard let d = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
         self.init(data: d)
     }

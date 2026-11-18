@@ -87,9 +87,11 @@ struct SearchBar: View {
 
 /// Lista de sugerencias bajo el buscador.
 struct SearchResults: View {
-    let results: [MKLocalSearchCompletion]
+    let results: [SearchItem]
     let palette: Palette
-    let onPick: (MKLocalSearchCompletion) -> Void
+    /// Búsqueda en el mapa guardado de OpenStreetMap (se indica de dónde son los datos).
+    var offline = false
+    let onPick: (SearchItem) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -123,6 +125,15 @@ struct SearchResults: View {
                 if index < results.count - 1 {
                     Divider().padding(.leading, 50)
                 }
+            }
+            if offline {
+                Text("Sin internet, en el mapa de Guatemala · © colaboradores de OpenStreetMap")
+                    .font(.system(size: 11))
+                    .foregroundColor(palette.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 4)
+                    .padding(.bottom, 9)
             }
         }
         .background(palette.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -269,7 +280,7 @@ struct RoutePreviewCard: View {
 }
 
 struct RouteChip: View {
-    let route: MKRoute
+    let route: PlannedRoute
     let selected: Bool
     let fastest: Bool
     let palette: Palette

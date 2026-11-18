@@ -73,6 +73,10 @@ struct NavScreen: View {
         .onAppear {
             location.activate()
             engine.hudStyle = p.hud
+            if search.offline {
+                // El índice de la búsqueda sin internet se arma en segundo plano desde ya.
+                OSMSearchService.shared.warmUp()
+            }
             if let mode = Demo.mode {
                 runDemo(mode)
             }
@@ -107,7 +111,7 @@ struct NavScreen: View {
             VStack(spacing: 8) {
                 SearchBar(search: search, palette: p, focused: $searchFocused, onSubmit: submitSearch)
                 if searchFocused && !search.results.isEmpty {
-                    SearchResults(results: search.results, palette: p, onPick: pick)
+                    SearchResults(results: search.results, palette: p, offline: search.offline, onPick: pick)
                 }
                 if location.denied {
                     Notice(
@@ -214,8 +218,15 @@ struct NavScreen: View {
 
     // MARK: - Acciones
 
-    private func pick(_ completion: MKLocalSearchCompletion) {
+    private func pick(_ result: SearchItem) {
         searchFocused = false
+        if let coordinate = result.coordinate {
+            // Lugar del mapa de OpenStreetMap: ya trae sus coordenadas.
+            search.clear()
+            engine.plan(toCoordinate: coordinate, name: result.title)
+            return
+        }
+        guard let completion = result.completion else { return }
         search.resolve(completion) { item in
             guard let item = item else { return }
             search.clear()
@@ -226,6 +237,13 @@ struct NavScreen: View {
     private func submitSearch() {
         let text = search.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        if search.offline {
+            // Sin internet: la tecla «Buscar» elige el primer resultado de la lista.
+            if let first = search.results.first {
+                pick(first)
+            }
+            return
+        }
         searchFocused = false
         search.resolve(text: text) { item in
             guard let item = item else { return }

@@ -4,7 +4,7 @@ import MapKit
 import CoreLocation
 import CoreGraphics
 
-/// Una maniobra de la ruta: dónde ocurre, de qué tipo es y el texto de Apple Maps.
+/// Una maniobra de la ruta: dónde ocurre, de qué tipo es y su texto (de Apple Maps o propio).
 struct RouteManeuver {
     /// Metros desde el inicio de la ruta.
     let at: Double
@@ -20,10 +20,10 @@ struct RouteSnap {
     let lateral: Double
 }
 
-/// Una ruta de Apple Maps preparada para guiar: geometría en metros, maniobras ordenadas y
-/// proyección de la posición GPS sobre la línea.
+/// Una ruta (de Apple Maps o del mapa propio de OpenStreetMap) preparada para guiar: geometría
+/// en metros, maniobras ordenadas y proyección de la posición GPS sobre la línea.
 final class GuidedRoute {
-    let route: MKRoute
+    let route: PlannedRoute
     let shape: HUDRouteShape
     let maneuvers: [RouteManeuver]
     /// Cómo se emparejaron los textos con los cruces (para el registro de diagnóstico).
@@ -36,9 +36,9 @@ final class GuidedRoute {
     /// Lo mismo que `local`/`coordinate`, en el formato que usa el dibujo de la moto.
     var geoFrame: GeoFrame { GeoFrame(origin: GeoPoint(lat: origin.latitude, lon: origin.longitude)) }
 
-    init(route: MKRoute) {
+    init(route: PlannedRoute) {
         self.route = route
-        let coordinates = GuidedRoute.coordinates(of: route.polyline)
+        let coordinates = route.coordinates
         let o = coordinates.first ?? CLLocationCoordinate2D(latitude: 0, longitude: 0)
         let mLat = 110_574.0
         let mLon = 111_320.0 * cos(o.latitude * .pi / 180)
@@ -49,9 +49,14 @@ final class GuidedRoute {
             CGPoint(x: ($0.longitude - o.longitude) * mLon, y: ($0.latitude - o.latitude) * mLat)
         })
         shape = s
-        let built = GuidedRoute.buildManeuvers(route: route, shape: s, mLat: mLat, mLon: mLon)
-        maneuvers = built.list
-        convention = built.convention
+        if let apple = route.apple {
+            let built = GuidedRoute.buildManeuvers(route: apple, shape: s, mLat: mLat, mLon: mLon)
+            maneuvers = built.list
+            convention = built.convention
+        } else {
+            maneuvers = GuidedRoute.placeOSM(route, shape: s)
+            convention = "maniobras propias de OpenStreetMap"
+        }
     }
 
     // MARK: - Conversión de coordenadas
@@ -240,6 +245,50 @@ final class GuidedRoute {
             total += hypot((c[i].longitude - c[i - 1].longitude) * mLon, (c[i].latitude - c[i - 1].latitude) * mLat)
         }
         return total
+    }
+
+    /// Sitúa las maniobras del router de OpenStreetMap sobre la forma de la ruta. El router mide
+    /// cada tramo con su propia latitud y la forma usa una sola referencia para toda la ruta; se
+    /// pasa de una medida a la otra tramo a tramo, así cada giro cae justo en su cruce aunque la
+    /// ruta sea larga.
+    static func placeOSM(_ route: PlannedRoute, shape: HUDRouteShape) -> [RouteManeuver] {
+        let c = route.coordinates
+        let cum = shape.cumulative
+        guard c.count >= 2, cum.count == c.count else {
+            return [RouteManeuver(at: shape.length, kind: .arrive, text: defaultText(.arrive))]
+        }
+        var measured: [Double] = [0]
+        measured.reserveCapacity(c.count)
+        for i in 1..<c.count {
+            let a = GeoPoint(lat: c[i - 1].latitude, lon: c[i - 1].longitude)
+            let b = GeoPoint(lat: c[i].latitude, lon: c[i].longitude)
+            measured.append(measured[i - 1] + a.distance(to: b))
+        }
+        let total = measured[measured.count - 1]
+        func place(_ d: Double) -> Double {
+            guard total > 0 else { return 0 }
+            let x = max(0, min(total, d))
+            var lo = 0
+            var hi = measured.count - 1
+            while hi - lo > 1 {
+                let mid = (lo + hi) / 2
+                if measured[mid] <= x { lo = mid } else { hi = mid }
+            }
+            let seg = measured[hi] - measured[lo]
+            let f = seg > 0 ? (x - measured[lo]) / seg : 0
+            return cum[lo] + f * (cum[hi] - cum[lo])
+        }
+        var list: [RouteManeuver] = []
+        for m in route.osmManeuvers {
+            let at = m.kind == .arrive ? shape.length : min(shape.length, place(m.at))
+            if at < 3 && m.kind != .arrive { continue }   // la salida no es una maniobra
+            if let previous = list.last, abs(previous.at - at) < 2 { continue }
+            list.append(RouteManeuver(at: at, kind: m.kind, text: m.text.isEmpty ? defaultText(m.kind) : m.text))
+        }
+        if list.last?.kind != .arrive {
+            list.append(RouteManeuver(at: shape.length, kind: .arrive, text: defaultText(.arrive)))
+        }
+        return list
     }
 
     /// Convierte los pasos de Apple Maps en maniobras situadas sobre la ruta.

@@ -4,7 +4,7 @@ name: Pruebas rápidas del panel
 # el diseño en pocos minutos. Las láminas quedan en la rama ci-panel.
 on:
   push:
-    branches: ['wip/**']
+    branches: ['wip/**', '!wip/mapa-**']
   workflow_dispatch:
 
 permissions:
@@ -16,10 +16,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Mapa completo de Guatemala (para las pruebas de búsqueda y rutas largas)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download mapa-guatemala -p Guatemala.cfmap -D Tools/DashboardCheck --clobber
+          shasum -a 256 Tools/DashboardCheck/Guatemala.cfmap
       - name: Pruebas y láminas del panel
         run: |
           mkdir -p shots
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift -o dashcheck > shots/compilacion.txt 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck > shots/compilacion.txt 2>&1 || true
           grep -E "error:" shots/compilacion.txt | head -n 60 || true
           if [ -x dashcheck ]; then ./dashcheck shots > shots/salida.txt 2>&1 || true; fi
           tail -n 40 shots/salida.txt 2>/dev/null || true
@@ -34,3 +41,7 @@ jobs:
           git add .
           git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -qm "Panel ${{ github.run_number }} (${{ github.sha }})"
           git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-panel
+      - name: Veredicto (falla si no compila o si alguna prueba falla)
+        run: |
+          test -x dashcheck || { echo "No compiló: ver shots/compilacion.txt"; exit 1; }
+          grep -q "todas pasan" shots/pruebas-panel.txt || { grep "RESULTADO" shots/pruebas-panel.txt; exit 1; }

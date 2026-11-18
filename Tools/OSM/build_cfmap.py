@@ -54,7 +54,10 @@ AMENITIES = {'fuel': 10, 'hospital': 11, 'clinic': 11, 'police': 12, 'university
 SHOPS = {'mall': 21, 'supermarket': 22, 'motorcycle': 23, 'car_repair': 24, 'hardware': 25}
 TOURISM = {'hotel': 26, 'motel': 26, 'guest_house': 26, 'hostel': 26,
            'attraction': 27, 'museum': 27, 'viewpoint': 27}
-EXTRA = {('amenity', 'bus_station'): 28, ('leisure', 'stadium'): 29, ('amenity', 'townhall'): 31}
+EXTRA = {('amenity', 'bus_station'): 28, ('leisure', 'stadium'): 29, ('amenity', 'townhall'): 31,
+         ('aeroway', 'aerodrome'): 32}
+# Otros nombres con los que también se busca un lugar («Xela», «La Aurora»…).
+ALT_NAMES = ('alt_name', 'short_name', 'loc_name', 'official_name', 'name:es')
 
 
 def place_kind(t):
@@ -110,6 +113,18 @@ class Reader(osmium.SimpleHandler):
         lon, lat = n.location.lon, n.location.lat
         if self.inside(lon, lat):
             self.places.append((q(lon), q(lat), self.name_id(name), kind))
+            for alt in self.alt_names(t, name):
+                self.places.append((q(lon), q(lat), self.name_id(alt), kind))
+
+    @staticmethod
+    def alt_names(t, name):
+        out = []
+        for key in ALT_NAMES:
+            for alt in (t.get(key) or '').split(';'):
+                alt = alt.strip()
+                if alt and alt != name and alt not in out:
+                    out.append(alt)
+        return out
 
     def way(self, w):
         t = w.tags
@@ -165,6 +180,8 @@ class Reader(osmium.SimpleHandler):
                         lat = sum(p[1] for p in ring) / len(ring)
                         if self.inside(lon, lat):
                             self.places.append((q(lon), q(lat), self.name_id(name), poi))
+                            for alt in self.alt_names(t, name):
+                                self.places.append((q(lon), q(lat), self.name_id(alt), poi))
                     break
             except osmium.InvalidLocationError:
                 pass

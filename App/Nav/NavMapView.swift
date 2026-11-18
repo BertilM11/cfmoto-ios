@@ -210,7 +210,7 @@ struct NavMapView: UIViewRepresentable {
             guard !routes.isEmpty else { return }
             let selected = min(parent.engine.selectedIndex, routes.count - 1)
 
-            func line(_ route: MKRoute, _ role: RouteLine.Role, _ index: Int) -> RouteLine {
+            func line(_ route: PlannedRoute, _ role: RouteLine.Role, _ index: Int) -> RouteLine {
                 let l = RouteLine(points: route.polyline.points(), count: route.polyline.pointCount)
                 l.role = role
                 l.routeIndex = index

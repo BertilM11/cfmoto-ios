@@ -74,7 +74,19 @@ struct MapCoverageChip: View {
         TimelineView(.periodic(from: .now, by: 2)) { _ in
             let stats = TFTMap.shared.stats()
             let state = stats.state
-            if state.kind != .none {
+            if DashStore.shared.config.map.provider == .osm {
+                // 0.7: con el mapa propio no hay nada que descargar.
+                let ready = OSMMapData.current != nil
+                HStack(spacing: 6) {
+                    Image(systemName: ready ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    Text(ready ? "Mapa de Guatemala en el iPhone · sin internet" : "Esta copia no trae el mapa de Guatemala")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(ready ? color(.complete) : color(.partial))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(palette.card.opacity(0.92), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if state.kind != .none {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Image(systemName: icon(state.kind))

@@ -3,12 +3,22 @@ import Foundation
 import MapKit
 import Combine
 
-/// Búsqueda de direcciones y lugares con el buscador de Apple Maps.
+/// Un resultado del buscador: de Apple Maps (hay que pedir sus coordenadas) o del mapa de
+/// OpenStreetMap que viene en la app (ya trae las coordenadas).
+struct SearchItem {
+    let title: String
+    let subtitle: String
+    let completion: MKLocalSearchCompletion?
+    let coordinate: CLLocationCoordinate2D?
+}
+
+/// Búsqueda de direcciones y lugares: sin internet en el mapa de Guatemala (modo
+/// OpenStreetMap) o con el buscador de Apple Maps (modo Apple).
 final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
     @Published var query = "" {
         didSet { queryChanged() }
     }
-    @Published private(set) var results: [MKLocalSearchCompletion] = []
+    @Published private(set) var results: [SearchItem] = []
     @Published private(set) var busy = false
 
     private let completer = MKLocalSearchCompleter()
@@ -18,6 +28,12 @@ final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDeleg
         super.init()
         completer.delegate = self
         completer.resultTypes = [.address, .pointOfInterest]
+    }
+
+    /// En el modo OpenStreetMap se busca en el mapa guardado: los resultados de Apple no se
+    /// usan con un mapa que no es de Apple.
+    var offline: Bool {
+        DashStore.shared.config.map.provider == .osm && OSMMapData.current != nil
     }
 
     private func nearby() -> MKCoordinateRegion? {
@@ -31,6 +47,18 @@ final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDeleg
             results = []
             return
         }
+        if offline {
+            let here = LocationService.shared.last.map { GeoPoint(lat: $0.coordinate.latitude, lon: $0.coordinate.longitude) }
+            let asked = query
+            OSMSearchService.shared.search(asked, near: here) { [weak self] found in
+                guard let self = self, self.query == asked else { return }
+                self.results = found.map {
+                    SearchItem(title: $0.title, subtitle: $0.subtitle, completion: nil,
+                               coordinate: CLLocationCoordinate2D(latitude: $0.point.lat, longitude: $0.point.lon))
+                }
+            }
+            return
+        }
         if let region = nearby() {
             completer.region = region
         }
@@ -38,10 +66,13 @@ final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDeleg
     }
 
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        guard !offline else { return }
         if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             results = []
         } else {
-            results = Array(completer.results.prefix(7))
+            results = completer.results.prefix(7).map {
+                SearchItem(title: $0.title, subtitle: $0.subtitle, completion: $0, coordinate: nil)
+            }
         }
     }
 
@@ -80,5 +111,35 @@ final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDeleg
     func clear() {
         query = ""
         results = []
+    }
+}
+
+/// La búsqueda sin internet: arma el índice del mapa de Guatemala una sola vez, fuera del hilo
+/// principal, y responde a cada letra escrita.
+final class OSMSearchService {
+    static let shared = OSMSearchService()
+    private let queue = DispatchQueue(label: "cfmoto.osm.busqueda", qos: .userInitiated)
+    private var index: OSMSearch?
+
+    private func ready() -> OSMSearch? {
+        if index == nil, let map = OSMMapData.current {
+            let started = Date()
+            let built = OSMSearch(map: map)
+            index = built
+            logLine(String(format: "[BUSCAR] índice sin internet: %d lugares en %.2f s", built.count, Date().timeIntervalSince(started)))
+        }
+        return index
+    }
+
+    /// Prepara el índice antes de la primera búsqueda (al abrir el buscador).
+    func warmUp() {
+        queue.async { _ = self.ready() }
+    }
+
+    func search(_ text: String, near: GeoPoint?, done: @escaping ([OSMSearchResult]) -> Void) {
+        queue.async {
+            let found = self.ready()?.search(text, near: near) ?? []
+            DispatchQueue.main.async { done(found) }
+        }
     }
 }

@@ -28,7 +28,7 @@ jobs:
           osmium tags-filter gt.osm.pbf w/highway w/waterway w/natural=water r/natural=water \
             w/leisure=park,garden,recreation_ground,golf_course,stadium w/landuse=grass,forest,recreation_ground,reservoir w/natural=wood \
             r/leisure=park r/landuse=forest r/natural=wood \
-            n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium -o filtrado.osm.pbf
+            n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium nwr/aeroway=aerodrome -o filtrado.osm.pbf
           ls -la filtrado.osm.pbf
       - name: Convertir al formato de la app
         run: |
