@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.6.4 (y anteriores)
+# Resultados de las pruebas — CFMoto Link 0.6.5 (y anteriores)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,9 +6,39 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **la 0.6.3 y la 0.6.4 no se han probado todavía en la moto.**
+3. **Moto** (manual, con la 450NK): **la 0.6.3, la 0.6.4 y la 0.6.5 no se han probado todavía en la moto.**
    Las fotos de la TFT que enviaste muestran el diseño de la 0.6.2 (Música + Avisos con ruta y
    Spotify) y otra pantalla con solo música.
+
+## 0.6.5 — Mapa guardado y tema
+
+### Resumen
+
+| Nivel | Qué se probó | Resultado |
+| --- | --- | --- |
+| Automáticas | 208 pruebas: las 200 de la 0.6.4 y 8 nuevas del guardado del mapa (huecos, curvas, pausa) | **Todas pasan** en un Mac con Apple M1 (prueba rápida 14). En la máquina Intel del simulador (prueba 37) pasan 207: la de «Música completa en plena transición» tardó 37,1 ms (en el M1, 17 ms) |
+| Límite de tiempo | Desde esta versión, en las máquinas Intel de GitHub (unas dos veces más lentas) el límite por fotograma es 40 ms en vez de 25 ms, y la prueba lo dice | Cambio solo de las pruebas: el dibujo no cambió |
+| Simulador | Compilación, recorrido de demostración en los modos, día y noche, y prueba en segundo plano (prueba 37) | `BUILD SUCCEEDED`; capturas en `CAPTURAS/4_SIMULADOR_IPHONE` |
+| Moto | — | **Sin probar** (pruebas X e Y de `TESTING.md`) |
+
+### Lo nuevo, en el simulador (prueba 37)
+
+- Ruta de demostración de 8,8 km al aeropuerto La Aurora. Con la app al frente, el guardado pidió
+  **dos imágenes extra para huecos** (a 3,3 km y a 5,9 km) y llegó a **«Ruta completa guardada:
+  6,2 km»** 2 min 19 s después de calcular la ruta: no se quedó parado.
+- En segundo plano la moto siguió con las imágenes guardadas (24 imágenes, 2,0 MB; mapa seguido
+  para unos 3 km de los que quedaban) y al volver al frente siguió igual.
+- Apple no falló ninguna imagen en esta prueba, así que la pausa tras fallos (2, 4, 8… hasta 60 s)
+  y el aviso «Apple no entregó la última imagen… Reintento en N s» no se vieron aquí; los cubren
+  las pruebas automáticas.
+- **Tema**: el arreglo (el tablero usa el tema de la imagen de mapa que muestra) está en el código
+  del estado del tablero, que las pruebas automáticas no ejecutan, y en el simulador no se dio el
+  caso de una imagen del otro tema. Se comprueba en la moto con la prueba Y.
+
+### Lo que no está confirmado
+
+- La causa de que el guardado se quedara en «10,0 km de 21 km» en tu ruta. La sospecha de las
+  curvas cerradas se probó y no era. Si vuelve a pasar: Más > Diagnóstico > Exportar informe.
 
 ## 0.6.4 — Acabado premium del reproductor
 

@@ -17,7 +17,8 @@ let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
 var failures = 0
 var report: [String] = []
 // Límite de tiempo por fotograma: 25 ms en un Mac con Apple Silicon (parecido a un iPhone). Las
-// máquinas Intel de GitHub son más lentas: allí se acepta hasta 40 ms y se dice en la prueba.
+// máquinas Intel de GitHub son más lentas (la misma prueba tarda unas dos veces más): allí se
+// acepta hasta 40 ms y se dice en la prueba.
 #if arch(x86_64)
 let perfLimit = 40.0
 let perfNote = " · máquina Intel de las pruebas: límite 40 ms"
