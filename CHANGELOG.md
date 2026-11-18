@@ -1,5 +1,37 @@
 # Registro de cambios
 
+## 0.6.2 — Diseño de la pantalla (17 de noviembre de 2026)
+
+Respaldo de la versión anterior: etiqueta `v0.6.1`, rama `backup/v0.6.1`, publicación
+`build-9` y carpeta `BACKUP_ORIGINAL_0.6.1` (ver `docs/ROLLBACK.md`). No cambian la conexión
+Wi-Fi Direct, el vídeo H.264 ni el protocolo con la moto.
+
+### Modo 4 · Música completa (al estilo de CarPlay)
+- Portada grande a la derecha (247 px de 400 de alto con el tamaño normal; antes 200).
+- Título, artista y álbum centrados a la izquierda; el título en una línea si cabe.
+- En lugar de botones, el **estado**: «Reproduciendo» o «En pausa». La pantalla de la moto no es
+  táctil para la app y el protocolo no envía teclas, así que unos botones no funcionarían; la
+  música se sigue controlando desde el iPhone o el intercomunicador.
+- Barra de progreso a todo el ancho con el **tiempo transcurrido y la duración**.
+- Fondo con un degradado de los colores de la portada y un resplandor suave detrás de ella.
+- **Fundido** corto (menos de medio segundo) al cambiar de canción; la portada de Spotify que
+  llega tarde se funde sola. Se puede desactivar con «Animaciones».
+- Álbum de Apple Music y de Spotify.
+
+### Modos con mapa: instrucciones compactas
+- Tarjeta del próximo giro **un 30 % más pequeña por lado** (200×96; antes 284×136): flecha
+  más pequeña, distancia y **nombre de la calle** (la flecha ya dice el giro), con menos margen.
+- El centro del mapa, por donde va la ruta, queda libre de tarjetas.
+- La tarjeta de música **no cambia de tamaño**. La tarjeta grande de la maniobra sigue igual.
+
+### Hora actual fija
+- La hora actual va **siempre arriba a la derecha**, en todos los modos, de día y de noche, con
+  y sin ruta.
+- La barra de viaje dice **«Llegada 7:22 p.m. | 18 min | 7.4 km»**: la llegada con su nombre y
+  el tiempo y la distancia separados. Sin ruta ya no muestra ninguna hora.
+- En las pantallas por zonas, lo que cae debajo de la hora se aparta (la brújula baja, la
+  cabecera de la música se acorta).
+
 ## 0.6.1 — Estabilidad y navegación premium (17 de noviembre de 2026)
 
 Respaldo de la versión anterior: etiqueta `v0.6.0`, rama `backup/v0.6.0`, publicación

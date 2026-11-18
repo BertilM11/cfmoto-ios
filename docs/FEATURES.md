@@ -12,6 +12,10 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
+| **0.6.2** Música completa al estilo de CarPlay (portada grande, textos centrados, estado, barra con tiempos, fondo con los colores de la portada, fundido al cambiar de canción) | Verificado en pruebas y capturas; **falta verla en la TFT** |
+| **0.6.2** Maniobra compacta (200×96) con flecha, distancia y calle | Verificado en pruebas y capturas; **falta verla en la TFT** con una ruta real |
+| **0.6.2** Hora actual fija arriba a la derecha y «Llegada» en la barra de viaje | Verificado en pruebas (8 modos, día y noche, con y sin ruta) y capturas; **falta en la TFT** |
+| **0.6.2** Botones de música en la TFT | **No se dibujan a propósito**: la pantalla no es táctil para la app y el protocolo no envía teclas. Se muestra el estado (reproduciendo / en pausa) |
 | **0.6.1** Mapa de calles con el iPhone bloqueado: ruta entera guardada por delante (hasta el límite de memoria), imagen tras cada giro, tema según la hora de paso, conservado al recalcular | Verificado en pruebas (ruta de 15 km sin huecos; avanzando, sin repetir) y en el simulador (unos 5 km guardados en 80 s; en segundo plano se usa lo guardado); **falta la moto** (pruebas A–K de `TESTING.md`) |
 | **0.6.1** Aviso "Guardando el mapa / Mapa guardado: X de Y km" en Navegación | Visto en el simulador; falta en el iPhone |
 | **0.6.1** Pantalla negra (mapa en vivo sin bloquear el iPhone) | Programado; **falta probar** batería y temperatura en un viaje real |

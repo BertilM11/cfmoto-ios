@@ -40,6 +40,24 @@ Hay tres niveles. Solo el tercero prueba la moto de verdad.
   toda la ruta. **Recálculo desde la posición actual** (la ruta nueva empieza donde está la
   moto, con otra rejilla): no se vuelve a pedir lo que ya se tiene. Tiempo de decidir qué pedir.
 - **Spotify (0.6.1)**: una portada que llega tarde no se queda con otra canción.
+- **Diseño de la 0.6.2**:
+  - **Hora actual**: el mismo sitio (arriba a la derecha) en todos los modos con mapa y en las
+    3000 combinaciones al azar, sin ninguna tarjeta encima; y se ve (píxeles del color del
+    texto en ese sitio) en los 8 modos, de día y de noche, con y sin ruta (32 composiciones).
+  - **Llegada**: la barra de viaje separa «Llegada» + hora de llegada, el tiempo restante y la
+    distancia; la hora de llegada no es la hora actual; sin ruta, la barra no dibuja nada
+    (la imagen es idéntica a la que no tiene barra).
+  - **Maniobra compacta**: 200×96 (un 30 % menos por lado que 284×136); la grande no cambia; en
+    Mapa + Música el centro (de 250 a 530 px de ancho) queda libre de tarjetas; la tarjeta de
+    música sigue en 250×84; la calle se saca bien de 8 indicaciones de Apple (y no se inventa
+    cuando no hay calle).
+  - **Música completa**: portada, textos, barra y cabecera sin montarse ni tapar la hora, con
+    los tres tamaños de portada y con el próximo giro abajo; portada de más del 60 % del alto;
+    columna de texto ancha y barra casi a todo el ancho; texto legible (contraste ≥ 4,5:1)
+    sobre el degradado con tres portadas, de día y de noche; fundido al cambiar de canción
+    (menos de medio segundo), solo de la portada si llega tarde, y nada si es la misma
+    canción; tiempo de dibujo en plena transición.
+  - Capturas de los tres cambios (`cambio1-…`, `cambio2-…`, `cambio3-…`).
 - **Reglas automáticas**.
 - **Proyección del mapa**: la homografía de 4 puntos reproduce una perspectiva exacta; con una
   cámara de prueba girada, la ruta cae a menos de 1 píxel de donde debe.

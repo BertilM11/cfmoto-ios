@@ -1,4 +1,4 @@
-# CFMoto Link 0.6.1 — Estabilidad y navegación premium
+# CFMoto Link 0.6.2 — Diseño de la pantalla
 
 App de iPhone, de código abierto y **no oficial**, que envía a la pantalla TFT de una moto CFMOTO
 (probada en una 450NK) un panel hecho a medida: navegación GPS propia, música y avisos, con la
@@ -9,6 +9,14 @@ destino, la música y el panel antes de arrancar.
 
 ## Qué hace
 
+- **Música completa al estilo de CarPlay** (0.6.2): portada grande, título, artista y álbum
+  centrados, estado de la reproducción, barra de progreso con el tiempo transcurrido y la
+  duración, fondo con los colores de la portada y un fundido corto al cambiar de canción. No
+  dibuja botones: la pantalla de la moto no es táctil para la app.
+- **Instrucciones compactas** (0.6.2): en los modos con mapa, la tarjeta del próximo giro es un
+  30 % más pequeña por lado (flecha, distancia y calle) y deja libre el centro para la ruta.
+- **Hora actual fija** (0.6.2): siempre arriba a la derecha, en todos los modos y con o sin
+  ruta; la barra de viaje dice «Llegada 7:22 p.m. | 18 min | 7.4 km».
 - **Mapa con el iPhone bloqueado** (0.6.1): la app guarda la ruta entera por delante mientras
   está abierta y la usa al bloquear; Navegación avisa cuándo ya se puede bloquear. Con la
   **Pantalla negra** el mapa sigue en vivo sin bloquear.
@@ -53,9 +61,10 @@ xcodegen generate          # crea CFMotoLink.xcodeproj a partir de project.yml
 open CFMotoLink.xcodeproj
 ```
 
-El paquete `CFMotoLink_0.6.1_Estabilidad.zip` trae el código, la documentación, las láminas de
+El paquete `CFMotoLink_0.6.2_Interfaz.zip` trae el código, la documentación, las láminas de
 las pruebas y los resultados. Instalación paso a paso: [docs/INSTALL.md](docs/INSTALL.md).
-Volver a la 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md).
+Volver a la 0.6.1 o a la 0.6.0: [docs/ROLLBACK.md](docs/ROLLBACK.md). Diseño de la 0.6.2:
+[docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md).
 En Xcode elige tu equipo de firma en los dos targets (`CFMotoLink` y `CFMotoLinkBroadcast`) y
 ejecuta en un iPhone con iOS 16 o posterior.
 
@@ -96,7 +105,8 @@ firmar en *Releases*.
 - [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md): proveedores de navegación y música, licencias, día y noche, iPhone bloqueado.
 - [docs/PANTALLA.md](docs/PANTALLA.md): análisis de la pantalla de la moto y del proveedor de mapas.
 - [docs/TESTING.md](docs/TESTING.md): cómo se prueba (automáticas, simulador y moto).
-- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas de la 0.6.1.
+- [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md): resultados de las pruebas (0.6.2 y 0.6.1).
+- [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md): diseño de la 0.6.2 (música, instrucciones y hora) con capturas.
 - [docs/LIMITATIONS.md](docs/LIMITATIONS.md): limitaciones pendientes y qué haría falta.
 
 ## Créditos y licencia

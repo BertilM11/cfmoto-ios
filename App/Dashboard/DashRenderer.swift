@@ -874,13 +874,16 @@ extension HUDRenderer {
             let src = textLines(m.source.uppercased(), sizes: [15 * k], bold: true, color: sourceColor(m, c), width: L.header.width, maxLines: 1)
             if let line = src.lines.first { put(line, x: L.header.minX, baseline: L.header.midY + (line.ascent - line.descent) / 2, ctx) }
         }
-        // Al cambiar de canción, la anterior sale hacia arriba y la nueva entra desde abajo.
+        // Al cambiar de canción la portada se funde de una a otra; los textos, uno después del
+        // otro (la anterior sale hacia arriba y la nueva entra desde abajo), sin mezclarse.
         let f = CGFloat(max(0, min(1, s.musicFade)))
         if let old = s.musicFrom, s.musicFade < 1 {
-            stageTrack(old, s, c, L, p, alpha: 1 - f, dy: -10 * k * f, art: old.artwork, artFrom: nil, artFade: 1, ctx)
-            stageTrack(m, s, c, L, p, alpha: f, dy: 10 * k * (1 - f), art: m.artwork, artFrom: nil, artFade: 1, ctx)
+            let out = min(1, 2 * f)
+            let into = max(0, 2 * f - 1)
+            stageTrack(old, s, c, L, p, artAlpha: 1 - f, textAlpha: 1 - out, dy: -10 * k * out, art: old.artwork, artFrom: nil, artFade: 1, ctx)
+            stageTrack(m, s, c, L, p, artAlpha: f, textAlpha: into, dy: 10 * k * (1 - into), art: m.artwork, artFrom: nil, artFade: 1, ctx)
         } else {
-            stageTrack(m, s, c, L, p, alpha: 1, dy: 0, art: m.artwork, artFrom: s.artFrom, artFade: CGFloat(s.artFade), ctx)
+            stageTrack(m, s, c, L, p, artAlpha: 1, textAlpha: 1, dy: 0, art: m.artwork, artFrom: s.artFrom, artFade: CGFloat(s.artFade), ctx)
         }
         guard has, s.showProgress, m.duration > 1 else { return }
         let elapsed = m.playing ? max(0, now.timeIntervalSinceReferenceDate - m.positionTime) : 0
@@ -903,51 +906,86 @@ extension HUDRenderer {
         put(b, x: bar.maxX + 14 * k, baseline: baseline, ctx)
     }
 
-    /// Fondo: degradado con los colores de la portada y un resplandor suave detrás de ella.
-    /// Dos degradados, sin desenfoques: cuesta poco en cada fotograma.
+    /// Fondo: degradado con los colores de la portada y un resplandor suave detrás de ella. Solo
+    /// cambia con la canción, así que se dibuja una vez y se reutiliza (salvo durante el fundido).
     func drawStageBackground(_ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicStageLayout, _ r: CGRect, _ ctx: CGContext) {
-        drawMusicBackground(r, c, radius: 0, alpha: 1, ctx)
         var glow = c.accent
         if let base = s.music.palette?.base {
             let h = base.hsl
             glow = s.night ? RGB(h: h.h, s: min(h.s, 0.6), l: 0.42) : RGB(h: h.h, s: min(h.s, 0.6) * 0.8, l: 0.8)
         }
         let center = L.artwork.width > 0 ? CGPoint(x: L.artwork.midX, y: L.artwork.midY) : CGPoint(x: r.maxX - r.width * 0.25, y: r.midY)
-        let colors = [glow.cg.copy(alpha: s.night ? 0.5 : 0.4) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
-        guard let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
+        func paint(_ g: CGContext) {
+            drawMusicBackground(r, c, radius: 0, alpha: 1, g)
+            let colors = [glow.cg.copy(alpha: s.night ? 0.5 : 0.4) ?? glow.cg, glow.cg.copy(alpha: 0) ?? glow.cg] as CFArray
+            guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1]) else { return }
+            g.saveGState()
+            g.clip(to: r)
+            g.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center,
+                                 endRadius: max(r.width, r.height) * 0.55, options: [])
+            g.restoreGState()
+        }
+        let w = Int(r.width.rounded())
+        let h = Int(r.height.rounded())
+        guard HUDRenderer.cacheStageBackground, s.paletteFade >= 1, w > 0, h > 0 else {
+            paint(ctx)
+            return
+        }
+        func rgb(_ x: RGB) -> String { String(format: "%.3f,%.3f,%.3f", x.r, x.g, x.b) }
+        let key = [String(format: "%.0f,%.0f,%d,%d,%.0f,%.0f", r.minX, r.minY, w, h, center.x, center.y),
+                   rgb(c.top), rgb(c.bottom), rgb(glow), s.night ? "n" : "d"].joined(separator: "|")
+        if stageBackground?.key != key {
+            let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+            guard let off = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else {
+                paint(ctx)
+                return
+            }
+            // Misma orientación que la imagen de la moto (origen arriba a la izquierda).
+            off.translateBy(x: 0, y: CGFloat(h))
+            off.scaleBy(x: 1, y: -1)
+            off.translateBy(x: -r.minX, y: -r.minY)
+            paint(off)
+            guard let image = off.makeImage() else {
+                paint(ctx)
+                return
+            }
+            stageBackground = (key, image)
+        }
+        guard let image = stageBackground?.image else { return }
         ctx.saveGState()
-        ctx.clip(to: r)
-        ctx.drawRadialGradient(g, startCenter: center, startRadius: 0, endCenter: center,
-                               endRadius: max(r.width, r.height) * 0.55, options: [])
+        ctx.translateBy(x: r.minX, y: r.minY + CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.interpolationQuality = .none
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
         ctx.restoreGState()
     }
 
     /// Portada, título, artista, álbum y estado de una canción (con transparencia y desplazamiento
     /// para la transición).
     func stageTrack(_ m: MusicSnapshot, _ s: DashSnapshot, _ c: MusicCardColors, _ L: MusicStageLayout, _ p: HUDPalette,
-                    alpha a: CGFloat, dy: CGFloat, art: CGImage?, artFrom: CGImage?, artFade: CGFloat, _ ctx: CGContext) {
-        guard a > 0.01 else { return }
+                    artAlpha: CGFloat, textAlpha: CGFloat, dy: CGFloat, art: CGImage?, artFrom: CGImage?, artFade: CGFloat,
+                    _ ctx: CGContext) {
         let has = m.available && !m.title.isEmpty
-        ctx.saveGState()
-        ctx.setAlpha(a)
-        if L.artwork.width > 4 {
+        if L.artwork.width > 4 && artAlpha > 0.01 {
+            ctx.saveGState()
+            ctx.setAlpha(artAlpha)
             // Sombra suave sin desenfoque (tres capas), para dar relieve sin gastar CPU.
             for i in 1...3 {
                 let d = CGFloat(i)
                 fillRounded(L.artwork.offsetBy(dx: 0, dy: (2 + d * 2) * k).insetBy(dx: -d * 1.5 * k, dy: -d * 1.5 * k),
                             radius: (8 + d * 2) * k, color: CGColor(gray: 0, alpha: s.night ? 0.12 : 0.06), ctx)
             }
-            let artRect = L.artwork.offsetBy(dx: 0, dy: dy * 0.5)
             if artFade < 1 {
-                dashArtwork(has ? artFrom : nil, artRect, p, ctx)
-                ctx.saveGState()
-                ctx.setAlpha(a * max(0, artFade))
-                dashArtwork(has ? art : nil, artRect, p, ctx)
-                ctx.restoreGState()
-            } else {
-                dashArtwork(has ? art : nil, artRect, p, ctx)
+                dashArtwork(has ? artFrom : nil, L.artwork, p, ctx)
+                ctx.setAlpha(artAlpha * max(0, artFade))
             }
+            dashArtwork(has ? art : nil, L.artwork, p, ctx)
+            ctx.restoreGState()
         }
+        guard textAlpha > 0.01 else { return }
+        ctx.saveGState()
+        ctx.setAlpha(textAlpha)
         let w = L.text.width
         var blocks: [(lines: [Measured], gap: CGFloat)] = []
         if has {

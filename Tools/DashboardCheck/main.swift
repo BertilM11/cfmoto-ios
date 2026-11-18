@@ -1060,9 +1060,9 @@ previous.artist = "Otro artista"
 previous.album = ""
 previous.artwork = redBlack
 crossing.musicFrom = previous
-crossing.musicFade = 0.5
+crossing.musicFade = 0.7
 crossing.paletteFrom = redBlack.flatMap { ArtPalette.extract($0) }
-crossing.paletteFade = 0.5
+crossing.paletteFade = 0.7
 if let image = pixels(crossing).image { save(image, "cambio1-musica-transicion") }
 if let image = pixels(stageSnapshot(.dark, art: neon, source: "Spotify", route: true)).image { save(image, "cambio1-musica-con-ruta") }
 for theme in [DashTheme.dark, .light] {
@@ -1076,11 +1076,34 @@ if let image = pixels(idleTrip).image { save(image, "cambio2-mapa-musica-sin-rut
 for mode in [DashMode.gps, .gpsMusic, .split, .music] {
     if let image = pixels(streetsSnapshot(.preset(mode), theme: .dark)).image { save(image, "cambio3-hora-\(mode.rawValue)") }
 }
+// El fondo guardado entre fotogramas es igual que dibujarlo cada vez.
+func maxDifference(_ a: [UInt8], _ b: [UInt8]) -> Int {
+    var worst = 0
+    for i in 0..<min(a.count, b.count) { worst = max(worst, abs(Int(a[i]) - Int(b[i]))) }
+    return a.count == b.count ? worst : 255
+}
+HUDRenderer.cacheStageBackground = false
+let stageLive = pixels(stageSnapshot(.dark, art: neon, source: "Spotify")).data
+let stageLiveDay = pixels(stageSnapshot(.light, art: blue, source: "Apple Music")).data
+HUDRenderer.cacheStageBackground = true
+let stageCached = pixels(stageSnapshot(.dark, art: neon, source: "Spotify")).data
+let stageCachedDay = pixels(stageSnapshot(.light, art: blue, source: "Apple Music")).data
+let cacheDiff = max(maxDifference(stageLive, stageCached), maxDifference(stageLiveDay, stageCachedDay))
+check("Música completa: el fondo guardado entre fotogramas se ve igual que dibujado cada vez", cacheDiff <= 3,
+      "diferencia máxima \(cacheDiff) de 255")
 let stageRenderer = HUDRenderer(width: Int(W), height: Int(H))
+var stagePerf = crossing
+stagePerf.musicFade = 0.3
 let stageStart = Date()
-for _ in 0..<50 { _ = DashPreview.image(crossing, now: now, renderer: stageRenderer) }
+for _ in 0..<50 { _ = DashPreview.image(stagePerf, now: now, renderer: stageRenderer) }
 let stageMs = Date().timeIntervalSince(stageStart) * 1000 / 50
 check("Música completa en plena transición: menos de 25 ms por fotograma", stageMs < 25, String(format: "%.1f ms de media en esta máquina", stageMs))
+let steady = stageSnapshot(.dark, art: neon, source: "Spotify")
+let steadyStart = Date()
+for _ in 0..<50 { _ = DashPreview.image(steady, now: now, renderer: stageRenderer) }
+let steadyMs = Date().timeIntervalSince(steadyStart) * 1000 / 50
+check("Música completa sin transición (fondo reutilizado): menos de 15 ms por fotograma", steadyMs < 15,
+      String(format: "%.1f ms de media en esta máquina", steadyMs))
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))

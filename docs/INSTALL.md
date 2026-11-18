@@ -1,4 +1,4 @@
-# Instalación y primer uso (0.6.1)
+# Instalación y primer uso (0.6.2)
 
 ## Lo que hace falta
 
@@ -9,8 +9,8 @@
 
 ## Instalar
 
-1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.1 en GitHub (*Releases*) o usa el
-   que viene en la entrega (`CFMotoLink_0.6.1/CFMotoLink.ipa`).
+1. Descarga `CFMotoLink.ipa` de la publicación de la 0.6.2 en GitHub (*Releases*) o usa el
+   que viene en la entrega (`CFMotoLink_0.6.2/CFMotoLink.ipa`).
 2. Conecta el iPhone al PC con el cable y desbloquéalo. Si pregunta, toca **Confiar**.
 3. En Sideloadly: toca el icono del IPA, elige el archivo, comprueba tu Apple ID y pulsa
    **Start**. Escribe tu contraseña solo en la ventana de Sideloadly.
@@ -18,7 +18,7 @@
 5. Abre CFMoto Link y permite la ubicación (**Al usar la app**) y, si usas Apple Music, el
    acceso a la música.
 
-La 0.6.1 se instala encima de la 0.6.0 y conserva los ajustes.
+La 0.6.2 se instala encima de la 0.6.1 (o de la 0.6.0) y conserva los ajustes.
 
 ## Usar con la moto
 
@@ -45,4 +45,4 @@ developer.spotify.com) y toca **Conectar con Spotify**. La cuenta dueña necesit
 **Más > Diagnóstico > Exportar informe** y mándalo. No incluye contraseñas, permisos de
 Spotify ni el Client ID; la posición va redondeada.
 
-Para volver a la 0.6.0: [ROLLBACK.md](ROLLBACK.md).
+Para volver a la 0.6.1 o a la 0.6.0: [ROLLBACK.md](ROLLBACK.md).

@@ -236,6 +236,11 @@ final class HUDRenderer {
     /// Sitio de la hora actual si cae dentro de la zona que se está dibujando (esa zona lo deja
     /// libre). Solo en los diseños por zonas; sobre el mapa la hora es una tarjeta más.
     var statusReserve: CGRect?
+    /// Fondo de la pantalla de música ya dibujado (los degradados cambian solo con la canción):
+    /// se reutiliza en cada fotograma para gastar menos CPU.
+    var stageBackground: (key: String, image: CGImage)?
+    /// Las pruebas lo apagan para comparar con el dibujo directo.
+    static var cacheStageBackground = true
     /// El mapa simple dibuja su propia brújula salvo que el panel la ponga en otro sitio.
     var miniCompass = true
     /// Rumbo de la ruta en el último dibujo simple (radianes), para la brújula del panel.
