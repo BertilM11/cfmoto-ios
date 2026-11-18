@@ -310,11 +310,17 @@ final class TFTMap {
     private func tick() {
         let t = Date().timeIntervalSinceReferenceDate
         let active = UIApplication.shared.applicationState == .active
+        // 0.7: con el mapa propio estos avisos de las imágenes de Apple no aplican.
+        let appleMap = DashStore.shared.config.map.provider == .apple
         if active != wasActive {
             wasActive = active
-            logState(active ? "[MAPA] la app vuelve al frente" : "[MAPA] la app deja el primer plano (Apple no entrega imágenes nuevas hasta que vuelva)")
+            if appleMap {
+                logState(active ? "[MAPA] la app vuelve al frente" : "[MAPA] la app deja el primer plano (Apple no entrega imágenes nuevas hasta que vuelva)")
+            } else {
+                logLine(active ? "[MAPA] la app vuelve al frente (mapa propio)" : "[MAPA] la app pasa a segundo plano: el mapa propio sigue dibujándose en el iPhone")
+            }
         }
-        if !active && t - backgroundLogTime > 30 {
+        if appleMap && !active && t - backgroundLogTime > 30 {
             backgroundLogTime = t
             logState("[MAPA] en segundo plano")
         }

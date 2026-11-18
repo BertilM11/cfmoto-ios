@@ -174,13 +174,20 @@ final class Diagnostics {
             parts.append("gps=sin fijo")
         }
         parts.append("fijos=\(LocationService.shared.fixes)/\(LocationService.shared.backgroundFixes)bg")
-        parts.append("mapa=\(map.source)")
-        if let a = map.sourceAge { parts.append(String(format: "edad=%.0fs", a)) }
-        if map.routeActive {
-            parts.append(String(format: "cobertura=%.1f/%.1fkm", map.coverage.continuous / 1000, map.routeRemaining / 1000))
+        if DashStore.shared.config.map.provider == .osm {
+            // 0.7: el mapa propio no guarda imágenes de Apple: se dice cuál se usa y su dibujo.
+            parts.append(OSMMapData.current == nil ? "mapa=propio (falta el archivo)" : "mapa=propio (OpenStreetMap)")
+            let render = RenderStats.snapshot()
+            parts.append(String(format: "dibujo=%.1fms", render.averageMs))
+        } else {
+            parts.append("mapa=\(map.source)")
+            if let a = map.sourceAge { parts.append(String(format: "edad=%.0fs", a)) }
+            if map.routeActive {
+                parts.append(String(format: "cobertura=%.1f/%.1fkm", map.coverage.continuous / 1000, map.routeRemaining / 1000))
+            }
+            parts.append(String(format: "imgs=%d(%.1fMB)", map.cached, Double(map.cachedBytes) / 1_048_576))
+            parts.append("pend=\(map.inFlight)")
         }
-        parts.append(String(format: "imgs=%d(%.1fMB)", map.cached, Double(map.cachedBytes) / 1_048_576))
-        parts.append("pend=\(map.inFlight)")
         parts.append(String(format: "envio=%.1ffps", fps))
         parts.append("cod=\(link.backend)/\(link.encoderFailures)f")
         if let m = MemoryInfo.footprintMB() { parts.append(String(format: "mem=%.0fMB", m)) }

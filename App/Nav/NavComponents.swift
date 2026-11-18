@@ -401,9 +401,13 @@ struct TripBar: View {
                         Text(clock.time)
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .fixedSize(horizontal: true, vertical: false)
                         Text(clock.suffix)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(palette.secondaryText)
+                            .lineLimit(1)
                     }
                     Text("llegada")
                         .font(.system(size: 12, weight: .medium))

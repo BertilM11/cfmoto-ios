@@ -113,3 +113,22 @@ del iPhone y del destino que el usuario eligió en CFMoto Link.
 | `Diagnostics`, `NetworkWatch`, `MemoryInfo` | `App/Dashboard/Diagnostics.swift` | Estado de todo el sistema, línea `[DIAG]` cada 10 s e informe exportable sin credenciales. |
 | `DiagnosticsScreen` | `App/UI/DiagnosticsScreen.swift` | Pantalla Más > Diagnóstico. |
 | `PocketScreen`, `MapCoverageChip` | `App/Nav/PocketScreen.swift` | Pantalla negra y aviso de mapa guardado en Navegación. |
+
+## Mapa propio de OpenStreetMap (0.7)
+
+Detalles en `DISENO_0.7.md`.
+
+| Componente | Archivo | Qué hace |
+| --- | --- | --- |
+| Datos | `App/Map/Guatemala.cfmap` (descargado al compilar) | Calles, agua, parques, lugares, departamentos y municipios de Guatemala, en cuadros de 0,01° comprimidos |
+| Lector | `App/OSM/OSMMapData.swift` | Abre el archivo mapeado en memoria y descomprime cada cuadro al pedirlo (guarda los últimos 160) |
+| Dibujo | `App/OSM/OSMRenderer.swift` | Fondo y calles en una imagen reutilizada (`OSMBaseCache`), nombres como imágenes (`OSMLabelCache`), atribución |
+| Rutas | `App/OSM/OSMRouter.swift` | Grafo compacto, A*, grafo amplio para rodeos, indicaciones en español |
+| Búsqueda | `App/OSM/OSMSearch.swift` | Índice sin internet con municipio y departamento |
+| Ruta común | `App/Nav/PlannedRoute.swift` | Una ruta de Apple o de OpenStreetMap con la misma forma para la interfaz y la guía |
+| Elección | `MapSettings.provider` (`App/Dashboard/MapBase.swift`) | OpenStreetMap (de serie) o Apple Maps |
+
+Hilos: las rutas se calculan en `cfmoto.osm.rutas`, la búsqueda en `cfmoto.osm.busqueda` y la
+imagen del fondo se rehace en `cfmoto.osm.fondo`; el dibujo de cada fotograma sigue en el hilo de
+la moto (`cfmotolink.hud`).
+

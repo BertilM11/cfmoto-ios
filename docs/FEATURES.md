@@ -1,4 +1,4 @@
-# Estado real de cada función (0.6.4)
+# Estado real de cada función (0.7)
 
 "Verificado en la moto" significa que el propietario lo vio funcionar en su CFMOTO 450NK.
 "Verificado en pruebas" significa que pasa las pruebas automáticas o se vio en el simulador de
@@ -12,6 +12,12 @@ iPhone, pero no en la moto.
 | Navegación propia dibujada en la TFT | Verificado en la moto (0.3) |
 | Imagen completa de 800×400, sin franja vacía | Verificado en la moto (foto de la 0.5) |
 | Mapa de calles de Apple Maps en la TFT, con la app abierta | Verificado en la moto (foto de la 0.5, sin ruta) |
+| **0.7** Mapa propio de OpenStreetMap en la TFT (calles, parques, agua, nombres, «© OpenStreetMap»), de día y de noche, sin internet | Verificado en pruebas (los modos con mapa, día y noche; 13 ms por fotograma en un Mac M1) y en el simulador; **falta en la moto** (pruebas Z1, Z2 y Z6) |
+| **0.7** Ruta, alternativas, indicaciones en español y recálculo calculados en el iPhone, sin internet | Verificado en pruebas (rutas por la ciudad, a Antigua, Xela y Flores; maniobras en su cruce; recálculo en 0,08 s) y en el simulador; **falta en la moto** (Z2 a Z4) |
+| **0.7** Búsqueda sin internet (lugares, zonas, calles, tipos de lugar, otros nombres, municipio y departamento) | Verificado en pruebas (15 búsquedas de referencia, unos 5 ms cada una) y en el simulador; **falta en el iPhone** (Z1) |
+| **0.7** Elegir mapa (OpenStreetMap o Apple Maps) y recalcular la ruta al cambiar | Verificado en pruebas y en el simulador (ambos modos); falta en la moto (Z5) |
+| **0.6.5** Tema de la moto igual al de la imagen de mapa guardada (modo Apple Maps) | Programado y compilado; **falta en la moto** (prueba Y) |
+| **0.6.5** Guardado que sigue tras fallos de Apple e imágenes extra para huecos (modo Apple Maps) | Verificado en pruebas y en el simulador (2 imágenes extra y «Ruta completa guardada»); **falta en la moto** (prueba X) |
 | **0.6.4** Botones del reproductor (anterior, reproducir/pausar grande, siguiente) en todos los modos con música, con el estado real; solo dibujo | Verificado en pruebas (10 sitios, día y noche, sonando y en pausa: dentro de su sitio, sin tocar textos ni la hora, proporciones, ❚❚/▶, contraste ≥ 3:1) y capturas; **falta verlo en la TFT** (pruebas U y V) |
 | **0.6.4** Acabado premium: luz de la portada en el fondo, sombra difuminada, barra con degradado, portadas no cuadradas sin estirar, fundido entre canciones | Verificado en pruebas y capturas (el mismo tiempo por fotograma que la 0.6.3, medido en la misma máquina); **falta en la TFT** (pruebas U y W) |
 | **0.6.3** Rediseño premium: tarjetas de vidrio con borde luminoso en todos los modos, maniobra con mosaico, bloques Distancia · Restante · Llegada, hora con reloj, avisos con remitente, ruta con resplandor y posición nueva, sin mover nada | Verificado en pruebas (posiciones iguales a la 0.6.2, mismo vidrio en todas las tarjetas, textos sin cortar, < 8 ms por fotograma) y capturas de los 8 modos; **falta verlo en la TFT** (prueba T) |
