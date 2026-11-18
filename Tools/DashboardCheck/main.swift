@@ -1685,8 +1685,8 @@ if let q = base?.project(center.moved(250, bearing: heading + 180).moved(380, be
     check("Rediseño: la ruta lleva un resplandor azul a los lados (más contraste sobre el mapa)", sides.allSatisfy { $0.b > $0.r + 0.12 },
           sides.map { String(format: "%.2f,%.2f,%.2f", $0.r, $0.g, $0.b) }.joined(separator: " | "))
 }
-if let q = base?.project(center.moved(250, bearing: heading + 180)) {
-    // La posición dibujada avanza un poco con la velocidad: se busca alrededor.
+if let q = base?.project(center.moved(90, bearing: heading + 180)) {
+    // La moto va a 160 m del inicio de la ruta de prueba; se busca alrededor por si acaso.
     var arrow = 0
     var disk = 0
     for dy in -30...30 {
@@ -1696,7 +1696,7 @@ if let q = base?.project(center.moved(250, bearing: heading + 180)) {
             if c.b > 0.15 && c.b < 0.3 && c.r < 0.1 { disk += 1 }
         }
     }
-    check("Rediseño: la posición se marca con la flecha azul en su disco de vidrio", arrow > 70 && disk > 300,
+    check("Rediseño: la posición se marca con la flecha azul en su disco de vidrio", arrow > 120 && disk > 300,
           "flecha \(arrow) px, disco \(disk) px")
 }
 

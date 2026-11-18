@@ -249,7 +249,8 @@ extension HUDRenderer {
     func glassCard(_ r: CGRect, radius: CGFloat, _ p: HUDPalette, _ ctx: CGContext, shadow: Bool = true, body: Bool = true) {
         guard r.width > 2, r.height > 2 else { return }
         let rad = max(0, min(radius, r.width / 2, r.height / 2))
-        let m = ((shadow ? 30 : 4) * k).rounded(.up)
+        // Margen para la sombra y el halo (que sale hasta 5 px fuera de la tarjeta).
+        let m = ((shadow ? 30 : 8) * k).rounded(.up)
         let w = Int((r.width + 2 * m).rounded(.up))
         let h = Int((r.height + 2 * m).rounded(.up))
         guard HUDRenderer.cacheCards, w > 0, h > 0, w * h < 1_200_000 else {
