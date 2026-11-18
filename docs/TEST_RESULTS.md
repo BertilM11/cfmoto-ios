@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.6.5 (y anteriores)
+# Resultados de las pruebas — CFMoto Link 0.7 (y anteriores)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,9 +6,68 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **la 0.6.3, la 0.6.4 y la 0.6.5 no se han probado todavía en la moto.**
+3. **Moto** (manual, con la 450NK): **la 0.6.3, la 0.6.4, la 0.6.5 y la 0.7 no se han probado todavía en la moto.**
    Las fotos de la TFT que enviaste muestran el diseño de la 0.6.2 (Música + Avisos con ruta y
    Spotify) y otra pantalla con solo música.
+
+## 0.7 — Mapa propio de OpenStreetMap
+
+### Resumen
+
+| Nivel | Qué se probó | Resultado |
+| --- | --- | --- |
+| Automáticas | 246 pruebas: las 208 de la 0.6.5 y 38 del mapa propio (zona de prueba y mapa completo de Guatemala) | **Todas pasan** en un Mac con Apple M1 (prueba rápida 22) y dentro de la prueba en el simulador (prueba 40) |
+| Simulador | Compilación optimizada (como en el iPhone), recorridos con el mapa propio y con Apple Maps, búsqueda sin internet y segundo plano (prueba 40) | `BUILD SUCCEEDED`; capturas en `CAPTURAS/2_SIMULADOR_IPHONE` |
+| Moto | — | **Sin probar** (pruebas Z1 a Z6 de `TESTING.md`) |
+
+### Mapa propio en la moto (Mac con Apple M1, mediana)
+
+| Medida | Resultado |
+| --- | --- |
+| Fotograma completo con el mapa propio y las tarjetas | 10,3 ms (límite 25 ms; la moto recibe 10 por segundo) |
+| Fondo, parques y calles | 3,5 ms desde la imagen guardada (7,5 ms dibujándolo cada vez) |
+| Nombres de calles | 0,5 ms como imágenes (3,7 ms letra a letra) |
+| Día y noche | Claridad media 0,93 de día y 0,14 de noche: el tema siempre coincide |
+| Sin el archivo del mapa | Se usa el mapa simple, sin errores |
+| Nombres sobre tarjetas | Ninguno: cada nombre se comprueba a lo largo de toda su línea |
+
+### Rutas calculadas en el teléfono (mapa completo)
+
+| Ruta | Resultado |
+| --- | --- |
+| Avenida Reforma → 11 Calle (zona 10) | 1,7 km, 3 rutas en 27 ms; indicaciones con nombre de calle; la vuelta respeta los sentidos |
+| Zona 10 → Antigua Guatemala | 35,4 km, 40 min, en 0,12 s |
+| Zona 10 → Quetzaltenango | 199,3 km, 3 h 7 min, en 0,50 s, por la Carretera Panamericana |
+| Zona 10 → Flores (Petén) | 485,9 km, 7 h 35 min, entre 1,5 y 4,4 s según la prueba, por la Ruta al Atlántico y la CA-13 (grafo amplio) |
+| Maniobras en su cruce (ruta de 200 km) | 10 maniobras, error máximo 0,0 m (sin el ajuste serían 73 m) |
+| Recálculo en marcha (desvío de 120 m camino a Antigua) | 0,09 s |
+
+### Búsqueda sin internet (mapa completo)
+
+- Índice de 48 471 lugares en 0,3 s; cada búsqueda unos 5 ms.
+- Pasan las 15 búsquedas de referencia: «antigua» → Antigua Guatemala (Ciudad · Sacatepéquez);
+  «zona 10» → Zona 10 · Ciudad de Guatemala; «14 calle zona 10»; «oakland»; «quetzaltenango»;
+  «cayala» (sin tilde); «6 avenida» = 6a Avenida; «aeropuerto» y «la aurora» → Aeropuerto
+  Internacional La Aurora; «gasolinera» → Texaco de la zona 10 (por tipo y cercanía); «farmacia»;
+  «mixco»; «14» mientras se escribe; «zona 1» no da la 10 ni la 14; «xela» → Quetzaltenango.
+
+### En el simulador (prueba 40, compilación optimizada)
+
+- **Mapa propio**: ruta al aeropuerto La Aurora calculada en el iPhone en 0,18 a 0,24 s (8,1 km y
+  dos alternativas), con indicaciones como «Gira ligeramente a la derecha por 6a Avenida». En el
+  iPhone, «Mapa de Guatemala en el iPhone · sin internet». La moto mostró el mapa propio de día y
+  de noche en los cinco modos.
+- **Búsqueda**: el índice se armó en 0,6 a 0,8 s; «Oakland» dio seis resultados con su zona y
+  municipio y el pie «Sin internet, en el mapa de Guatemala · © colaboradores de OpenStreetMap».
+- **Segundo plano**: con otra app al frente, la moto siguió recibiendo el mapa propio y la ruta
+  avanzando (6,0 → 5,3 → 5,0 km), sin imágenes de Apple.
+- **Apple Maps**: elegido en los ajustes, la ruta se calculó con Apple y el guardado funcionó como
+  en la 0.6.5 («Guardando el mapa: 2,5 km de 9,5 km»).
+
+### Lo que no está comprobado
+
+- Nada de la 0.7 se ha visto todavía en la moto ni en tu iPhone. Los tiempos del iPhone pueden
+  ser distintos de los del Mac: Más > Diagnóstico > «Dibujo del panel» los muestra.
 
 ## 0.6.5 — Mapa guardado y tema
 
