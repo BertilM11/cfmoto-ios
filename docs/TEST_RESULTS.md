@@ -1,4 +1,4 @@
-# Resultados de las pruebas — CFMoto Link 0.7 (y anteriores)
+# Resultados de las pruebas — MotoLink 0.7.1 (y anteriores)
 
 Hay tres niveles y no se mezclan:
 
@@ -6,9 +6,20 @@ Hay tres niveles y no se mezclan:
    código del panel, del mapa guardado y de los colores, sin iPhone ni moto.
 2. **Simulador de iPhone** (GitHub Actions): la app completa con un recorrido simulado y mapas
    reales de Apple. No tiene moto, GPS real, Spotify ni bloqueo de pantalla de verdad.
-3. **Moto** (manual, con la 450NK): **la 0.6.3, la 0.6.4, la 0.6.5 y la 0.7 no se han probado todavía en la moto.**
+3. **Moto** (manual, con la 450NK): ver «Prueba en la moto — 19 de noviembre de 2026» abajo. La 0.6.3,
+   la 0.6.4 y la 0.6.5 no se probaron en la moto.
    Las fotos de la TFT que enviaste muestran el diseño de la 0.6.2 (Música + Avisos con ruta y
    Spotify) y otra pantalla con solo música.
+
+## Prueba en la moto — 19 de noviembre de 2026 (mapa propio de OpenStreetMap)
+
+Reporte de Bertil después de rodar con el mapa propio:
+
+- El mapa **no desaparece** durante el recorrido.
+- La guía **sigue al puntero** de la moto y **no se queda pegada**; va mejor que en versiones anteriores.
+
+Sin reporte todavía de: Z1 (sin datos móviles), Z3 (recálculo al salirse), Z4 (ruta larga),
+Z5 (cambio a Apple Maps) y Z6 (fluidez medida en Diagnóstico).
 
 ## 0.7 — Mapa propio de OpenStreetMap
 
