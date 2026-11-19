@@ -1,0 +1,11 @@
+  Timestamps:
+  Number of nodes: 21087558
+  Number of ways: 3885221
+131426062 gt.osm.pbf
+37753302 out/guatemala-filtrado.osm.pbf
+total 38356
+drwxr-xr-x 2 runner runner     4096 Nov 19 07:03 .
+drwxr-xr-x 3 runner runner     4096 Nov 19 07:03 ..
+-rw-r--r-- 1 runner runner 37753302 Nov 19 07:03 guatemala-filtrado.osm.pbf
+-rw-r--r-- 1 runner runner      129 Nov 19 07:03 info.txt
+-rw-r--r-- 1 runner runner  1505345 Nov 19 07:03 zona.geojsonseq.gz
