@@ -2364,6 +2364,70 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
     print(report.last!)
 }
 
+// 10b. 0.7.2: coordenadas y enlaces pegados en el buscador.
+do {
+    func coord(_ text: String, _ lat: Double, _ lon: Double, name: String? = nil) -> Bool {
+        guard case let .coordinate(la, lo, n)? = PlaceInput.parse(text) else { return false }
+        return abs(la - lat) < 0.00002 && abs(lo - lon) < 0.00002 && (name == nil || n == name)
+    }
+    let cases: [(String, Bool)] = [
+        ("decimales con coma", coord("14.6349, -90.5069", 14.6349, -90.5069)),
+        ("decimales con espacio", coord("14.6349 -90.5069", 14.6349, -90.5069)),
+        ("entre paréntesis", coord("(14.6349,-90.5069)", 14.6349, -90.5069)),
+        ("al revés (longitud primero)", coord("-90.5069, 14.6349", 14.6349, -90.5069)),
+        ("grados, minutos y segundos", coord("14°38'05.6\"N 90°30'24.8\"W", 14.634889, -90.506889)),
+        ("Google: lugar con !3d!4d (no el centro @)", coord("https://www.google.com/maps/place/Pollo+Campero/@14.60,-90.51,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d14.6012!4d-90.5134", 14.6012, -90.5134, name: "Pollo Campero")),
+        ("Google: ?q=", coord("https://www.google.com/maps?q=14.6349,-90.5069", 14.6349, -90.5069)),
+        ("Google: q con %2C", coord("https://maps.google.com/?q=14.6349%2C-90.5069", 14.6349, -90.5069)),
+        ("Google: search api=1", coord("https://www.google.com/maps/search/?api=1&query=14.6349,-90.5069", 14.6349, -90.5069)),
+        ("Google: dir destination", coord("https://www.google.com/maps/dir/?api=1&destination=14.6,-90.5", 14.6, -90.5)),
+        ("Google: solo @centro", coord("https://www.google.com/maps/@14.6349,-90.5069,15z", 14.6349, -90.5069)),
+        ("Apple Maps: ll y nombre", coord("https://maps.apple.com/?ll=14.6349,-90.5069&q=Casa", 14.6349, -90.5069, name: "Casa")),
+        ("Waze", coord("https://waze.com/ul?ll=14.6349,-90.5069&navigate=yes", 14.6349, -90.5069)),
+        ("geo:", coord("geo:14.6349,-90.5069?z=17", 14.6349, -90.5069)),
+        ("OpenStreetMap", coord("https://www.openstreetmap.org/?mlat=14.6349&mlon=-90.5069#map=17/14.6349/-90.5069", 14.6349, -90.5069)),
+        ("texto compartido de Google con enlace largo", coord("Mi casa\nhttps://www.google.com/maps?q=14.6349,-90.5069", 14.6349, -90.5069, name: "Mi casa")),
+        ("enlace corto de Google", PlaceInput.parse("Pollo Campero Zona 10\nhttps://maps.app.goo.gl/AbCdEf123") == .shortLink(URL(string: "https://maps.app.goo.gl/AbCdEf123")!)),
+        ("nombre normal no es coordenada", PlaceInput.parse("gasolinera") == nil && PlaceInput.parse("zona 10") == nil && PlaceInput.parse("4a avenida 12-59") == nil && PlaceInput.parse("Km 14.5") == nil),
+    ]
+    let bad = cases.filter { !$0.1 }.map { $0.0 }
+    check("0.7.2: el buscador entiende coordenadas y enlaces de mapas (\(cases.count) formas)", bad.isEmpty, bad.isEmpty ? "" : "fallan: " + bad.joined(separator: ", "))
+}
+
+do {
+    let suite = "prueba.destinos.\(UUID().uuidString)"
+    let d = UserDefaults(suiteName: suite)!
+    let a = SavedPlaces(defaults: d)
+    a.save(name: "Casa vieja", lat: 14.60, lon: -90.50, kind: .home)
+    a.save(name: "", lat: 14.61, lon: -90.51, kind: .home)          // Casa nueva reemplaza
+    a.save(name: "Taller", lat: 14.62, lon: -90.52, kind: .star)
+    a.save(name: "Oficina", lat: 14.63, lon: -90.53, kind: .work)
+    for i in 0..<10 { a.noteUsed(name: "R\(i)", lat: 14.0 + Double(i) * 0.01, lon: -90.0) }
+    a.noteUsed(name: "R3 otra vez", lat: 14.03, lon: -90.0)
+    let b = SavedPlaces(defaults: d)                                 // se lee de nuevo
+    let order = b.ordered.map { $0.name }
+    let ok = order == ["Casa", "Oficina", "Taller"] && b.recent.count == SavedPlaces.maxRecent
+        && b.recent.first?.name == "R3 otra vez" && b.recent.filter { $0.samePlace(lat: 14.03, lon: -90.0) }.count == 1
+    check("0.7.2: destinos guardados (Casa única, Trabajo, favoritos) y recientes sin repetir, se conservan al abrir de nuevo",
+          ok, "orden \(order), recientes \(b.recent.map { $0.name })")
+    d.removePersistentDomain(forName: suite)
+}
+
+do {
+    let sample = """
+    [{"lat":"14.5946","lon":"-90.5135","name":"Taller Moto Express","display_name":"Taller Moto Express, 6a Avenida, Zona 9, Ciudad de Guatemala, Guatemala, 01009, Guatemala"},
+     {"lat":"14.5946","lon":"-90.5135","name":"Taller Moto Express","display_name":"Taller Moto Express, 6a Avenida, Zona 9, Ciudad de Guatemala, Guatemala, 01009, Guatemala"},
+     {"lat":"14.6350","lon":"-90.5070","name":"","display_name":"12 Calle, Zona 1, Ciudad de Guatemala, Guatemala"},
+     {"lon":"-90.5"}]
+    """
+    let got = OnlineSearch.parse(Data(sample.utf8))
+    let url = OnlineSearch.request("taller moto", near: GeoPoint(lat: 14.6, lon: -90.5))?.url?.absoluteString ?? ""
+    check("0.7.2: búsqueda en internet de OpenStreetMap: lee nombre, detalle y coordenadas, sin repetidos, solo Guatemala",
+          got.count == 2 && got[0].title == "Taller Moto Express" && got[0].subtitle == "6a Avenida, Zona 9, Ciudad de Guatemala"
+            && got[1].title == "12 Calle" && abs(got[1].lat - 14.635) < 1e-6 && url.contains("countrycodes=gt") && url.contains("viewbox="),
+          got.map { "\($0.title) | \($0.subtitle)" }.joined(separator: " ; "))
+}
+
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
 var snap = streetsSnapshot(.preset(.full), theme: .dark)

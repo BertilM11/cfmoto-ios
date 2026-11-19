@@ -1,5 +1,28 @@
 # Registro de cambios
 
+## 0.7.2 — Más lugares: coordenadas, enlaces, destinos guardados y búsqueda en internet (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7.1` y etiqueta `v0.7.1`. No cambian la conexión
+con la moto, el vídeo, el protocolo, los indicadores originales, el dibujo del mapa ni el cálculo
+de rutas.
+
+- **Pegar una ubicación** en el buscador: coordenadas (`14.6349, -90.5069`, con espacio, entre
+  paréntesis, al revés o en grados/minutos/segundos), enlaces de Google Maps (largos y cortos
+  `maps.app.goo.gl`), Apple Maps, Waze, OpenStreetMap y `geo:`. En los enlaces de Google se toma el
+  lugar marcado (`!3d…!4d…`), no el centro de la vista. Los enlaces cortos se abren con internet
+  y solo se leen sus direcciones (no el contenido de las páginas). Botón «Pegar ubicación» al
+  tocar el buscador (sin el aviso de «permitir pegar»).
+- **Destinos guardados**: ☆ en la tarjeta de la ruta → Casa, Trabajo o favorito. Aparecen al tocar
+  el buscador y al escribir su nombre. Mantener presionado para cambiar el nombre o quitarlo.
+- **Recientes**: los últimos 8 destinos, sin repetir; se pueden guardar desde ahí.
+- **Buscar en internet** (modo OpenStreetMap): fila al final de los resultados que consulta
+  OpenStreetMap en línea (Nominatim) solo al tocarla, como máximo una vez por segundo, limitada a
+  Guatemala y priorizando lo cercano. Encuentra direcciones y lugares que no vienen en el mapa
+  guardado. Sin conexión lo avisa y la búsqueda sin internet sigue igual.
+- Por qué faltan lugares desde la 0.7: el modo OpenStreetMap ya no usa el buscador de Apple (sus
+  datos no se pueden usar sobre un mapa que no es de Apple) y OpenStreetMap no tiene todos los
+  negocios de Guatemala. Para esos: búsqueda en internet, o pegar el enlace o las coordenadas.
+
 ## 0.7.1 — Nuevo nombre: MotoLink (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7` y etiqueta `v0.7` (ver `docs/ROLLBACK.md`).

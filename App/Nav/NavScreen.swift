@@ -111,7 +111,15 @@ struct NavScreen: View {
             VStack(spacing: 8) {
                 SearchBar(search: search, palette: p, focused: $searchFocused, onSubmit: submitSearch)
                 if searchFocused && !search.results.isEmpty {
-                    SearchResults(results: search.results, palette: p, offline: search.offline, onPick: pick)
+                    SearchResults(results: search.results, palette: p, offline: search.offline,
+                                  online: search.showingOnline, onPick: pick)
+                } else if searchFocused && search.query.isEmpty {
+                    // 0.7.2: pegar una ubicación, destinos guardados y recientes.
+                    SavedPlacesPanel(palette: p, onPaste: { text in
+                        search.query = text
+                    }, onGo: { place in
+                        go(place.coordinate, name: place.name)
+                    })
                 }
                 if location.denied {
                     Notice(
@@ -219,28 +227,55 @@ struct NavScreen: View {
     // MARK: - Acciones
 
     private func pick(_ result: SearchItem) {
+        switch result.kind {
+        case .online(let text):
+            // 0.7.2: buscar en internet en OpenStreetMap (el buscador sigue abierto).
+            search.searchOnline(text)
+            return
+        case .note, .opening:
+            return
+        default:
+            break
+        }
         searchFocused = false
         if let coordinate = result.coordinate {
-            // Lugar del mapa de OpenStreetMap: ya trae sus coordenadas.
-            search.clear()
-            engine.plan(toCoordinate: coordinate, name: result.title)
+            // Ya trae coordenadas: mapa guardado, internet, destino guardado o pegado.
+            go(coordinate, name: result.title)
             return
         }
         guard let completion = result.completion else { return }
         search.resolve(completion) { item in
             guard let item = item else { return }
             search.clear()
+            noteUsed(item)
             engine.plan(to: item)
         }
+    }
+
+    /// Va a un punto con coordenadas y lo anota en los recientes.
+    private func go(_ coordinate: CLLocationCoordinate2D, name: String) {
+        searchFocused = false
+        search.clear()
+        SavedPlaces.shared.noteUsed(name: name, lat: coordinate.latitude, lon: coordinate.longitude)
+        engine.plan(toCoordinate: coordinate, name: name)
+    }
+
+    private func noteUsed(_ item: MKMapItem) {
+        let c = item.placemark.coordinate
+        SavedPlaces.shared.noteUsed(name: item.name ?? "Destino", lat: c.latitude, lon: c.longitude)
     }
 
     private func submitSearch() {
         let text = search.query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        if search.offline {
-            // Sin internet: la tecla «Buscar» elige el primer resultado de la lista.
-            if let first = search.results.first {
+        // Coordenadas pegadas, o en el mapa guardado: la tecla «Buscar» elige el primer
+        // resultado útil; si solo queda «Buscar en internet», busca en internet.
+        let usable = search.results.first { $0.coordinate != nil || $0.completion != nil }
+        if search.offline || PlaceInput.parse(text) != nil || usable?.coordinate != nil {
+            if let first = usable {
                 pick(first)
+            } else if let online = search.results.first(where: { if case .online = $0.kind { return true }; return false }) {
+                pick(online)
             }
             return
         }
@@ -248,6 +283,7 @@ struct NavScreen: View {
         search.resolve(text: text) { item in
             guard let item = item else { return }
             search.clear()
+            noteUsed(item)
             engine.plan(to: item)
         }
     }
@@ -272,6 +308,25 @@ struct NavScreen: View {
             themeRaw = AppTheme.light.rawValue
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                 search.query = "Oakland"
+                searchFocused = true
+            }
+        case "guardados":
+            // 0.7.2: el panel de destinos guardados y recientes.
+            themeRaw = AppTheme.light.rawValue
+            let places = SavedPlaces.shared
+            places.save(name: "Casa", lat: 14.5862, lon: -90.5521, kind: .home)
+            places.save(name: "Trabajo", lat: 14.6037, lon: -90.5093, kind: .work)
+            places.save(name: "Taller de la moto", lat: 14.6202, lon: -90.5361, kind: .star)
+            places.noteUsed(name: "Aeropuerto La Aurora", lat: 14.5833, lon: -90.5275)
+            places.noteUsed(name: "Antigua Guatemala", lat: 14.5573, lon: -90.7333)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                searchFocused = true
+            }
+        case "pegado":
+            // 0.7.2: un enlace de Google Maps pegado en el buscador.
+            themeRaw = AppTheme.light.rawValue
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                search.query = "Taller Moto Express\nhttps://www.google.com/maps/place/Taller+Moto+Express/@14.60,-90.51,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d14.6012!4d-90.5134"
                 searchFocused = true
             }
         case "moto":

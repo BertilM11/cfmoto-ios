@@ -211,4 +211,8 @@ los datos móviles (o pon el iPhone en modo avión con el Wi-Fi de la moto encen
 | Z4 | Ruta larga (Antigua, Xela…) | Giros correctos y el tiempo de llegada razonable | `Última ruta propia` (tiempo de cálculo) |
 | Z5 | Cambiar a Apple Maps con una ruta en pantalla y volver | La ruta se vuelve a calcular con cada mapa; nunca una ruta de Apple sobre el mapa propio | Líneas `[RUTA] mapa elegido` |
 | Z6 | Mirar la fluidez | El mapa sin saltos ni retrasos (10 imágenes por segundo) | Más > Diagnóstico: «Ritmo de envío» (unos 10 por segundo) y «Dibujo del panel» (ms por imagen) |
+| Z7 | En Google Maps: Compartir → Copiar enlace de un lugar; en MotoLink tocar el buscador → Pegar ubicación | Sale el nombre del lugar y sus coordenadas; al tocarlo, la ruta | `[BUSCAR] enlace corto →` |
+| Z8 | Mantener presionado un punto en Google Maps, copiar los números y pegarlos | «Punto de las coordenadas» y la ruta hasta ahí | — |
+| Z9 | Buscar un negocio que no aparece y tocar «Buscar … en internet» | Resultados de OpenStreetMap en línea; sin datos, el aviso «Sin conexión» | `[BUSCAR] en internet` |
+| Z10 | ☆ en la tarjeta de la ruta → Casa; cerrar la app y volver a abrir el buscador | Casa arriba de la lista; los recientes debajo | — |
 

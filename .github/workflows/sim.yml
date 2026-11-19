@@ -2,7 +2,7 @@ name: Prueba en simulador
 
 on:
   push:
-    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5, dev/0.7, dev/0.7.1]
+    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5, dev/0.7, dev/0.7.1, dev/0.7.2]
   workflow_dispatch:
 
 permissions:
@@ -42,7 +42,7 @@ jobs:
         if: always()
         run: |
           mkdir -p shots
-          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/Dashboard/BrandMark.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
+          swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/Dashboard/BrandMark.swift App/Nav/PlaceInput.swift App/Nav/SavedPlaces.swift App/Nav/OnlineSearch.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck > hud.log 2>&1 && ./dashcheck shots >> hud.log 2>&1 || true
           tail -n 40 hud.log
       - name: Recorrido de demostración
         if: always()
@@ -57,7 +57,7 @@ jobs:
           xcrun simctl privacy "$UDID" grant location io.github.cfmotolink.app
           xcrun simctl location "$UDID" set 14.6419,-90.5133
           # 0.7: el cuarto dato elige el mapa (osm por defecto, apple para probar el modo Apple).
-          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion" "search 1 lista" "light 1 lista apple" "night 1 lista apple"; do
+          for run in "light 0" "light 2" "night 1" "light 1" "light 3" "night 4 personalizacion" "search 1 lista" "guardados 1 lista" "pegado 1 lista" "light 1 lista apple" "night 1 lista apple"; do
             set -- $run
             MAPA="${4:-osm}"
             TAG="$1-tab$2$( [ "$MAPA" = osm ] || echo "-$MAPA" )"

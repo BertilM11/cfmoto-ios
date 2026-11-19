@@ -91,6 +91,8 @@ struct SearchResults: View {
     let palette: Palette
     /// Búsqueda en el mapa guardado de OpenStreetMap (se indica de dónde son los datos).
     var offline = false
+    /// Resultados de la búsqueda en internet de OpenStreetMap.
+    var online = false
     let onPick: (SearchItem) -> Void
 
     var body: some View {
@@ -100,19 +102,20 @@ struct SearchResults: View {
                     onPick(item)
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(palette.accent)
+                        Image(systemName: item.icon)
+                            .font(.system(size: item.kind == .note ? 20 : 22))
+                            .frame(width: 26)
+                            .foregroundColor(item.kind == .note ? palette.secondaryText : palette.accent)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.title)
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(palette.cardText)
-                                .lineLimit(1)
+                                .lineLimit(item.kind == .note ? 2 : 1)
                             if !item.subtitle.isEmpty {
                                 Text(item.subtitle)
                                     .font(.system(size: 13))
                                     .foregroundColor(palette.secondaryText)
-                                    .lineLimit(1)
+                                    .lineLimit(item.kind == .note ? 3 : 1)
                             }
                         }
                         Spacer(minLength: 0)
@@ -126,7 +129,15 @@ struct SearchResults: View {
                     Divider().padding(.leading, 50)
                 }
             }
-            if offline {
+            if online {
+                Text("Búsqueda en internet: Nominatim · © colaboradores de OpenStreetMap")
+                    .font(.system(size: 11))
+                    .foregroundColor(palette.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 4)
+                    .padding(.bottom, 9)
+            } else if offline {
                 Text("Sin internet, en el mapa de Guatemala · © colaboradores de OpenStreetMap")
                     .font(.system(size: 11))
                     .foregroundColor(palette.secondaryText)
@@ -200,6 +211,7 @@ struct RoutePreviewCard: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)
+                SaveDestinationButton(engine: engine, palette: palette)
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))

@@ -3,26 +3,61 @@ import Foundation
 import MapKit
 import Combine
 
-/// Un resultado del buscador: de Apple Maps (hay que pedir sus coordenadas) o del mapa de
-/// OpenStreetMap que viene en la app (ya trae las coordenadas).
+/// Un resultado del buscador: de Apple Maps (hay que pedir sus coordenadas), del mapa de
+/// OpenStreetMap que viene en la app, de la búsqueda en internet, de los destinos guardados
+/// o de unas coordenadas pegadas (estos ya traen las coordenadas).
 struct SearchItem {
+    enum Kind: Equatable {
+        case place
+        case saved(SavedPlace.Kind)
+        case recent
+        /// Coordenadas o enlace pegados.
+        case pasted
+        /// Fila «Buscar en internet».
+        case online(String)
+        /// Enlace corto que se está abriendo.
+        case opening
+        /// Solo un aviso (no lleva a ningún lado).
+        case note
+    }
+
+    var kind: Kind = .place
     let title: String
     let subtitle: String
-    let completion: MKLocalSearchCompletion?
-    let coordinate: CLLocationCoordinate2D?
+    var completion: MKLocalSearchCompletion? = nil
+    var coordinate: CLLocationCoordinate2D? = nil
+
+    var icon: String {
+        switch kind {
+        case .place: return "mappin.circle.fill"
+        case .saved(let k): return k.icon
+        case .recent: return "clock.arrow.circlepath"
+        case .pasted: return "scope"
+        case .online: return "globe.americas.fill"
+        case .opening: return "link"
+        case .note: return "info.circle"
+        }
+    }
 }
 
 /// Búsqueda de direcciones y lugares: sin internet en el mapa de Guatemala (modo
-/// OpenStreetMap) o con el buscador de Apple Maps (modo Apple).
+/// OpenStreetMap) o con el buscador de Apple Maps (modo Apple). 0.7.2: además entiende
+/// coordenadas y enlaces de mapas pegados, busca en los destinos guardados y, si se pide,
+/// en OpenStreetMap por internet.
 final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
     @Published var query = "" {
         didSet { queryChanged() }
     }
     @Published private(set) var results: [SearchItem] = []
     @Published private(set) var busy = false
+    /// La lista viene de la búsqueda en internet (se muestra su aviso de OpenStreetMap).
+    @Published private(set) var showingOnline = false
 
     private let completer = MKLocalSearchCompleter()
     private var active: MKLocalSearch?
+    private var onlineTask: URLSessionDataTask?
+    private var linkResolver: ShortLinkResolver?
+    private var lastOnline = Date.distantPast
 
     override init() {
         super.init()
@@ -36,43 +71,165 @@ final class PlaceSearch: NSObject, ObservableObject, MKLocalSearchCompleterDeleg
         DashStore.shared.config.map.provider == .osm && OSMMapData.current != nil
     }
 
+    private var here: GeoPoint? {
+        LocationService.shared.last.map { GeoPoint(lat: $0.coordinate.latitude, lon: $0.coordinate.longitude) }
+    }
+
     private func nearby() -> MKCoordinateRegion? {
         guard let c = LocationService.shared.last?.coordinate else { return nil }
         return MKCoordinateRegion(center: c, latitudinalMeters: 80_000, longitudinalMeters: 80_000)
     }
 
+    static func coordText(_ lat: Double, _ lon: Double) -> String {
+        String(format: "%.5f, %.5f", lat, lon)
+    }
+
+    private func stopPending() {
+        onlineTask?.cancel()
+        onlineTask = nil
+        linkResolver?.cancel()
+        linkResolver = nil
+        showingOnline = false
+        busy = false
+    }
+
+    /// Destinos guardados y recientes cuyo nombre coincide con lo escrito.
+    private func savedMatches(_ text: String) -> [SearchItem] {
+        let q = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        guard q.count >= 2 else { return [] }
+        let places = SavedPlaces.shared
+        var out: [SearchItem] = []
+        for p in places.ordered where p.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains(q) {
+            out.append(SearchItem(kind: .saved(p.kind), title: p.name, subtitle: "Guardado", coordinate: p.coordinate))
+        }
+        for p in places.recent where out.count < 3
+            && places.savedMatch(lat: p.lat, lon: p.lon) == nil
+            && p.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).contains(q) {
+            out.append(SearchItem(kind: .recent, title: p.name, subtitle: "Reciente", coordinate: p.coordinate))
+        }
+        return Array(out.prefix(3))
+    }
+
+    private func onlineRow(_ text: String) -> SearchItem? {
+        guard text.count >= 3 else { return nil }
+        return SearchItem(kind: .online(text), title: "Buscar «\(text)» en internet",
+                          subtitle: "OpenStreetMap en línea: más direcciones y lugares")
+    }
+
     private func queryChanged() {
+        stopPending()
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty {
             results = []
             return
         }
-        if offline {
-            let here = LocationService.shared.last.map { GeoPoint(lat: $0.coordinate.latitude, lon: $0.coordinate.longitude) }
-            let asked = query
-            OSMSearchService.shared.search(asked, near: here) { [weak self] found in
-                guard let self = self, self.query == asked else { return }
-                self.results = found.map {
-                    SearchItem(title: $0.title, subtitle: $0.subtitle, completion: nil,
-                               coordinate: CLLocationCoordinate2D(latitude: $0.point.lat, longitude: $0.point.lon))
-                }
+        // Coordenadas o enlace de mapas pegados.
+        if let parsed = PlaceInput.parse(text) {
+            switch parsed {
+            case let .coordinate(lat, lon, name):
+                results = [pastedItem(lat, lon, name)]
+            case let .shortLink(url):
+                results = [SearchItem(kind: .opening, title: "Abriendo el enlace…", subtitle: "Buscando el punto marcado (necesita internet)")]
+                openShortLink(url, name: PlaceInput.nameBeforeLink(text))
+            case .unreadableLink:
+                results = [SearchItem(kind: .note, title: "Este enlace no trae coordenadas",
+                                      subtitle: "En Google Maps mantené presionado el lugar y copiá los números (14.63, -90.50)")]
             }
             return
         }
+        let mine = savedMatches(text)
+        if offline {
+            let asked = query
+            results = mine + [onlineRow(text)].compactMap { $0 }
+            OSMSearchService.shared.search(asked, near: here) { [weak self] found in
+                guard let self = self, self.query == asked, !self.showingOnline else { return }
+                let local = found.map {
+                    SearchItem(title: $0.title, subtitle: $0.subtitle,
+                               coordinate: CLLocationCoordinate2D(latitude: $0.point.lat, longitude: $0.point.lon))
+                }
+                let shown: [SearchItem] = Array(local.prefix(max(3, 7 - mine.count)))
+                self.results = mine + shown + [self.onlineRow(text)].compactMap { $0 }
+            }
+            return
+        }
+        results = mine
         if let region = nearby() {
             completer.region = region
         }
         completer.queryFragment = text
     }
 
+    private func pastedItem(_ lat: Double, _ lon: Double, _ name: String?) -> SearchItem {
+        let saved = SavedPlaces.shared.savedMatch(lat: lat, lon: lon)
+        return SearchItem(kind: .pasted, title: name ?? saved?.name ?? "Punto de las coordenadas",
+                          subtitle: Self.coordText(lat, lon) + " · tocá para ver la ruta",
+                          coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon))
+    }
+
+    private func openShortLink(_ url: URL, name: String?) {
+        busy = true
+        let asked = query
+        let resolver = ShortLinkResolver()
+        linkResolver = resolver
+        logLine("[BUSCAR] abriendo enlace corto \(url.host ?? "")")
+        resolver.resolve(url, done: { [weak self] lat, lon, linkName in
+            guard let self = self, self.query == asked else { return }
+            self.busy = false
+            self.results = [self.pastedItem(lat, lon, linkName ?? name)]
+            logLine("[BUSCAR] enlace corto → \(Self.coordText(lat, lon))")
+        }, fail: { [weak self] in
+            guard let self = self, self.query == asked else { return }
+            self.busy = false
+            self.results = [SearchItem(kind: .note, title: "No se pudo leer el enlace",
+                                       subtitle: "Revisá el internet, o en Google Maps copiá las coordenadas del lugar")]
+            logLine("[BUSCAR] enlace corto sin coordenadas")
+        })
+    }
+
+    /// Búsqueda en internet en OpenStreetMap (al tocar «Buscar en internet»).
+    func searchOnline(_ text: String) {
+        let wait = 1.1 - Date().timeIntervalSince(lastOnline)   // máximo una consulta por segundo
+        if wait > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in self?.searchOnline(text) }
+            return
+        }
+        lastOnline = Date()
+        onlineTask?.cancel()
+        busy = true
+        showingOnline = true
+        let asked = query
+        let mine = savedMatches(text)
+        onlineTask = OnlineSearch.search(text, near: here) { [weak self] found in
+            guard let self = self, self.query == asked else { return }
+            self.busy = false
+            guard let found = found else {
+                self.results = mine + [SearchItem(kind: .note, title: "Sin conexión a internet",
+                                                  subtitle: "La búsqueda en el mapa guardado sigue funcionando")]
+                return
+            }
+            logLine("[BUSCAR] en internet «\(text)»: \(found.count) resultado(s)")
+            if found.isEmpty {
+                self.results = mine + [SearchItem(kind: .note, title: "Tampoco aparece en internet",
+                                                  subtitle: "Probá con otro nombre, o pegá las coordenadas o el enlace de Google Maps")]
+                return
+            }
+            self.results = mine + found.map {
+                SearchItem(title: $0.title, subtitle: $0.subtitle,
+                           coordinate: CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon))
+            }
+        }
+    }
+
     func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
         guard !offline else { return }
-        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            results = []
-        } else {
-            results = completer.results.prefix(7).map {
-                SearchItem(title: $0.title, subtitle: $0.subtitle, completion: $0, coordinate: nil)
-            }
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty || PlaceInput.parse(text) != nil {
+            if text.isEmpty { results = [] }
+            return
+        }
+        let mine = savedMatches(text)
+        results = mine + completer.results.prefix(7 - mine.count).map {
+            SearchItem(title: $0.title, subtitle: $0.subtitle, completion: $0)
         }
     }
 
