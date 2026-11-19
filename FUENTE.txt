@@ -1,0 +1,8 @@
+Mapa de Guatemala para CFMoto Link
+Datos: © colaboradores de OpenStreetMap (openstreetmap.org/copyright)
+Licencia de la base de datos: Open Database License (ODbL) 1.0
+Fuente: download.geofabrik.de/central-america/guatemala-latest.osm.pbf
+Fecha de los datos: 2026-11-18T21:21:02Z
+Armado: 2026-11-19T16:40Z con Tools/OSM/build_cfmap.py (commit 6cb10527d888095092917fc38bde40a960ab22c7)
+Tamaño: 25321407 bytes
+08b19afe6e7bfb02a0f2995c28a9d095f5429bec163ad3de0238c0349226a4df  Guatemala.cfmap
