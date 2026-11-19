@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convierte un extracto de OpenStreetMap (.osm.pbf) en el archivo de mapa de CFMoto Link (.cfmap).
+"""Convierte un extracto de OpenStreetMap (.osm.pbf) en el archivo de mapa de MotoLink (.cfmap).
 
 Uso: build_cfmap.py entrada.osm.pbf salida.cfmap [--bbox lon0,lat0,lon1,lat1] [--date AAAA-MM-DDTHH:MM:SSZ]
 

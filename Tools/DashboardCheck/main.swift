@@ -197,7 +197,7 @@ if let data = config.encoded(), let back = DashConfig.decoded(data) {
 }
 check("Datos guardados dañados no rompen la carga", DashConfig.decoded(Data("basura".utf8)) == nil)
 check("Hay seis perfiles de fábrica", DashConfig().profiles.count == 6)
-check("Por defecto: día y noche automáticos, guía de CFMoto Link y colores de la portada",
+check("Por defecto: día y noche automáticos, guía de MotoLink y colores de la portada",
       DashConfig().theme == .auto && DashConfig().navProvider == .cfmoto && DashConfig().musicStyle == .dynamic
       && DashConfig().profiles.allSatisfy { $0.theme == .auto })
 var light = DashConfig()
@@ -461,7 +461,9 @@ check("Waze: enlace oficial con destino y navegación", wazeApp.hasPrefix("waze:
       && wazeWeb.hasPrefix("https://waze.com/ul?ll=14.588000,-90.530200&navigate=yes"), wazeApp)
 check("Google Maps: enlace de la app y de respaldo web", googleApp.hasPrefix("comgooglemaps://?daddr=14.588000,-90.530200&directionsmode=driving")
       && googleWeb.contains("api=1") && googleWeb.contains("destination=14.588000,-90.530200"), googleApp)
-check("CFMoto Link no abre ninguna app externa", NavProviderID.cfmoto.link(lat: 0, lon: 0, name: "", app: true) == nil && !NavProviderID.cfmoto.external)
+check("MotoLink no abre ninguna app externa", NavProviderID.cfmoto.link(lat: 0, lon: 0, name: "", app: true) == nil && !NavProviderID.cfmoto.external)
+check("0.7.1: el emblema de BERL se lee (79×54, en gris, sin transparencia) para dibujarlo en la moto",
+      BrandMark.mask.map { $0.width == 79 && $0.height == 54 && $0.bitsPerPixel == 8 && $0.alphaInfo == .none } ?? false)
 check("Los proveedores externos no prometen giros en la moto",
       NavProviderID.allCases.filter { $0.external }.allSatisfy { p in p.capabilities.contains { $0.0 == "Giros en la moto" && !$0.1 } })
 

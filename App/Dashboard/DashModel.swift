@@ -302,7 +302,7 @@ enum NavProviderID: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .cfmoto: return "CFMoto Link"
+        case .cfmoto: return "MotoLink"
         case .appleMaps: return "Mapas de Apple"
         case .googleMaps: return "Google Maps"
         case .waze: return "Waze"

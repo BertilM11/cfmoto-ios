@@ -4,7 +4,7 @@ import CoreMedia
 import ImageIO
 
 /// Extensión "Transmitir pantalla": iOS le entrega la pantalla del iPhone mientras la
-/// transmisión está activa, aunque la app CFMoto Link esté cerrada. Toda la conexión con la
+/// transmisión está activa, aunque la app MotoLink esté cerrada. Toda la conexión con la
 /// moto vive aquí.
 final class SampleHandler: RPBroadcastSampleHandler {
     private let link = BikeLink()

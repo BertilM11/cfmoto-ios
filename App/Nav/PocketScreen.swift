@@ -19,7 +19,7 @@ struct PocketScreen: View {
             Color.black.ignoresSafeArea()
             VStack(spacing: 8) {
                 Spacer()
-                Text("CFMoto Link sigue enviando el mapa a la moto")
+                Text("MotoLink sigue enviando el mapa a la moto")
                     .font(.footnote)
                     .foregroundColor(Color(white: 0.35))
                 if !coverage.isEmpty {

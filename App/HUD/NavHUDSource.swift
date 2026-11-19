@@ -46,7 +46,7 @@ enum RenderStats {
     }
 }
 
-/// Origen de imagen para la moto: dibuja la navegación de CFMoto Link a ritmo fijo.
+/// Origen de imagen para la moto: dibuja la navegación de MotoLink a ritmo fijo.
 /// Es independiente de lo que muestre la pantalla del iPhone.
 final class NavHUDSource: FrameSource {
     static let framesPerSecond = 10

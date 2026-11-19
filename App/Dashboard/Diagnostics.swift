@@ -310,7 +310,7 @@ final class Diagnostics {
             Row(label: "Spotify", value: SpotifyService.shared.statusText),
             Row(label: "Proveedor de navegación", value: config.navProvider.title),
             Row(label: "Guía en otra app", value: RouteManager.shared.external.map { "\($0.provider.title) → \($0.name)" } ?? "no"),
-            Row(label: "Ruta en CFMoto Link", value: NavEngine.shared.phase == .navigating ? "guiando" : "sin guía"),
+            Row(label: "Ruta en MotoLink", value: NavEngine.shared.phase == .navigating ? "guiando" : "sin guía"),
         ]))
 
         let errors = Diagnostics.recentErrors()
@@ -360,7 +360,7 @@ final class Diagnostics {
         let f = DateFormatter()
         f.locale = Locale(identifier: "es_GT")
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        lines.append("CFMoto Link \(version) (\(build)) · informe de diagnóstico · \(f.string(from: Date()))")
+        lines.append("MotoLink \(version) (\(build)) · informe de diagnóstico · \(f.string(from: Date()))")
         lines.append("iPhone: \(UIDevice.current.model) · iOS \(UIDevice.current.systemVersion)")
         lines.append("")
         for section in sections() {

@@ -2,13 +2,13 @@
 //
 // Proveedores de navegación: quién da la guía giro a giro.
 //
-//   Proveedor (CFMoto Link, Mapas de Apple, Google Maps, Waze)
+//   Proveedor (MotoLink, Mapas de Apple, Google Maps, Waze)
 //     → RouteManager (destino que se conserva al cambiar de proveedor)
 //     → estado de navegación (HUDState / ExternalGuide)
 //     → adaptador de la moto (DashState → dibujo → vídeo H.264)
 //     → TFT
 //
-// Con CFMoto Link la ruta se calcula y se guía aquí (MapKit) y la moto muestra todo. Con una
+// Con MotoLink la ruta se calcula y se guía aquí (MapKit) y la moto muestra todo. Con una
 // app externa, la app se abre con el destino mediante su enlace oficial; esa app no comparte
 // su ruta ni sus giros con otras apps, así que la moto muestra el mapa, tu posición y el
 // destino, sin giros. Para ver la propia app externa en la moto existe "Duplicar pantalla".
@@ -22,7 +22,7 @@ final class RouteManager: ObservableObject {
     @Published private(set) var external: ExternalGuide?
     @Published private(set) var message: String?
 
-    /// Si la app de ese proveedor está instalada (Mapas de Apple y CFMoto Link, siempre).
+    /// Si la app de ese proveedor está instalada (Mapas de Apple y MotoLink, siempre).
     func installed(_ p: NavProviderID) -> Bool {
         guard let scheme = p.scheme, let url = URL(string: "\(scheme)://") else { return true }
         return UIApplication.shared.canOpenURL(url)
@@ -30,7 +30,7 @@ final class RouteManager: ObservableObject {
 
     /// Botón "Iniciar" de la vista previa: guía aquí o abre la app elegida con el destino.
     /// Solo se da la guía por pasada a la otra app si iOS confirma que se abrió; si no, el
-    /// destino y la ruta siguen aquí, listos para guiar con CFMoto Link.
+    /// destino y la ruta siguen aquí, listos para guiar con MotoLink.
     func start(_ engine: NavEngine) {
         let provider = DashStore.shared.config.navProvider
         guard provider.external else {
@@ -50,7 +50,7 @@ final class RouteManager: ObservableObject {
                 self.say("Guía en \(provider.title). La moto muestra el mapa y el destino; los giros los da \(provider.title).")
             } else {
                 DashStore.shared.config.navProvider = .cfmoto
-                self.say("No se pudo abrir \(provider.title). La ruta sigue lista aquí: pulsa Iniciar para guiar con CFMoto Link.")
+                self.say("No se pudo abrir \(provider.title). La ruta sigue lista aquí: pulsa Iniciar para guiar con MotoLink.")
             }
         }
     }
@@ -66,7 +66,7 @@ final class RouteManager: ObservableObject {
     }
 
     /// Cambia el proveedor predeterminado. Si hay un destino en curso, se conserva: pasa a la
-    /// otra app (si iOS la abre) o, al volver a CFMoto Link, se recalcula la ruta aquí.
+    /// otra app (si iOS la abre) o, al volver a MotoLink, se recalcula la ruta aquí.
     func choose(_ p: NavProviderID, engine: NavEngine) {
         let previous = DashStore.shared.config.navProvider
         DashStore.shared.config.navProvider = p
@@ -95,7 +95,7 @@ final class RouteManager: ObservableObject {
             clearExternal()
             if engine.phase != .navigating {
                 engine.plan(toCoordinate: CLLocationCoordinate2D(latitude: dest.lat, longitude: dest.lon), name: name)
-                say("Ruta recalculada por CFMoto Link con el mismo destino. Toca Iniciar.")
+                say("Ruta recalculada por MotoLink con el mismo destino. Toca Iniciar.")
             }
         }
     }
@@ -211,7 +211,7 @@ struct NavProviderPicker: View {
             titleVisibility: .visible,
             presenting: pending
         ) { p in
-            Button(p.external ? "Pasar el destino a \(p.title)" : "Guiar aquí con CFMoto Link") {
+            Button(p.external ? "Pasar el destino a \(p.title)" : "Guiar aquí con MotoLink") {
                 routes.choose(p, engine: engine)
             }
             Button("Solo cambiar el predeterminado") { routes.setDefault(p) }

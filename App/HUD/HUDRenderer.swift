@@ -621,7 +621,7 @@ final class HUDRenderer {
 
     func drawIdle(_ s: HUDSnapshot, _ p: HUDPalette, _ now: Date, _ ctx: CGContext) {
         let pad = 36 * k
-        let brand = measure("CFMoto Link", size: 26 * k, bold: true, color: p.accent)
+        let brand = measure("MotoLink", size: 26 * k, bold: true, color: p.accent)
         put(brand, x: pad, baseline: 30 * k + brand.ascent, ctx)
 
         let clock = HUDFormat.clock(now)

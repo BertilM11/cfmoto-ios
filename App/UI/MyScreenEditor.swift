@@ -217,7 +217,7 @@ struct MapSettingsCard: View {
                 Text("Zoom automático: \(store.config.map.zoom < 0.95 ? "más cerca" : (store.config.map.zoom > 1.05 ? "más lejos" : "normal"))")
                     .font(.footnote).foregroundColor(Brand.dim)
                 Slider(value: $store.config.map.zoom, in: MapSettings.zoomRange)
-                Text("El mapa se acerca antes de cada giro y se aleja con la velocidad. Las calles se actualizan con CFMoto Link abierta; con el iPhone bloqueado se usan las imágenes del recorrido que la app guarda al empezar la ruta, así que déjala abierta unos segundos al salir. El tráfico se ve en las calles cuando Apple tiene datos de esa zona.")
+                Text("El mapa se acerca antes de cada giro y se aleja con la velocidad. Las calles se actualizan con MotoLink abierta; con el iPhone bloqueado se usan las imágenes del recorrido que la app guarda al empezar la ruta, así que déjala abierta unos segundos al salir. El tráfico se ve en las calles cuando Apple tiene datos de esa zona.")
                     .font(.caption).foregroundColor(Brand.dim)
             } else {
                 Text("Sin calles: la moto muestra solo la ruta sobre fondo liso (no necesita datos móviles).")

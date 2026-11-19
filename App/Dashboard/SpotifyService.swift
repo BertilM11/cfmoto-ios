@@ -4,7 +4,7 @@
 // saltarse:
 //  - registrar una app en developer.spotify.com (la cuenta dueña necesita Premium desde 2026),
 //    con la dirección de vuelta cfmotolink://spotify-login y el identificador io.github.cfmotolink.app;
-//  - copiar su Client ID en CFMoto Link (no es una clave secreta);
+//  - copiar su Client ID en MotoLink (no es una clave secreta);
 //  - tener la app de Spotify instalada y abierta.
 // No se guarda ninguna credencial: el permiso que da Spotify dura una hora y vive en memoria.
 import SwiftUI
@@ -67,7 +67,7 @@ final class SpotifyService: NSObject, ObservableObject {
         }
     }
 
-    /// Abre la app de Spotify para que el usuario dé permiso. Spotify vuelve a CFMoto Link
+    /// Abre la app de Spotify para que el usuario dé permiso. Spotify vuelve a MotoLink
     /// con un permiso temporal.
     func connect(clientID: String) {
         let id = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -231,7 +231,7 @@ extension SpotifyService: SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate 
             guard self.wanted else { return }
             self.phase = .failed("Se cortó la conexión con Spotify; se reintenta al abrir la app")
             // Dos reintentos cortos (sirven si Spotify sigue sonando). Si iOS ya suspendió
-            // Spotify o esta app, la conexión vuelve al abrir CFMoto Link.
+            // Spotify o esta app, la conexión vuelve al abrir MotoLink.
             guard self.retries < 2, self.token != nil else { return }
             self.retries += 1
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in

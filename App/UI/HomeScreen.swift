@@ -14,7 +14,7 @@ struct HomeScreen: View {
 
     var body: some View {
         NavigationStack {
-            DarkPage(title: "CFMoto Link") {
+            DarkPage(title: "MotoLink") {
                 Card {
                     HStack(spacing: 10) {
                         Circle().fill(link.linked ? Color.green : Color.gray).frame(width: 12, height: 12)
@@ -73,7 +73,25 @@ struct HomeScreen: View {
                         }
                     }
                 }
+
+                // 0.7.1: la marca de Bertil, pequeña y tenue al final de la portada.
+                BrandFooter().padding(.top, 8)
             }
         }
+    }
+}
+
+/// 0.7.1: logo de BERL (la marca del autor), discreto.
+struct BrandFooter: View {
+    var height: CGFloat = 46
+    var body: some View {
+        Image("BERL")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
+            .foregroundColor(.white.opacity(0.32))
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("BERL")
     }
 }

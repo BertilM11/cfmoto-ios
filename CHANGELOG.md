@@ -1,5 +1,19 @@
 # Registro de cambios
 
+## 0.7.1 — Nuevo nombre: MotoLink (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7` y etiqueta `v0.7` (ver `docs/ROLLBACK.md`).
+Solo cambian el nombre, el ícono y la marca; no cambian la conexión Wi-Fi Direct, el vídeo H.264,
+el protocolo con la moto ni sus indicadores, el mapa, la ruta ni la música.
+
+- **Nombre MotoLink** en el iPhone, en la app, en los permisos y en la transmisión de pantalla. El
+  identificador interno (`io.github.cfmotolink.app`) no cambia: se instala encima de la 0.7 y se
+  conservan los ajustes.
+- **Ícono nuevo** (la moto con el eslabón azul), diseño de Bertil.
+- **Logo de BERL**: en la pantalla de la moto, pequeño y tenue junto a «© OpenStreetMap» (abajo a
+  la izquierda del mapa, del mismo color); en la app, al final de la portada y en «Acerca de».
+  Con Mapas de Apple no se dibuja, para no acercarlo a su logotipo.
+
 ## 0.7 — Mapa propio de OpenStreetMap (18 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.6.5`, etiqueta `v0.6.5`, publicación `build-16` y

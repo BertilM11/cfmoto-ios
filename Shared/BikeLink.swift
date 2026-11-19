@@ -72,7 +72,7 @@ final class BikeLink {
     func start(manualBikeIp: String) -> Bool {
         stop()
 
-        logLine("---- CFMoto Link \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(role)) ----")
+        logLine("---- MotoLink \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(role)) ----")
         logLine("dispositivo: \(UIDevice.current.model) iOS \(UIDevice.current.systemVersion)")
 
         let interfaces = wifiInterfaces()

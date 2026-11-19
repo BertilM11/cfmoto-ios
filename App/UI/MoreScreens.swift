@@ -151,7 +151,7 @@ struct MusicScreen: View {
             } else if music.authorized {
                 Label("Conectado", systemImage: "checkmark.circle.fill").foregroundColor(.green).font(.subheadline)
             } else if music.denied {
-                Text("El acceso está denegado. Actívalo en Ajustes > CFMoto Link > Contenido multimedia y Apple Music.")
+                Text("El acceso está denegado. Actívalo en Ajustes > MotoLink > Contenido multimedia y Apple Music.")
                     .font(.footnote).foregroundColor(Brand.dim)
             } else {
                 Button("Permitir acceso a la música") { music.requestAccess() }
@@ -237,7 +237,7 @@ struct NoticesScreen: View {
 
             Card {
                 Text("WhatsApp y otras apps").font(.headline)
-                Text("iOS no deja que una app lea las notificaciones de otras apps, así que CFMoto Link no puede mostrar mensajes de WhatsApp, Telegram ni llamadas. No hay forma permitida de hacerlo desde una app.")
+                Text("iOS no deja que una app lea las notificaciones de otras apps, así que MotoLink no puede mostrar mensajes de WhatsApp, Telegram ni llamadas. No hay forma permitida de hacerlo desde una app.")
                     .font(.footnote).foregroundColor(Brand.dim)
             }
 
@@ -307,8 +307,10 @@ struct SettingsScreen: View {
 
             Card {
                 Text("Acerca de").font(.headline)
-                Text("CFMoto Link \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") — Smart Dashboard")
+                Text("MotoLink \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") — Smart Dashboard")
+                Text("Una creación de BERL · Bertil Raxón")
                 Text("Proyecto no oficial, sin relación con CFMOTO. Código: github.com/BertilM11/cfmoto-ios")
+                BrandFooter(height: 40).padding(.top, 4)
             }
             .font(.footnote)
         }

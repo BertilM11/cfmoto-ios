@@ -115,7 +115,7 @@ struct NavScreen: View {
                 }
                 if location.denied {
                     Notice(
-                        text: "CFMoto Link necesita tu ubicación para navegar.",
+                        text: "MotoLink necesita tu ubicación para navegar.",
                         palette: p,
                         actionTitle: "Ajustes",
                         action: openSettings

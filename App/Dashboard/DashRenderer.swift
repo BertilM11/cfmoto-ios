@@ -629,7 +629,7 @@ extension HUDRenderer {
         case .nav: return "NAVEGACIÓN"
         case .link: return "MOTO"
         case .battery: return "IPHONE"
-        case .test: return "CFMOTO LINK"
+        case .test: return "MOTOLINK"
         }
     }
 

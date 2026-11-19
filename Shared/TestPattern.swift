@@ -117,7 +117,7 @@ final class TestPattern: FrameSource {
             ]
         )
 
-        let info = "CFMoto Link · prueba de vídeo · cuadro \(frame)" as NSString
+        let info = "MotoLink · prueba de vídeo · cuadro \(frame)" as NSString
         info.draw(
             at: CGPoint(x: w * 0.04, y: h * 0.74),
             withAttributes: [

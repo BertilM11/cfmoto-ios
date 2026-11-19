@@ -436,6 +436,26 @@ extension HUDRenderer {
         ctx.textPosition = CGPoint(x: r.minX + 8 * k, y: r.maxY - 7 * k)
         CTLineDraw(m.line, ctx)
         ctx.restoreGState()
+        drawBrandMark(color: pal.attribution, x: r.minX + 8 * k + m.width + 8 * k, baseline: r.maxY - 7 * k, ctx)
+    }
+
+    /// 0.7.1: el emblema de BERL, pequeño y tenue, justo después de «© OpenStreetMap» (esa
+    /// esquina ya queda libre de tarjetas). Mismo color que el aviso de la licencia.
+    func drawBrandMark(color: CGColor, x: CGFloat, baseline: CGFloat, _ ctx: CGContext) {
+        guard let mask = BrandMark.mask else { return }
+        let h = 17 * k
+        let w = BrandMark.width(forHeight: h)
+        let rect = CGRect(x: x.rounded(), y: (baseline + 2 * k - h).rounded(), width: w, height: h)
+        ctx.saveGState()
+        // El contexto tiene la «y» hacia abajo: se da vuelta para que la máscara quede derecha.
+        ctx.translateBy(x: rect.minX, y: rect.maxY)
+        ctx.scaleBy(x: 1, y: -1)
+        let local = CGRect(origin: .zero, size: rect.size)
+        ctx.interpolationQuality = .high
+        ctx.clip(to: local, mask: mask)
+        ctx.setFillColor(color)
+        ctx.fill(local)
+        ctx.restoreGState()
     }
 }
 

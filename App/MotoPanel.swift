@@ -4,7 +4,7 @@ import UIKit
 import ReplayKit
 
 /// Estado del enlace con la moto. Hay dos formas de enviar imagen:
-///  - Navegación de CFMoto Link: la app dibuja su propia pantalla (flecha, distancia, minimapa).
+///  - Navegación de MotoLink: la app dibuja su propia pantalla (flecha, distancia, minimapa).
 ///  - Duplicar pantalla: la extensión de transmisión copia lo que se ve en el iPhone.
 final class LinkModel: ObservableObject {
     static let shared = LinkModel()
@@ -49,7 +49,7 @@ final class LinkModel: ObservableObject {
         }
     }
 
-    /// Empieza a enviar la navegación de CFMoto Link a la moto.
+    /// Empieza a enviar la navegación de MotoLink a la moto.
     func connect() {
         guard !running else { return }
         running = true
@@ -211,7 +211,7 @@ struct MotoPanel: View {
 
                 // Navegación propia
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Panel de CFMoto Link")
+                    Text("Panel de MotoLink")
                         .font(.headline)
                     Text("Envía el panel que armaste en Mi pantalla: navegación, música y avisos. No depende de lo que muestre el iPhone.")
                         .font(.footnote)

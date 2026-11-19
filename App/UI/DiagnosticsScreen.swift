@@ -14,7 +14,7 @@ struct DiagnosticsScreen: View {
             Text("Se actualiza cada segundo. Para las pruebas con el iPhone bloqueado: inicia la ruta, bloquea, desbloquea y exporta el informe; el registro guarda una línea [DIAG] cada 10 s.")
                 .font(.footnote).foregroundColor(Brand.dim)
             HStack(spacing: 10) {
-                ShareLink(item: report, subject: Text("Informe de CFMoto Link"), message: Text("Informe técnico de CFMoto Link")) {
+                ShareLink(item: report, subject: Text("Informe de MotoLink"), message: Text("Informe técnico de MotoLink")) {
                     Label("Exportar informe", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
