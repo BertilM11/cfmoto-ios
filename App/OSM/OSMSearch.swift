@@ -264,6 +264,8 @@ final class OSMSearch {
         // Por cada palabra, una sola vez: qué tipos de lugar nombra (la última, también a medio
         // escribir) y qué zonas, municipios y departamentos la contienen.
         var kindTable = [Bool](repeating: false, count: words.count * 128)
+        // 0.7.2: palabras que nombran un tipo de lugar («gasolinera», «farmacia»…).
+        var categoryWord = [Bool](repeating: false, count: words.count)
         var zoneHits: [Set<Int32>] = []
         var adminHits: [Set<Int32>] = []
         for (wi, w) in words.enumerated() {
@@ -272,6 +274,7 @@ final class OSMSearch {
                 for (c, ks) in OSMSearch.categories where c.hasPrefix(w) { kinds += ks }
             }
             for k in kinds where k >= 0 && k < 128 { kindTable[wi * 128 + k] = true }
+            categoryWord[wi] = !kinds.isEmpty
             let wb = q[wi]
             let prefixOK = !OSMSearch.isNumber(wb) || (wi == words.count - 1 && typing)
             func has(_ tokens: [[UInt8]]) -> Bool {
@@ -292,6 +295,9 @@ final class OSMSearch {
             var inName = 0
             var ok = true
             var onlyKind = true
+            // El nombre dice el tipo de lugar pero el lugar no es de ese tipo (un negocio que se
+            // llama «Gasolinera»): va después de los lugares que sí lo son.
+            var nameOnCategory = false
             for (wi, w) in q.enumerated() {
                 let last = wi == q.count - 1
                 let prefixOK = !OSMSearch.isNumber(w) || (last && typing)
@@ -303,6 +309,7 @@ final class OSMSearch {
                     continue
                 }
                 onlyKind = false
+                if categoryWord[wi] && e.kind >= 0 && e.kind < 128 { nameOnCategory = true }
                 if e.tokens.contains(w) {
                     text += 12
                     inName += 1
@@ -323,7 +330,9 @@ final class OSMSearch {
                 break
             }
             guard ok, inName > 0 else { continue }
-            if !onlyKind {
+            if nameOnCategory {
+                text -= 16
+            } else if !onlyKind {
                 if e.folded == joined || e.folded == joinedAll {
                     text += 14
                 } else if OSMSearch.hasPrefix(e.folded, joinedAll) || OSMSearch.hasPrefix(e.folded, joined) {
@@ -348,6 +357,8 @@ final class OSMSearch {
             let place = describe(e, title: title)
             let key = title + "|" + place
             if shownText.contains(key) { continue }
+            // El mismo lugar dibujado con varios edificios o terrenos vecinos sale una vez.
+            if out.contains(where: { $0.title == title && $0.point.distance(to: e.point) < 700 }) { continue }
             shownMain.insert(e.main)
             shownText.insert(key)
             var subtitle = place
