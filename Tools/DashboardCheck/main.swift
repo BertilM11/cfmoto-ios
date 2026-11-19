@@ -2272,11 +2272,17 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
         ("farmacia", "una farmacia cerca", 1, { $0.kind == 18 && $0.point.distance(to: zona10) < 2500 }),
         ("la aurora", "el aeropuerto La Aurora", 1, { $0.title.contains("Aeropuerto") }),
         ("mixco", "la ciudad de Mixco", 1, { $0.title == "Mixco" && $0.subtitle.contains("Ciudad") }),
+        ("ofibodegas zona 5", "0.7.2: un negocio dibujado como edificio (Ofibodegas Zona 5)", 1, { $0.title == "Ofibodegas Zona 5" }),
+        ("pradera ofibodegas", "0.7.2: una oficina (Empresarial la Pradera Ofibodegas)", 3, { $0.title.contains("Pradera Ofibodegas") }),
     ]
     for c in searchCases {
         let r = find(c.query)
         check("0.7: buscar sin internet «\(c.query)» encuentra \(c.what)", r.prefix(c.top).contains(where: c.ok), shown(r))
     }
+    let dup = find("ofibodegas centro sur")
+    let sameName = dup.prefix(5).filter { $0.title == "Ofibodegas Centro Sur" }.count
+    check("0.7.2: un lugar dibujado con varios edificios sale una sola vez (Ofibodegas Centro Sur, 13 edificios)",
+          sameName == 1, "\(sameName) veces en los primeros 5 · " + shown(dup))
     let partial = find("14")
     check("0.7: mientras se escribe un número, «14» ya propone la 14 Calle o la 14 Avenida",
           partial.contains { OSMSearch.tokens($0.title).first == "14" }, shown(partial))
