@@ -63,21 +63,21 @@ jobs:
         run: |
           # Si alguna prueba falla, no se publica la versión.
           set -o pipefail
-          mkdir -p paquete/MotoLink_0.7.2/docs/laminas
+          mkdir -p paquete/MotoLink_0.7.3/docs/laminas
           swiftc -O Tools/DashboardCheck/main.swift App/HUD/HUDModel.swift App/HUD/HUDRenderer.swift App/Dashboard/DashModel.swift App/Dashboard/DashRenderer.swift App/Dashboard/MapBase.swift App/Dashboard/DashMapRenderer.swift App/Dashboard/Appearance.swift App/Dashboard/MapCorridor.swift App/OSM/OSMMapData.swift App/OSM/OSMRenderer.swift App/Dashboard/BrandMark.swift App/Nav/PlaceInput.swift App/Nav/SavedPlaces.swift App/Nav/OnlineSearch.swift App/OSM/OSMRouter.swift App/OSM/OSMSearch.swift App/Nav/GuidedRoute.swift App/Nav/PlannedRoute.swift -o dashcheck
-          ./dashcheck paquete/MotoLink_0.7.2/docs/laminas | tee resultados.txt
-          D=paquete/MotoLink_0.7.2
+          ./dashcheck paquete/MotoLink_0.7.3/docs/laminas | tee resultados.txt
+          D=paquete/MotoLink_0.7.3
           cp -R App Broadcast Shared Tools docs CFMotoLink.xcodeproj project.yml README.md CHANGELOG.md LICENSE .github "$D"/ 2>/dev/null || true
           mv "$D"/docs/laminas/pruebas-panel.txt "$D"/docs/RESULTADOS.txt
           cp MotoLink.ipa "$D"/
-          (cd paquete && zip -qry ../MotoLink_0.7.2_MapaPropio.zip MotoLink_0.7.2)
-          ls -la MotoLink_0.7.2_MapaPropio.zip
+          (cd paquete && zip -qry ../MotoLink_0.7.3_MapaPropio.zip MotoLink_0.7.3)
+          ls -la MotoLink_0.7.3_MapaPropio.zip
 
       - name: Publicar release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" MotoLink.ipa MotoLink_0.7.2_MapaPropio.zip \
+          gh release create "build-${{ github.run_number }}" MotoLink.ipa MotoLink_0.7.3_MapaPropio.zip \
             --title "MotoLink · compilación ${{ github.run_number }}" \
             --notes "Compilación automática sin firmar. Instálala en el iPhone con Sideloadly o AltStore (se firma con tu Apple ID). Commit: ${{ github.sha }}"
 

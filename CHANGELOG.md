@@ -1,5 +1,20 @@
 # Registro de cambios
 
+## 0.7.3 — El mapa guardado busca todos los lugares con nombre (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: etiqueta `v0.7.2` (y rama `backup/v0.7.1`).
+
+- El mapa de Guatemala ahora incluye **todos los lugares con nombre** de OpenStreetMap: negocios de
+  cualquier tipo, oficinas, bodegas, edificios con nombre, residenciales y colonias, consultorios,
+  bares, volcanes… De unos 43 000 lugares buscables se pasa a unos 72 000 (el mapa pesa 0,8 MB más).
+  Ejemplo: «Ofibodegas Zona 5», «Empresarial la Pradera Ofibodegas», «Ofibodegas Centro Sur».
+- Si una palabra es un tipo de lugar («gasolinera», «farmacia»), primero salen los lugares de
+  ese tipo cerca; los negocios que solo se llaman así van después.
+- Un lugar dibujado con varios edificios vecinos sale una sola vez.
+- Revisado en OpenStreetMap completo: «Ofibodegas Internaranjo Empresarial» y «Liceo Richmond»
+  no están en OpenStreetMap; para esos, pegar el enlace o las coordenadas de Google Maps, o
+  agregarlos en openstreetmap.org (entran en el siguiente armado del mapa).
+
 ## 0.7.2 — Más lugares: coordenadas, enlaces, destinos guardados y búsqueda en internet (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7.1` y etiqueta `v0.7.1`. No cambian la conexión
