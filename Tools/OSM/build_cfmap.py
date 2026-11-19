@@ -54,8 +54,9 @@ WATER = {('natural', 'water'), ('water', 'lake'), ('water', 'reservoir'), ('land
          ('water', 'river'), ('natural', 'bay')}
 RIVERS = {'river': 1, 'canal': 1, 'stream': 2}
 PLACES = {'city': 1, 'town': 2, 'village': 3, 'suburb': 4, 'neighbourhood': 5, 'quarter': 5, 'hamlet': 6, 'locality': 6}
-AMENITIES = {'fuel': 10, 'hospital': 11, 'clinic': 11, 'police': 12, 'university': 13, 'college': 13,
-             'school': 14, 'marketplace': 15, 'bank': 16, 'restaurant': 17, 'fast_food': 17, 'cafe': 17,
+AMENITIES = {'fuel': 10, 'hospital': 11, 'clinic': 11, 'doctors': 11, 'dentist': 11, 'police': 12,
+             'university': 13, 'college': 13, 'school': 14, 'kindergarten': 14, 'marketplace': 15, 'bank': 16,
+             'restaurant': 17, 'fast_food': 17, 'cafe': 17, 'bar': 17, 'pub': 17, 'ice_cream': 17,
              'pharmacy': 18, 'parking': 19, 'place_of_worship': 20}
 SHOPS = {'mall': 21, 'supermarket': 22, 'motorcycle': 23, 'car_repair': 24, 'hardware': 25}
 TOURISM = {'hotel': 26, 'motel': 26, 'guest_house': 26, 'hostel': 26,
@@ -67,6 +68,15 @@ ALT_NAMES = ('alt_name', 'short_name', 'loc_name', 'official_name', 'name:es')
 # Límites administrativos que dan el «dónde» de cada lugar: departamentos y municipios.
 ADMIN_LEVELS = {'4': 41, '6': 40}
 ALIAS = 0x80
+# 0.7.2: todos los demás lugares con nombre también se buscan (negocios, oficinas, bodegas,
+# edificios, colegios dibujados como edificio…). 33 = negocio o lugar; 34 = residencial.
+BUSINESS = 33
+RESIDENTIAL = 34
+GENERIC_KEYS = ('amenity', 'shop', 'tourism', 'office', 'craft', 'healthcare', 'leisure', 'club',
+                'building', 'man_made', 'emergency', 'historic', 'sport')
+GENERIC_LANDUSE = {'commercial': BUSINESS, 'industrial': BUSINESS, 'retail': BUSINESS,
+                   'residential': RESIDENTIAL, 'religious': BUSINESS, 'education': BUSINESS}
+GENERIC_NATURAL = {'peak', 'volcano', 'beach', 'cave_entrance', 'spring'}
 
 
 def place_kind(t):
@@ -78,6 +88,15 @@ def place_kind(t):
     for (k, v), extra in EXTRA.items():
         if t.get(k) == v:
             return extra
+    if not t.get('name') or t.get('highway') or t.get('boundary') or t.get('route') or t.get('type') == 'route':
+        return 0
+    if t.get('landuse') in GENERIC_LANDUSE:
+        return GENERIC_LANDUSE[t.get('landuse')]
+    if t.get('natural') in GENERIC_NATURAL:
+        return 27
+    for key in GENERIC_KEYS:
+        if t.get(key) and t.get(key) != 'no':
+            return BUSINESS
     return 0
 
 

@@ -170,6 +170,8 @@ final class OSMSearch {
         case 28, 29: return 6
         case 30, 31: return 5
         case 32: return 12
+        case 33: return 2
+        case 34: return 6
         default: return 2
         }
     }

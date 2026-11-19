@@ -29,8 +29,27 @@ jobs:
             w/leisure=park,garden,recreation_ground,golf_course,stadium w/landuse=grass,forest,recreation_ground,reservoir w/natural=wood \
             r/leisure=park r/landuse=forest r/natural=wood \
             n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium nwr/aeroway=aerodrome \
-            r/boundary=administrative -o filtrado.osm.pbf
+            r/boundary=administrative nwr/name -o filtrado.osm.pbf
           ls -la filtrado.osm.pbf
+      - name: Buscar nombres en OpenStreetMap completo (diagnóstico)
+        run: |
+          python3 - <<'PY'
+          import osmium, re
+          pat = re.compile(r"richmond|ofibodega|interanjo|internaranjo|naranjo empresarial", re.I)
+          class H(osmium.SimpleHandler):
+              def __init__(s):
+                  super().__init__(); s.hits = []
+              def chk(s, o, t):
+                  for k, v in o.tags:
+                      if (k.startswith('name') or k in ('alt_name', 'official_name', 'brand', 'operator')) and pat.search(v):
+                          s.hits.append(f"{t}{o.id} " + "; ".join(f"{a}={b}" for a, b in o.tags)); return
+              def node(s, n): s.chk(n, 'n')
+              def way(s, w): s.chk(w, 'w')
+              def relation(s, r): s.chk(r, 'r')
+          h = H(); h.apply_file('gt.osm.pbf')
+          print(f"{len(h.hits)} objeto(s) con esos nombres en OpenStreetMap:")
+          for x in h.hits[:60]: print("  " + x)
+          PY
       - name: Convertir al formato de la app
         run: |
           mkdir -p out

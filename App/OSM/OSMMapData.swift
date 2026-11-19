@@ -103,6 +103,8 @@ struct OSMPlace {
         case 30: return "Calle"
         case 31: return "Municipalidad"
         case 32: return "Aeropuerto"
+        case 33: return "Negocio o lugar"
+        case 34: return "Residencial o colonia"
         case 40: return "Municipio"
         case 41: return "Departamento"
         default: return "Lugar"
