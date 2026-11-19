@@ -129,7 +129,9 @@ struct SearchResults: View {
                     Divider().padding(.leading, 50)
                 }
             }
-            if online {
+            // El aviso de los datos solo si hay lugares de OpenStreetMap en la lista.
+            let fromMap = results.contains { $0.kind == .place }
+            if online && fromMap {
                 Text("Búsqueda en internet: Nominatim · © colaboradores de OpenStreetMap")
                     .font(.system(size: 11))
                     .foregroundColor(palette.secondaryText)
@@ -137,7 +139,7 @@ struct SearchResults: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 4)
                     .padding(.bottom, 9)
-            } else if offline {
+            } else if offline && fromMap {
                 Text("Sin internet, en el mapa de Guatemala · © colaboradores de OpenStreetMap")
                     .font(.system(size: 11))
                     .foregroundColor(palette.secondaryText)
