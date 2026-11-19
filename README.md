@@ -7,6 +7,33 @@ distribución que elijas desde el teléfono. También puede duplicar la pantalla
 No está afiliada a CFMOTO, Carbit ni EasyConn. No es CarPlay. Úsala parado: configura el
 destino, la música y el panel antes de arrancar.
 
+## En resumen
+
+| | |
+| --- | --- |
+| **Plataforma** | iPhone, iOS 16 o posterior |
+| **Lenguajes** | Swift y SwiftUI (app), Python (generador del mapa) |
+| **Frameworks** | CoreGraphics, CoreText, CoreLocation, VideoToolbox (H.264), ReplayKit, AVFoundation, MapKit, Spotify iOS SDK |
+| **Datos** | OpenStreetMap (Geofabrik), en un formato binario propio (`.cfmap`) |
+| **Automatización** | GitHub Actions: compila la app y publica el `.ipa`, arma el mapa y prueba el panel |
+| **Tamaño** | Unas 19 000 líneas de Swift y 550 de Python |
+
+Lo más interesante por dentro:
+
+- **Conexión con la moto:** la app abre servidores TCP en el iPhone, hace el intercambio de
+  claves RSA con la pantalla y le envía video H.264 a 10 imágenes por segundo por Wi-Fi Direct
+  ([docs/CONNECTION.md](docs/CONNECTION.md)).
+- **Mapa y rutas sin internet:** un script de Python convierte el extracto de OpenStreetMap de
+  Guatemala en cuadros comprimidos con índice; la app los lee directo del archivo, dibuja las calles
+  y calcula la ruta con **A\*** por tiempo, respetando el sentido de las calles
+  ([Tools/OSM/build_cfmap.py](Tools/OSM/build_cfmap.py), [App/OSM/](App/OSM/)).
+- **Funciona con el iPhone bloqueado:** el panel se dibuja solo con CoreGraphics y CoreText, sin
+  UIKit, porque iOS no da la tarjeta gráfica en segundo plano. El mismo código compila en macOS
+  para las pruebas automáticas ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+- **Un solo motor de dibujo:** cada modo del panel es una plantilla con módulos (mapa, giro,
+  música, avisos, reloj) que se reparten la pantalla de 800×400 sin solaparse; la vista previa
+  del iPhone usa la misma función que la moto.
+
 ## Qué hace
 
 - **Mapa de Guatemala dentro de la app** (0.7): el mapa de la moto, la búsqueda, la ruta, las
