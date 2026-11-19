@@ -18,7 +18,9 @@ Reporte de Bertil después de rodar con el mapa propio:
 - El mapa **no desaparece** durante el recorrido.
 - La guía **sigue al puntero** de la moto y **no se queda pegada**; va mejor que en versiones anteriores.
 
-Sin reporte todavía de: Z1 (sin datos móviles), Z3 (recálculo al salirse), Z4 (ruta larga),
+- **Z3 bien:** al salirse de la ruta a propósito, la recalcula correctamente.
+
+Sin reporte todavía de: Z1 (sin datos móviles), Z4 (ruta larga),
 Z5 (cambio a Apple Maps) y Z6 (fluidez medida en Diagnóstico).
 
 ## 0.7 — Mapa propio de OpenStreetMap
