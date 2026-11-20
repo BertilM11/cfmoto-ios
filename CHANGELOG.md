@@ -1,5 +1,20 @@
 # Registro de cambios
 
+## 0.7.5 — Llegada junto al destino y codificador por hardware (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7.4` y etiqueta `v0.7.4`. Sale del registro de la
+moto del 19 de noviembre a las 18:55 (2,5 km a «CC Pacífic Villa Hermosa»).
+
+- **Llegada**: también se anuncia al estar a menos de 40 m del destino en línea recta (con GPS
+  de ±35 m o mejor), aunque el GPS ponga la moto fuera de la calle, como al entrar a un parqueo,
+  o al quedar a menos de 60 m del final y detenido. En el viaje la moto se apagó a unos 30 m sin
+  que se anunciara la llegada.
+- **Codificador de vídeo**: al reiniciarse (pasa al bloquear el iPhone o cambiar de app) se prueba
+  siempre primero el de hardware, que gasta menos batería; el de software va primero solo si
+  el hardware falló hace menos de 10 s. Antes se alternaba y, con dos cambios a segundo plano,
+  el viaje entero quedaba en software (batería del 80 % al 75 % en 12 min).
+- No cambia la conexión ni el protocolo con la moto, ni la ruta.
+
 ## 0.7.4 — Hora de llegada con tráfico y claves fuera del registro (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7.3` y etiqueta `v0.7.3`. Sale de la prueba en la

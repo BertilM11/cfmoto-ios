@@ -532,7 +532,14 @@ final class NavEngine: ObservableObject {
         if !off {
             announce(g, index: index, distance: distance, speed: speed)
         }
-        if index == lastIndex && remaining < 30 {
+        // 0.7.5: también se llega si ya se está junto al destino (a menos de 40 m en línea recta,
+        // aunque el GPS lo ponga fuera de la calle, como al entrar a un parqueo) o casi al final
+        // y detenido. Antes solo contaba quedar a 30 m sobre la ruta.
+        let nearDestination = destinationCoordinate.map {
+            location.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude)) < 40
+                && location.horizontalAccuracy <= 35
+        } ?? false
+        if (index == lastIndex && (remaining < 30 || (remaining < 60 && speed < 1.5))) || nearDestination {
             arrive()
         }
     }

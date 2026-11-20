@@ -251,6 +251,7 @@ final class H264Encoder {
             sessionLock.unlock()
             return
         }
+        let sincePrevious = Date().timeIntervalSince(lastRecreate)
         lastRecreate = Date()
         recreateCount += 1
         let attempt = recreateCount
@@ -260,8 +261,10 @@ final class H264Encoder {
 
         if let old = old { VTCompressionSessionInvalidate(old) }
         let verbose = attempt <= 6 || attempt % 30 == 0
-        // Intentos impares: hardware primero. Pares: software primero.
-        let softwareFirst = attempt % 2 == 0
+        // 0.7.5: hardware primero (gasta menos batería). Software primero solo si el hardware
+        // acaba de fallar hace menos de 10 s (fallos seguidos). Antes se alternaba y, al pasar
+        // dos veces a segundo plano, el viaje entero quedaba en software.
+        let softwareFirst = attempt > 1 && sincePrevious < 10
         let ok = openSession(software: softwareFirst, quiet: !verbose) || openSession(software: !softwareFirst, quiet: !verbose)
         if verbose {
             logLine("[VIDEO] reinicio del codificador #\(attempt): \(ok ? "hecho" : "sin éxito")")
