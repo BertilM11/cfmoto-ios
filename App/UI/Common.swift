@@ -130,6 +130,7 @@ struct ModeChips: View {
 
 struct RootTabs: View {
     @State private var tab = UserDefaults.standard.integer(forKey: "tab")
+    @ObservedObject private var requests = NavRequests.shared
     var body: some View {
         TabView(selection: $tab) {
             HomeScreen(tab: $tab)
@@ -145,9 +146,12 @@ struct RootTabs: View {
         }
         .tint(Brand.blue)
         .toolbarColorScheme(.dark, for: .tabBar)
+        // 0.8.0: un pedido de Siri («Llévame a casa») abre la pestaña de navegación.
+        .onReceive(requests.$pending.compactMap { $0 }) { _ in tab = 1 }
         .onAppear {
             DashStore.shared.start()
             MusicService.shared.start()
+            TripRecorder.shared.start()
         }
     }
 }
@@ -155,10 +159,12 @@ struct RootTabs: View {
 struct MoreScreen: View {
     /// Solo para la prueba automática ("-more personalizacion"): abre esa pantalla al empezar.
     @State private var openPersonalization = UserDefaults.standard.string(forKey: "more") == "personalizacion"
+    @State private var openTrips = UserDefaults.standard.string(forKey: "more") == "viajes"
 
     var body: some View {
         NavigationStack {
             DarkPage(title: "Más") {
+                link("Viajes", "point.topleft.down.curvedto.point.bottomright.up", "Recorridos grabados: km, tiempo, velocidad y GPX") { TripsScreen() }
                 link("Personalización del tablero", "slider.horizontal.3", "Navegación, día y noche, música y pantalla") { PersonalizationScreen() }
                 link("Modos", "square.grid.2x2.fill", "Modos predeterminados y cambios automáticos") { ModesScreen() }
                 link("Notificaciones", "bell.fill", "Fuentes, privacidad y duración de los avisos") { NoticesScreen() }
@@ -167,6 +173,7 @@ struct MoreScreen: View {
                 link("Ajustes", "gearshape.fill", "Tema, franja de la moto y restauración") { SettingsScreen() }
             }
             .navigationDestination(isPresented: $openPersonalization) { PersonalizationScreen() }
+            .navigationDestination(isPresented: $openTrips) { TripsScreen() }
         }
     }
 

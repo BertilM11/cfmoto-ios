@@ -235,6 +235,20 @@ final class BikeLink {
                 client.close()
                 break
             }
+            // 0.8.0: solo se acepta a la moto. Otro equipo de la misma red Wi-Fi (por ejemplo
+            // un Wi-Fi público) no puede conectarse para ver la pantalla. No cambia el protocolo.
+            let peerIp = client.peer.components(separatedBy: ":").first ?? ""
+            lock.lock()
+            let expected = bikeIp
+            let mine = myIp
+            lock.unlock()
+            // En la red Wi-Fi Direct de la moto (192.168.49.x) solo están la moto y el iPhone.
+            let sameDirectNet = peerIp.hasPrefix("192.168.49.") && mine.hasPrefix("192.168.49.")
+            if !expected.isEmpty && peerIp != expected && !sameDirectNet {
+                logLine("[:\(port)] conexión rechazada de \(client.peer): no es la moto (\(expected))")
+                client.close()
+                continue
+            }
             logLine("[:\(port)] <<< la moto se conectó desde \(client.peer)")
             lock.lock()
             clients.append(client)

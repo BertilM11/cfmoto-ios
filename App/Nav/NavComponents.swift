@@ -394,6 +394,8 @@ struct TripBar: View {
     let guidance: Guidance
     let palette: Palette
     @Binding var muted: Bool
+    /// 0.8.0: texto para compartir la llegada.
+    var share: String? = nil
     let onEnd: () -> Void
 
     var body: some View {
@@ -435,6 +437,16 @@ struct TripBar: View {
                         .foregroundColor(palette.secondaryText)
                 }
                 Spacer(minLength: 0)
+                if let share = share {
+                    ShareLink(item: share) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(palette.cardText)
+                            .frame(width: 46, height: 46)
+                            .background(palette.field, in: Circle())
+                    }
+                    .accessibilityLabel("Compartir mi llegada")
+                }
                 Button {
                     muted.toggle()
                 } label: {

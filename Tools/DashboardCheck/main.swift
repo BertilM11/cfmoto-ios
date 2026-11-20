@@ -2481,6 +2481,50 @@ do {
           apple.factor == 1 && abs(fast.factor - 1) < 0.08, String(format: "Apple ×%.2f, noche ×%.2f", apple.factor, fast.factor))
 }
 
+// 10e. 0.8.0: viajes grabados.
+do {
+    var tr = TripTracker()
+    let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    var done: [Trip] = []
+    func fix(_ i: Int, lat: Double, lon: Double, v: Double, acc: Double = 5) -> TripTracker.Fix {
+        TripTracker.Fix(lat: lat, lon: lon, time: t0.addingTimeInterval(Double(i)), speed: v, accuracy: acc)
+    }
+    // Quieto con la moto conectada: no empieza.
+    for i in 0..<30 { if let d = tr.feed(fix(i, lat: 14.6, lon: -90.5, v: 0), active: true, destination: nil) { done.append(d) } }
+    let startedEarly = tr.current != nil
+    // 10 min a ~10 m/s hacia el norte (6 km), un salto falso del GPS y un fijo malo.
+    var lat = 14.6
+    for i in 30..<630 {
+        lat += 10.0 / 111_000
+        var f = fix(i, lat: lat, lon: -90.5, v: 10)
+        if i == 300 { f = fix(i, lat: lat + 0.05, lon: -90.5, v: 10) }          // salto de 5 km
+        if i == 301 { f = fix(i, lat: lat, lon: -90.5, v: 10, acc: 80) }        // mala precisión
+        if let d = tr.feed(f, active: true, destination: i > 100 ? "Antigua" : nil) { done.append(d) }
+    }
+    // Se apaga la moto: sin enlace 4 min.
+    if let d = tr.tick(at: t0.addingTimeInterval(630 + 240)) { done.append(d) }
+    let trip = done.first
+    let km = (trip?.distance ?? 0) / 1000
+    check("0.8.0: un viaje se graba al moverse con la moto conectada y se cierra al apagarla (6 km, sin el salto del GPS)",
+          !startedEarly && done.count == 1 && abs(km - 6) < 0.3 && trip?.destination == "Antigua"
+            && abs((trip?.movingTime ?? 0) - 598) < 5 && (trip?.points.count ?? 0) > 250 && abs((trip?.averageSpeed ?? 0) - 10) < 0.6,
+          String(format: "%.2f km, %.0f s, %d puntos, %d viaje(s)", km, trip?.movingTime ?? 0, trip?.points.count ?? 0, done.count))
+
+    var short = TripTracker()
+    for i in 0..<20 { _ = short.feed(fix(i, lat: 14.6 + Double(i) * 0.0001, lon: -90.5, v: 3), active: true, destination: nil) }
+    let small = short.tick(at: t0.addingTimeInterval(500))
+    let gpx = trip?.gpx() ?? ""
+    check("0.8.0: los viajes de menos de 300 m no se guardan; el GPX sale bien formado",
+          small == nil && gpx.hasPrefix("<?xml") && gpx.contains("<trkpt lat=\"14.6") && gpx.hasSuffix("</gpx>\n"), "")
+
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("viajes-\(UUID().uuidString)")
+    let store = TripStore(folder: dir)
+    if let t = trip { store.save(t) }
+    let back = store.all()
+    check("0.8.0: los viajes se guardan y se leen de nuevo igual", back.count == 1 && back.first == trip, "")
+    try? FileManager.default.removeItem(at: dir)
+}
+
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
 var snap = streetsSnapshot(.preset(.full), theme: .dark)

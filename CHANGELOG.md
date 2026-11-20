@@ -1,5 +1,27 @@
 # Registro de cambios
 
+## 0.8.0 — Seguridad, viajes guardados, «Llévame a casa» y compartir la llegada (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7.6` y etiqueta `v0.7.6`.
+
+- **Seguridad**: los puertos donde la app espera a la moto (10920–10922) solo aceptan la
+  conexión de la moto (su IP, o la red Wi-Fi Direct 192.168.49.x donde solo están la moto y el
+  iPhone). Un equipo en la misma red Wi-Fi (por ejemplo, un Wi-Fi público) ya no puede
+  conectarse para ver la pantalla. El registro anota las conexiones rechazadas. No cambia el
+  protocolo.
+- **Viajes guardados** (Más › Viajes): se graban solos mientras hay enlace con la moto o
+  navegación y la moto se mueve; se cierran tras 3 min sin moto ni navegación (o 10 min
+  detenido). Cada viaje: recorrido en el mapa, distancia, duración, tiempo en movimiento,
+  velocidad promedio y máxima (del GPS), destino; exportar como GPX y borrar. Se ignoran los
+  saltos del GPS y los fijos imprecisos; los de menos de 300 m no se guardan. Solo en el iPhone.
+- **«Llévame a casa» / «Llévame al trabajo»** con Siri y la app Atajos («Llévame a casa con
+  MotoLink»): abre la app, calcula la ruta al destino guardado y empieza la guía sola. Si no hay
+  Casa o Trabajo guardados, lo avisa. Botones de Casa y Trabajo sobre el mapa.
+- **Compartir mi llegada**: botón en la barra del viaje que abre la hoja de compartir (WhatsApp,
+  Mensajes…) con el destino, la hora estimada y un enlace a la ubicación actual. El usuario elige
+  a quién y lo envía.
+- Elegir destino manteniendo presionado el mapa ya existía; ahora el buscador lo explica.
+
 ## 0.7.6 — Sin vueltas junto al destino y logo de BERL más grande (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7.5` y etiqueta `v0.7.5`.

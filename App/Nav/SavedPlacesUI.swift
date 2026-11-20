@@ -46,7 +46,7 @@ struct SavedPlacesPanel: View {
                 }
             }
             if saved.isEmpty && recent.isEmpty {
-                Text("Para guardar un destino tocá ☆ al ver la ruta. También podés pegar coordenadas o un enlace de Google Maps.")
+                Text("Para guardar un destino tocá ☆ al ver la ruta. También podés pegar coordenadas o un enlace de Google Maps, o mantener presionado un punto del mapa.")
                     .font(.system(size: 13))
                     .foregroundColor(palette.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)

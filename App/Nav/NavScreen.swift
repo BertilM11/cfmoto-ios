@@ -14,6 +14,8 @@ struct NavScreen: View {
     @State private var recenterToken = 0
     @State private var showMoto = false
     @State private var showPocket = false
+    @ObservedObject private var requests = NavRequests.shared
+    @State private var requestNote: String?
     @FocusState private var searchFocused: Bool
 
     private var theme: AppTheme {
@@ -89,6 +91,15 @@ struct NavScreen: View {
                 following = true
                 searchFocused = false
             }
+            // 0.8.0: «Llévame a casa» de Siri: al tener la ruta, empieza la guía sola.
+            if phase == .preview && requests.autoStart {
+                requests.autoStart = false
+                RouteManager.shared.start(engine)
+            }
+        }
+        .onReceive(requests.$pending.compactMap { $0 }) { kind in
+            requests.pending = nil
+            handleRequest(kind)
         }
     }
 
@@ -120,6 +131,15 @@ struct NavScreen: View {
                     }, onGo: { place in
                         go(place.coordinate, name: place.name)
                     })
+                } else if !searchFocused && engine.phase == .idle {
+                    // 0.8.0: Casa y Trabajo a un toque.
+                    QuickDestinationChips(palette: p) { place in
+                        NavRequests.shared.autoStart = false
+                        go(place.coordinate, name: place.name)
+                    }
+                }
+                if let note = requestNote {
+                    Notice(text: note, palette: p)
                 }
                 if location.denied {
                     Notice(
@@ -165,7 +185,8 @@ struct NavScreen: View {
             .padding(.bottom, 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         case .navigating:
-            TripBar(guidance: engine.guidance, palette: p, muted: $engine.voiceMuted, onEnd: { engine.cancel() })
+            TripBar(guidance: engine.guidance, palette: p, muted: $engine.voiceMuted, share: shareText(),
+                    onEnd: { engine.cancel() })
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -250,6 +271,29 @@ struct NavScreen: View {
             noteUsed(item)
             engine.plan(to: item)
         }
+    }
+
+    /// 0.8.0: mensaje para compartir la llegada (WhatsApp u otra app, lo elige el usuario).
+    private func shareText() -> String {
+        let clock = HUDFormat.clock(engine.guidance.eta)
+        var text = "Voy en camino a \(engine.destinationName). Llego como a las \(clock.time) \(clock.suffix) (faltan \(HUDFormat.duration(engine.guidance.remainingTime)))."
+        if let c = LocationService.shared.last?.coordinate {
+            text += String(format: " Voy por aquí: https://maps.google.com/?q=%.5f,%.5f", c.latitude, c.longitude)
+        }
+        return text
+    }
+
+    /// 0.8.0: destino pedido por Siri o Atajos.
+    private func handleRequest(_ kind: SavedPlace.Kind) {
+        guard let place = SavedPlaces.shared.ordered.first(where: { $0.kind == kind }) else {
+            requests.autoStart = false
+            requestNote = "Primero guardá tu \(kind.title): buscá el lugar, y en la tarjeta de la ruta tocá ☆."
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { requestNote = nil }
+            return
+        }
+        if engine.phase == .navigating { engine.cancel() }
+        logLine("[RUTA] pedido de Siri o Atajos: ir a \(kind.title)")
+        go(place.coordinate, name: place.name)
     }
 
     /// Va a un punto con coordenadas y lo anota en los recientes.
