@@ -559,6 +559,16 @@ final class NavEngine: ObservableObject {
         let since = Date().timeIntervalSince(lastReroute)
         // Un recálculo que no responde en 20 s se vuelve a pedir.
         guard (!rerouting && since > 8) || (rerouting && since > 20) else { return }
+        // 0.7.6: ya junto al destino (por ejemplo dentro del parqueo de un centro comercial, fuera
+        // de las calles del mapa) no se recalcula: daría vueltas sin sentido. Se da por llegada.
+        if !simulating, let d = destinationCoordinate {
+            let away = location.distance(from: CLLocation(latitude: d.latitude, longitude: d.longitude))
+            if away < 200 {
+                logLine("[RUTA] fuera de la ruta a \(Int(away)) m del destino: se da por llegada, sin recalcular")
+                arrive()
+                return
+            }
+        }
         let retry = rerouting
         rerouting = true
         lastReroute = Date()

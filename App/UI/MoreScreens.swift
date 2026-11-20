@@ -310,7 +310,7 @@ struct SettingsScreen: View {
                 Text("MotoLink \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") — Smart Dashboard")
                 Text("Una creación de BERL · Bertil Raxón")
                 Text("Proyecto no oficial, sin relación con CFMOTO. Código: github.com/BertilM11/cfmoto-ios")
-                BrandFooter(height: 40).padding(.top, 4)
+                BrandFooter(height: 58).padding(.top, 4)
             }
             .font(.footnote)
         }

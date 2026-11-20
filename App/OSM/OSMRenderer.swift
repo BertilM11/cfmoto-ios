@@ -443,7 +443,7 @@ extension HUDRenderer {
     /// esquina ya queda libre de tarjetas). Mismo color que el aviso de la licencia.
     func drawBrandMark(color: CGColor, x: CGFloat, baseline: CGFloat, _ ctx: CGContext) {
         guard let mask = BrandMark.mask else { return }
-        let h = 17 * k
+        let h = 26 * k   // 0.7.6: más grande (antes 17)
         let w = BrandMark.width(forHeight: h)
         let rect = CGRect(x: x.rounded(), y: (baseline + 2 * k - h).rounded(), width: w, height: h)
         ctx.saveGState()

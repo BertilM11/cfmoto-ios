@@ -1,5 +1,17 @@
 # Registro de cambios
 
+## 0.7.6 — Sin vueltas junto al destino y logo de BERL más grande (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7.5` y etiqueta `v0.7.5`.
+
+- Si la moto se sale de la ruta **a menos de 200 m del destino** (por ejemplo, ya dentro del
+  parqueo de un centro comercial, fuera de las calles del mapa), no se recalcula: se da por
+  llegada. En el viaje del 19 de noviembre la app recalculó dos veces con vueltas sin sentido
+  cuando Bertil ya estaba dentro de CC Pacífic Villa Hermosa.
+- **Logo de BERL más grande**: en la pantalla de la moto pasa de 17 a 26 puntos de alto (mismo
+  lugar y color, junto a «© OpenStreetMap»); en la app, de 46 a 66 en la portada y de 40 a 58 en
+  «Acerca de».
+
 ## 0.7.5 — Llegada junto al destino y codificador por hardware (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7.4` y etiqueta `v0.7.4`. Sale del registro de la

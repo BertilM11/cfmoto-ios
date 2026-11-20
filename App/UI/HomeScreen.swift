@@ -83,7 +83,7 @@ struct HomeScreen: View {
 
 /// 0.7.1: logo de BERL (la marca del autor), discreto.
 struct BrandFooter: View {
-    var height: CGFloat = 46
+    var height: CGFloat = 66
     var body: some View {
         Image("BERL")
             .renderingMode(.template)
