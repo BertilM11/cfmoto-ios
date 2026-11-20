@@ -1,0 +1,267 @@
+PASA   Por defecto se usa toda la imagen (800x400)
+PASA   La franja vacía solo existe si el usuario la pide
+PASA   2000 diseños por zonas al azar (incluye valores inválidos)
+PASA   Tarjetas del modo «1 · Navegación completa»
+PASA   Tarjetas del modo «2 · Navegación + música compacta»
+PASA   Tarjetas del modo «5 · Personalizado»
+PASA   Tarjetas del modo «Panel completo»
+PASA   Tarjetas del modo «Navegación + Avisos»
+PASA   3000 combinaciones de tarjetas, lugares y tamaños al azar
+PASA   1 · Navegación completa: mapa, maniobra y viaje, sin música grande
+PASA   2 · Navegación + música compacta
+PASA   3 · Pantalla dividida: mapa a la izquierda y música ampliada a la derecha
+PASA   4 · Música completa: pantalla dedicada
+PASA   5 · Personalizado arranca con el mapa completo
+PASA   Los cinco modos principales van numerados del 1 al 5
+PASA   Los otros modos se conservan
+PASA   Los modos con mapa muestran la ruta
+PASA   Intercambiar dos zonas
+PASA   Colocar un módulo que ya estaba en otra zona los intercambia
+PASA   Ocultar un módulo deja la zona vacía
+PASA   Cambiar de plantilla recorta las zonas sobrantes
+PASA   Intercambiar dos tarjetas
+PASA   Mover, agrandar y ocultar tarjetas
+PASA   Pasar a «Mapa completo» desde zonas
+PASA   La configuración se guarda y se recupera igual
+PASA   Datos guardados dañados no rompen la carga
+PASA   Hay seis perfiles de fábrica
+PASA   Por defecto: día y noche automáticos, guía de MotoLink y colores de la portada
+PASA   Si el usuario eligió claro, se respeta al actualizar
+PASA   Configuración de la 0.4: se carga
+PASA   Configuración de la 0.4: se conservan modo, avisos y perfiles del usuario
+PASA   Configuración de la 0.4: los perfiles de fábrica pasan al mapa completo
+PASA   Configuración vieja con tema oscuro fijo pasa a automático (el claro elegido se respeta)
+PASA   Configuración de la 0.4: mapa con valores de fábrica
+PASA   Iniciar ruta en Música pasa a Navegación + Música
+PASA   Terminar la ruta vuelve al modo anterior
+PASA   Iniciar ruta no cambia un modo que ya muestra el mapa
+PASA   Música con ruta activa no quita el mapa
+PASA   Música sin ruta pasa a Música
+PASA   Giro próximo da prioridad a las indicaciones
+PASA   Pasado el giro vuelve el modo anterior
+PASA   Con las reglas apagadas no hay cambios automáticos
+PASA   Homografía: 4 puntos bastan para situar cualquier otro — error máximo 4.00e-16
+PASA   Homografía: puntos alineados se rechazan
+PASA   Mapa de calles: la ruta cae donde la pinta la cámara (menos de 1 píxel) — error máximo 0.001 px
+PASA   Amanecer en Guatemala hacia las 6:05 — 6:04
+PASA   Atardecer en Guatemala hacia las 17:30 — 17:30
+PASA   Día a las 9:00, 12:00 y 16:30
+PASA   Noche a las 5:00, 18:30 y 23:00
+PASA   Sin posición se decide por la hora
+PASA   Contraste: blanco sobre negro es 21:1
+PASA   Portada roja y negra: color dominante rojo
+PASA   Portada azul: color dominante azul
+PASA   Texto legible sobre cualquier fondo de portada (contraste ≥ 4,5) — peor 5.5:1
+PASA   La tarjeta toma tonos de la portada (rojo) sin saturar de más
+PASA   Con portada azul el fondo va hacia azul
+PASA   Fondo oscuro fijo y claro fijo no dependen de la portada
+PASA   Transición entre canciones: los colores pasan de una a otra
+PASA   Waze: enlace oficial con destino y navegación — waze://ul?ll=14.588000,-90.530200&navigate=yes&utm_source=io.github.cfmotolink.app
+PASA   Google Maps: enlace de la app y de respaldo web — comgooglemaps://?daddr=14.588000,-90.530200&directionsmode=driving
+PASA   MotoLink no abre ninguna app externa
+PASA   0.7.1: el emblema de BERL se lee (79×54, en gris, sin transparencia) para dibujarlo en la moto
+PASA   Los proveedores externos no prometen giros en la moto
+PASA   Composición «1 · Navegación completa» oscuro
+PASA   Sin franja vacía abajo en «1 · Navegación completa» oscuro — 1167 colores en el 20 % inferior
+PASA   Composición «1 · Navegación completa» claro
+PASA   Sin franja vacía abajo en «1 · Navegación completa» claro — 932 colores en el 20 % inferior
+PASA   Composición «2 · Navegación + música compacta» oscuro
+PASA   Sin franja vacía abajo en «2 · Navegación + música compacta» oscuro — 1167 colores en el 20 % inferior
+PASA   Composición «2 · Navegación + música compacta» claro
+PASA   Sin franja vacía abajo en «2 · Navegación + música compacta» claro — 932 colores en el 20 % inferior
+PASA   Composición «3 · Pantalla dividida» oscuro
+PASA   Sin franja vacía abajo en «3 · Pantalla dividida» oscuro — 1531 colores en el 20 % inferior
+PASA   Composición «3 · Pantalla dividida» claro
+PASA   Sin franja vacía abajo en «3 · Pantalla dividida» claro — 1291 colores en el 20 % inferior
+PASA   Composición «4 · Música completa» oscuro
+PASA   Sin franja vacía abajo en «4 · Música completa» oscuro — 853 colores en el 20 % inferior
+PASA   Composición «4 · Música completa» claro
+PASA   Sin franja vacía abajo en «4 · Música completa» claro — 711 colores en el 20 % inferior
+PASA   Composición «5 · Personalizado» oscuro
+PASA   Sin franja vacía abajo en «5 · Personalizado» oscuro — 1167 colores en el 20 % inferior
+PASA   Composición «5 · Personalizado» claro
+PASA   Sin franja vacía abajo en «5 · Personalizado» claro — 932 colores en el 20 % inferior
+PASA   Composición «Panel completo» oscuro
+PASA   Sin franja vacía abajo en «Panel completo» oscuro — 1167 colores en el 20 % inferior
+PASA   Composición «Panel completo» claro
+PASA   Sin franja vacía abajo en «Panel completo» claro — 932 colores en el 20 % inferior
+PASA   Composición «Navegación + Avisos» oscuro
+PASA   Sin franja vacía abajo en «Navegación + Avisos» oscuro — 1167 colores en el 20 % inferior
+PASA   Composición «Navegación + Avisos» claro
+PASA   Sin franja vacía abajo en «Navegación + Avisos» claro — 932 colores en el 20 % inferior
+PASA   Composición «Música + Avisos» oscuro
+PASA   Sin franja vacía abajo en «Música + Avisos» oscuro — 902 colores en el 20 % inferior
+PASA   Composición «Música + Avisos» claro
+PASA   Sin franja vacía abajo en «Música + Avisos» claro — 750 colores en el 20 % inferior
+PASA   La ruta azul se dibuja sobre su calle del mapa — color en la ruta: r140 g196 b255
+PASA   Recta larga sin puntos intermedios: la ruta se ve por delante de la moto — color delante de la moto: r140 g196 b255
+PASA   Si se pide dejar la franja vacía, queda lisa
+PASA   Panel completo sin ruta, sin música, sin avisos y sin mapa
+PASA   Sin imagen de calles se dibuja el mapa simple de la ruta
+PASA   Panel sin módulos no falla
+PASA   Modo Música con ruta: muestra el próximo giro abajo
+PASA   Otra resolución (640x320)
+PASA   Pantalla dividida de día con colores de portada
+PASA   Guía en otra app: la moto muestra el destino sin inventar giros
+PASA   Vista previa de rutas en la moto antes de empezar
+PASA   Ruta de prueba medida bien (15 km) — 15000 m
+PASA   Se detectan los dos giros de la ruta — 5990, 9990
+PASA   Situar un punto en la ruta (a lo largo y de lado) — 7300.0 m / 30.0 m
+PASA   Ruta de 15 km guardada entera, sin huecos (antes: unos 8 km como máximo) — 15.0 km seguidos, 87 imágenes, 0 huecos
+PASA   Las curvas tienen su imagen orientada a la calle nueva
+PASA   No se vuelve a pedir lo que ya está guardado — 0 repetidas
+PASA   Lo que ya está pedido no se pide dos veces y se empieza por lo más cercano
+PASA   La memoria del mapa guardado queda acotada (15 km en menos de 20 MB) — 7.5 MB
+PASA   Con memoria para 20 imágenes se guarda el tramo más cercano — 20 imágenes
+PASA   Al pasar de largo y con poca memoria se sueltan las de atrás y las más lejanas
+PASA   Se detecta el tramo sin imagen — seguido 4.1 km, 1 huecos
+PASA   Cobertura estable: al avanzar, el final del mapa guardado no salta — el final se mueve 0 m en 31 posiciones
+PASA   Al recalcular se conservan las imágenes que siguen sobre la ruta nueva (antes se borraban todas) — 34 de 87
+PASA   Tras recalcular, solo se pide el tramo nuevo — 30 nuevas
+PASA   Recalculando desde la posición actual no se vuelve a pedir lo que ya se tiene (antes: casi todo otra vez) — 75 conservadas, 0 pedidas de nuevo
+PASA   Decidir qué pedir (13 km ya guardados) tarda poco — 0.3 ms
+PASA   Avanzando, cada imagen nueva amplía el mapa por delante (60 s como en el simulador) — 4.1 km seguidos con 28 peticiones, 0 repetidas
+PASA   Avanzando 4 minutos se guarda toda la ruta que queda, sin huecos ni repetidas — 12.1 de 12.1 km, 83 peticiones, 0 repetidas
+PASA   La separación no cambia por pequeñas variaciones de la calibración
+PASA   iPhone bloqueado: se usa una imagen guardada
+PASA   Lo que se recorrerá de noche ya se guarda en oscuro
+PASA   Con las dos versiones guardadas gana siempre el tema correcto
+PASA   Si solo hay del otro tema, se usa y se marca (mejor que un hueco)
+PASA   Sin imagen que sirva: mapa simple, sin inventar calles
+PASA   La imagen en vivo reciente manda; una vieja solo como último recurso
+PASA   Portadas: solo vale la de la canción que suena
+PASA   Revisar la cobertura de 15 km tarda poco — 0.9 ms
+PASA   Ruta de curvas cerradas de prueba (4,2 km, ninguna cuenta como giro) — 4240 m, 0 giros
+PASA   Curvas cerradas: la rejilla las guarda enteras (no eran la causa de quedarse parado) — 4.2 de 4.2 km seguidos, 24 imágenes
+PASA   0.6.5: en curvas y en la ruta de 15 km no se pide ninguna imagen extra — 0 extra en curvas
+PASA   Si una imagen cubre menos de lo previsto queda un hueco que la rejilla no vuelve a pedir (se quedaría parado) — seguido 3.1 km, 1 huecos, 0 pedidas por la rejilla
+PASA   0.6.5: se piden imágenes justo en el hueco y la ruta queda guardada entera — 15.0 km seguidos, 0 huecos, 2 imágenes extra
+PASA   0.6.5: con la ruta guardada entera ya no se piden más imágenes extra — 0
+PASA   0.6.5: un hueco que no se llena tras dos intentos no se pide sin fin — 0
+PASA   0.6.5: lo que la rejilla todavía no pidió no se toma por hueco — 0
+PASA   Hora actual: el mismo sitio en los modos con mapa y nada encima — arriba a la derecha: x 672, y 12, 116×30
+PASA   La hora se ve en el mismo sitio en todos los modos, de día y de noche, con y sin ruta — 32 composiciones
+PASA   La llegada lleva la palabra «Llegada»; el tiempo y la distancia van aparte — Llegada 7:22 p.m. | 18 min | 7.4 km
+PASA   La hora de llegada y la hora actual son cosas distintas (7:22 y 7:04)
+PASA   Sin ruta, abajo no aparece otra hora (solo la fija de arriba)
+PASA   Maniobra compacta un 30 % más pequeña por lado (antes 284×136) — 200×96, 50 % del área de antes
+PASA   La tarjeta grande de la maniobra sigue igual
+PASA   Mapa + Música: el centro (por donde va la ruta) queda libre de tarjetas — maniobra hasta x 212, música desde x 538
+PASA   La tarjeta de música no crece (250×84)
+PASA   La calle se saca de la indicación (el giro ya lo dice la flecha) — 8 indicaciones
+PASA   Música completa: portada, textos y barra sin montarse ni tapar la hora
+PASA   Música completa: portada grande (más del 60 % del alto de la imagen) — 274 px; con el próximo giro abajo, 209 px
+PASA   Música completa: título y artista con una columna ancha y la barra casi a todo el ancho — columna de 432 px, barra de 736 px
+PASA   Música completa: texto legible sobre el degradado de la portada (contraste ≥ 4,5) — peor 8.8:1
+PASA   Cambio de canción: fundido corto de la anterior a la nueva (menos de medio segundo)
+PASA   Portada que llega tarde (Spotify): solo se funde la portada
+PASA   Misma canción avanzando: sin transición
+PASA   Música completa: el fondo guardado entre fotogramas se ve igual que dibujado cada vez — diferencia máxima 0 de 255
+PASA   Música completa en plena transición: menos de 25 ms por fotograma — 15.3 ms de media en esta máquina
+PASA   Música completa sin transición (fondo reutilizado): menos de 15 ms por fotograma — 7.7 ms de media en esta máquina
+PASA   Música: el mismo reproductor en cada modo, con la forma que cabe — Música sola: stage, Dividida: column, Música + Avisos: column, Música + Avisos con ruta: row, Nav + Música: row, Completo: row, Tarjeta grande: row, Principal + 2 (zona lateral): row
+PASA   Música: portada, textos, botones y barra dentro de su sitio, sin montarse ni tapar la hora
+PASA   Música: portada proporcional al espacio (Dividida al menos 160 px; las tarjetas, como en la 0.6.3) — Dividida 162 px, Música + Avisos 155 (con ruta 181), tarjeta compacta 64, grande 100
+PASA   Música: en todas las formas el fondo tiene los colores y la luz de su portada — 7 formas, 3 portadas, día y noche
+PASA   Música: de noche se ve el resplandor de la portada en todas las formas
+PASA   Música: título y artista legibles en todas las formas (contraste ≥ 4,5) — peor 8.3:1 (Nav + Música light neón «Luces de la ciudad»)
+PASA   Música: álbum y tiempos legibles (contraste ≥ 3) — peor 3.7:1
+PASA   Música en pausa: el botón central pasa a ▶ (columna y tarjeta) y nada se corta
+PASA   Ningún texto cortado, montado ni encima de la hora (todos los modos, día y noche, con y sin ruta) — 68 composiciones
+PASA   Con datos normales ningún texto necesita «…»
+PASA   Títulos y artistas largos: se acortan con «…» sin salirse de su sitio
+PASA   Sin música: el mismo aviso en todas las formas, sin cortes
+PASA   A 640×320 tampoco hay textos cortados ni montados
+PASA   La vista previa del iPhone y la imagen de la moto salen del mismo dibujo (idénticas) — diferencia máxima 0
+PASA   Dividida: la tarjeta de la maniobra es la misma que en el mapa completo (200×96; antes 426×155) — 200×96
+PASA   Dividida: se ve más mapa (al menos el 80 % de la zona libre de tarjetas) — mapa libre: 82 % (antes 53 %)
+PASA   Dividida: si se elige la tarjeta grande, es más grande pero proporcional a la zona — 318×151
+PASA   Dividida: la maniobra va donde se eligió en el iPhone, sin tapar la hora, el viaje, la brújula ni la ruta por delante — 20 combinaciones
+PASA   Nav + Música, Completo y Nav + Avisos usan la misma maniobra compacta que Navegación (200×96) — mapa libre: 1 · Navegación completa 87 %, 2 · Navegación + música compacta 81 %, Panel completo 76 %, Navegación + Avisos 82 %
+PASA   Cobertura: ruta completa, guardando y parcial (por memoria) se distinguen — Ruta completa guardada: 12 km | Guardando el mapa: 3.2 km de 12 km | Mapa parcial: 141 km de 160 km (límite de memoria)
+PASA   Cobertura: se informan los kilómetros que de verdad tienen mapa seguido
+PASA   Moto: aviso «MAPA GUARDADO» solo con el mapa guardado en uso y menos de 2 km — MAPA GUARDADO: 1.4 KM
+PASA   Moto: el aviso se dibuja sin tapar nada (mapa completo y pantalla dividida)
+PASA   Precarga antes de salir: con 3 imágenes a la vez se guarda más ruta en el mismo tiempo — en 40 s (2 s por imagen): 10.4 km; antes 6.9 km
+PASA   Ruta de 15 km: «Ruta completa guardada» en poco más de un minuto con el iPhone desbloqueado — Ruta completa guardada: 15 km (82 imágenes)
+PASA   Con 800 imágenes cabe una ruta de 120 km entera (antes, unos 70 km) — 71 km → 120 km
+PASA   Memoria del mapa guardado: hasta 96 MB y nunca más de la quinta parte de la libre
+PASA   Dividida: «Llegada», hora de llegada, tiempo y distancia por separado, y la hora actual arriba
+PASA   Rediseño: tarjetas y zonas en el mismo sitio y del mismo tamaño que en la 0.6.2 (y la hora fija) — 9 tarjetas y 5 zonas
+PASA   Rediseño: maniobra, viaje, avisos, hora y zonas usan el mismo vidrio con borde luminoso — 6 tarjetas
+PASA   Rediseño: las tarjetas guardadas ya dibujadas se ven igual que dibujadas cada vez — diferencia máxima 3 de 255 (caso 3, x 786, y 56, canal 1: 75 / 78)
+PASA   Rediseño: datos del viaje en tres bloques (Distancia, Restante, Llegada), cada cifra sobre su nombre — 267 < 400 < 533
+PASA   Rediseño: la hora actual (con su reloj, arriba) y la de llegada (con «Llegada», abajo) no se confunden — arriba: 7:04 p.m.; llegada: 7:22
+PASA   Rediseño: cada aviso con su remitente, título, mensaje y hora
+PASA   Rediseño: sin avisos se ve un estado vacío centrado, no la zona en blanco
+PASA   Rediseño: la ruta lleva un resplandor azul a los lados (más contraste sobre el mapa) — 0.13,0.24,0.38 | 0.23,0.36,0.53
+PASA   Rediseño: la posición se marca con la flecha azul en su disco de vidrio — flecha 302 px, disco 630 px
+PASA   Rediseño: ningún modo tarda más de 25 ms por fotograma (la moto recibe 10 por segundo) — 1 · Navegación completa 2.5, 2 · Navegación + música compacta 4.6, 3 · Pantalla dividida 8.9, 4 · Música completa 9.5, 5 · Personalizado 5.1, Panel completo 3.6, Navegación + Avisos 2.5, Música + Avisos 8.3 ms
+PASA   0.6.4: anterior, reproducir/pausar y siguiente en todos los modos con música, dentro de su sitio y sin tocar textos ni la hora — 10 sitios, día y noche, sonando y en pausa
+PASA   0.6.4: botón central grande (proporcional a cada sitio) y laterales menores, alineados — círculo en px: Música completa 62, Música completa con ruta 62, Dividida 44, Música + Avisos 44, Música + Avisos con ruta 40, Nav + Música 22, Completo 22, Personalizado 22, Tarjeta grande 26, Principal + 2 26
+PASA   0.6.4: el botón central muestra el estado real (❚❚ sonando, ▶ en pausa)
+PASA   0.6.4: iconos con contraste suficiente sobre su fondo (≥ 3:1, día y noche) — peor 4.9:1 (Nav + Música día «pausa»)
+PASA   0.6.4: sin música los botones se ven apagados (con ▶)
+PASA   0.6.4: el cambio ▶/❚❚ se funde (sin saltos) — centro del círculo: sonando 1.00, a mitad 0.25, en pausa 0.01
+PASA   0.6.4: las tarjetas de música miden lo mismo que en la 0.6.3 (250×84 y 300×124) — (250.0, 84.0) y (300.0, 124.0)
+PASA   0.6.4: una portada que no es cuadrada se ve entera, sin estirarse — centro 0.90,0.10,0.10; franja de arriba 0.09,0.07,0.07
+PASA   Las formas nuevas del reproductor se dibujan en menos de 25 ms por fotograma — Dividida 7.4 ms, Nav + Música en transición 4.4 ms, Música + Avisos 7.4 ms
+PASA   0.7: mapa de prueba de OpenStreetMap leído (zona 10) — 143 cuadros, 620 nombres, 8798 lugares
+PASA   0.7: ruta calculada en el teléfono, sin internet (Reforma → 11 Calle, zona 10) — 1686 m, 2.6 min, 3 rutas, 33 ms, por Avenida Reforma y 12 Calle
+PASA   0.7: calcular la ruta tarda poco (menos de 1,5 s) — 33 ms
+PASA   0.7: maniobras en español con el nombre de la calle y la llegada — Gira a la derecha por 12 Calle · Gira a la izquierda por 4a Avenida · Gira a la derecha por 11 Calle · Gira a la derecha por Diagonal 6 · Has llegado a tu destino
+PASA   0.7: las maniobras van en orden y dentro de la ruta
+PASA   0.7: la vuelta respeta los sentidos de las calles (no es la misma línea al revés) — ida 1686 m, vuelta 2654 m
+PASA   0.7: se dibujan las calles del mapa propio (noche) — 1994 colores
+PASA   0.7: el mapa propio es claro de día y oscuro de noche (el tema siempre coincide) — día 0.93, noche 0.14
+PASA   0.7: sin el archivo del mapa se usa el mapa simple, sin errores
+PASA   0.7: un fotograma con el mapa propio tarda menos de 25 ms — 10.8 ms (mediana)
+nota: variantes (mediana): imagen guardada con suavizado bajo 3.3 ms; nombres letra a letra 3.9 ms
+nota: mapa propio por partes (mediana): fondo, parques y calles 7.4 ms dibujados en el momento, 4.2 ms con la imagen guardada (11 imágenes hechas); nombres 0.8 ms
+PASA   0.7: mapa completo de Guatemala leído — 63375 cuadros, 40561 nombres, 92307 lugares, datos del 2026-11-18 21:21:02 +0000
+PASA   0.7: índice de la búsqueda sin internet listo en menos de 3 s — 72105 lugares en 662 ms
+PASA   0.7: buscar sin internet «antigua» encuentra Antigua Guatemala — Antigua Guatemala (Ciudad · Sacatepéquez · «Antigua») | Antigua Cerveza Zona 10 (Restaurante o café · Colonia Tecun Umán, Ciudad de Guatemala) | Antigua Carretera a El Salvador (Calle · Colonia Las Flores, Santa Catarina Pinula)
+PASA   0.7: buscar sin internet «zona 10» encuentra la Zona 10 de la capital (con su municipio) — Zona 10 (Zona o colonia · Ciudad de Guatemala) | Zona 10 (Zona o colonia · Santa Catarina Pinula) | Zona 10 (Zona o colonia · Mixco)
+PASA   0.7: buscar sin internet «14 calle zona 10» encuentra la 14 Calle de la zona 10 — 14 Calle (Calle · Zona 10, Ciudad de Guatemala) | 10a Calle (Calle · Zona 14, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «oakland» encuentra Oakland, en la zona 10 — Oakland (Zona o colonia · Ciudad de Guatemala) | Oakland Place Anexo (Centro comercial · Oakland, Ciudad de Guatemala) | Oakland Place (Centro comercial · Oakland, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «quetzaltenango» encuentra la ciudad de Quetzaltenango — Quetzaltenango (Ciudad) | Buses a Quetzaltenango, San Marcos (30 Q y 40 Q) (Terminal de buses · Pamplona, Ciudad de Guatemala) | Calle Quetzaltenango (Calle · Santa Luisa, Chinautla)
+PASA   0.7: buscar sin internet «cayala» encuentra Cayalá (sin escribir la tilde) — Cayalá (Terminal de buses · Distrito Moda, Ciudad de Guatemala) | Cayalá (Negocio o lugar · Colonia Covías, Ciudad de Guatemala) | Ciudad Cayalá (Zona o colonia · Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «6 avenida» encuentra una 6a Avenida («6» y «6a» valen igual) — 6a Avenida (Calle · Zona 10, Ciudad de Guatemala) | 6a Avenida (Calle · Zona 9, Ciudad de Guatemala) | 6a Avenida (Calle · Cantón Tivoli, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «aeropuerto» encuentra el aeropuerto La Aurora — Aeropuerto Internacional La Aurora (Aeropuerto · Colonia Aurora I, Ciudad de Guatemala) | Santa Elena (Aeropuerto · Villa Canales, Guatemala) | Peaje Palin (Aeropuerto · Altos del Premier, Palín)
+PASA   0.7: buscar sin internet «gasolinera» encuentra la gasolinera más cercana (Texaco, Puma… aunque no se llamen «gasolinera») — Texaco (Gasolinera · Zona 10, Ciudad de Guatemala) | Puma (Gasolinera · Oakland, Ciudad de Guatemala) | Puma (Gasolinera · Cantón Tivoli, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «farmacia» encuentra una farmacia cerca — Farmacia Meykos (Farmacia · Zona 10, Ciudad de Guatemala) | Farmacia El Amate (Farmacia · Zona 10, Ciudad de Guatemala) | Farmacia (Farmacia · Zona 10, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «la aurora» encuentra el aeropuerto La Aurora — Aeropuerto Internacional La Aurora (Aeropuerto · Colonia Aurora I, Ciudad de Guatemala · «La Aurora») | Colonia Aurora I (Zona o colonia · Ciudad de Guatemala) | Shell Aurora (Gasolinera · Cantón Tivoli, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «mixco» encuentra la ciudad de Mixco — Mixco (Ciudad · Guatemala) | mixco (Negocio o lugar · Colonia Tinco, Mixco) | Zona 10 (Zona o colonia · Mixco · «Zona 10 Mixco»)
+PASA   0.7: buscar sin internet «ofibodegas zona 5» encuentra 0.7.2: un negocio dibujado como edificio (Ofibodegas Zona 5) — Ofibodegas Zona 5 (Negocio o lugar · Colonia 20 de Octubre, Ciudad de Guatemala)
+PASA   0.7: buscar sin internet «pradera ofibodegas» encuentra 0.7.2: una oficina (Empresarial la Pradera Ofibodegas) — Empresarial la Pradera Ofibodegas (Negocio o lugar · Colonia las Victorias, Ciudad de Guatemala) | Empresarial la Pradera Ofibodegas Anexo (Negocio o lugar · Condominio St. Tropez, Ciudad de Guatemala) | Complejo Pradera Ofibodegas (Negocio o lugar · Lotificacion La Cruz, Santa Catarina Pinula)
+PASA   0.7.2: un lugar dibujado con varios edificios sale una sola vez (Ofibodegas Centro Sur, 13 edificios) — 1 veces en los primeros 5 · Ofibodegas Centro Sur (Negocio o lugar · Jardines del Carmen 2, Villa Nueva)
+PASA   0.7: mientras se escribe un número, «14» ya propone la 14 Calle o la 14 Avenida — 14 Calle (Calle · Zona 10, Ciudad de Guatemala) | 14 Calle (Calle · Oakland, Ciudad de Guatemala) | 14 Avenida (Calle · Colonia Tecun Umán, Ciudad de Guatemala)
+PASA   0.7: «zona 1» no se confunde con la zona 10 ni la 14 — Zona 1 (Zona o colonia · Ciudad de Guatemala) | Zona 1 (Zona o colonia · Santa Catarina Pinula) | Zona 1 (Zona o colonia · Villa Canales)
+PASA   0.7: «xela» (otro nombre en OpenStreetMap) lleva a Quetzaltenango — Quetzaltenango (Ciudad · «Xela») | Repuestos Xelaju (Taller · Pamplona, Ciudad de Guatemala) | Xelabus (Terminal de buses · Bella Vista, Quetzaltenango)
+PASA   0.7: cada búsqueda sin internet tarda menos de 60 ms — 9.1 ms (mediana de 18)
+PASA   0.7: ruta larga sin internet: zona 10 → Antigua Guatemala — 35.4 km, 40 min, 0.15 s, 548 cuadros, 153341 nudos, por Carretera a Antigua Guatemala y Calzada Raúl Aguilar Batres
+PASA   0.7: la ruta a Antigua Guatemala se calcula en menos de 3 s — 0.15 s
+PASA   0.7: ruta larga sin internet: zona 10 → Quetzaltenango — 199.3 km, 187 min, 0.67 s, 9420 cuadros, 468115 nudos, por Carretera Panamericana y Libramiento Chimaltenango
+PASA   0.7: la ruta a Quetzaltenango se calcula en menos de 8 s — 0.67 s
+PASA   0.7: ruta larga sin internet: zona 10 → Flores (Petén) — 485.9 km, 455 min, 1.80 s, 63375 cuadros, 453658 nudos, por Ruta al Atlántico y Carretera Centroamericana 13
+PASA   0.7: la ruta a Flores (Petén) se calcula en menos de 15 s — 1.80 s
+PASA   0.7: en la ruta de 200 km cada maniobra cae en su cruce (menos de 5 m) — 10 maniobras, error máximo 0.0 m (sin ajustar sería 73 m)
+PASA   0.7: recálculo en marcha sin internet (desvío de 120 m camino a Antigua) en menos de 3 s — 0.09 s, 29.9 km, sale a 99° del rumbo
+PASA   0.7.2: el buscador entiende coordenadas y enlaces de mapas (18 formas)
+PASA   0.7.2: destinos guardados (Casa única, Trabajo, favoritos) y recientes sin repetir, se conservan al abrir de nuevo — orden ["Casa", "Oficina", "Taller"], recientes ["R3 otra vez", "R9", "R8", "R7", "R6", "R5", "R4", "R2"]
+PASA   0.7.2: búsqueda en internet de OpenStreetMap: lee nombre, detalle y coordenadas, sin repetidos, solo Guatemala — Taller Moto Express | 6a Avenida, Zona 9, Ciudad de Guatemala ; 12 Calle | Zona 1, Ciudad de Guatemala
+PASA   0.7.4: el registro oculta las claves que manda la moto (y deja lo demás igual) — ctrl 0x103b0 len=126 {
+   "channel" : "66660721",
+   "password" : "•••",
+   "pwd" : "•••",
+   "btPin" : "•••",
+   "uuid" : "CRCP230702962"
+}
+PASA   0.7.4: la hora pico de un jueves aumenta el tiempo; de noche y el domingo, poco o nada — ×1.70, ×1.00, ×1.15
+PASA   0.7.4: con el ritmo real, la llegada se acerca a lo que de verdad tarda (faltaban 36 min) — ×2.07, faltan 36 min
+PASA   0.7.4: las rutas de Apple (ya con tráfico) empiezan sin corrección; sin tráfico, el factor queda en 1 — Apple ×1.00, noche ×1.00
+PASA   0.8.0: un viaje se graba al moverse con la moto conectada y se cierra al apagarla (6 km, sin el salto del GPS) — 5.97 km, 596 s, 300 puntos, 1 viaje(s)
+PASA   0.8.0: los viajes de menos de 300 m no se guardan; el GPX sale bien formado
+PASA   0.8.0: los viajes se guardan y se leen de nuevo igual
+PASA   Dibujar un fotograma con mapa y tarjetas tarda menos de 25 ms — 6.0 ms de media en esta máquina
+RESULTADO: 260 pruebas, todas pasan

@@ -1,0 +1,60 @@
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks -remove-static-executable /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLinkBroadcast.appex /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PlugIns
+
+ProcessInfoPlistFile /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Info.plist /Users/runner/work/cfmoto-ios/cfmoto-ios/App/Info.plist (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    builtin-infoPlistUtility /Users/runner/work/cfmoto-ios/cfmoto-ios/App/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/assetcatalog_generated_info.plist -scanforprivacyfile /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Frameworks/SpotifyiOS.framework -scanforprivacyfile /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PlugIns/CFMotoLinkBroadcast.appex -o /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Info.plist
+
+ExtractAppIntentsMetadata (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name CFMotoLink --sdk-root /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk --xcode-version 16F6 --platform-family iOS --deployment-target 16.0 --bundle-identifier io.github.cfmotolink.app --output /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/CFMotoLink --dependency-file /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/Objects-normal/arm64/CFMotoLink_dependency_info.dat --stringsdata-file /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/Objects-normal/arm64/CFMotoLink.SwiftFileList --metadata-file-list /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/CFMotoLink.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/CFMotoLink.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/Objects-normal/arm64/CFMotoLink.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-11-20 04:44:13.082 appintentsmetadataprocessor[3828:14780] Starting appintentsmetadataprocessor export
+2026-11-20 04:44:13.211 appintentsmetadataprocessor[3828:14780] Writing Metadata.appintents
+2026-11-20 04:44:13.212 appintentsmetadataprocessor[3828:14780] Metadata root: /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Metadata.appintents
+
+CopySwiftLibs /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/CFMotoLink --scan-folder /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Frameworks --scan-folder /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PlugIns --scan-folder /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/SystemExtensions --scan-folder /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+ValidateEmbeddedBinary /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PlugIns/CFMotoLinkBroadcast.appex (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/embeddedBinaryValidationUtility /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/PlugIns/CFMotoLinkBroadcast.appex -info-plist-path /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Info.plist
+
+GenerateDSYMFile /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app.dSYM /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/CFMotoLink (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/CFMotoLink -o /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app.dSYM
+
+AppIntentsSSUTraining (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Info.plist --temp-dir-path /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/ssu --bundle-id io.github.cfmotolink.app --product-path /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app --extracted-metadata-path /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Metadata.appintents --metadata-file-list /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/CFMotoLink.DependencyMetadataFileList --archive-ssu-assets
+2026-11-20 04:44:13.249 appintentsnltrainingprocessor[3833:14792] Parsing options for appintentsnltrainingprocessor
+2026-11-20 04:44:13.252 appintentsnltrainingprocessor[3833:14792] Starting AppIntents SSU YAML Generation
+2026-11-20 04:44:13.261 appintentsnltrainingprocessor[3833:14792] error: Unable to parse extract.actionsdata
+2026-11-20 04:44:13.270 appintentsnltrainingprocessor[3833:14792] Training 'Llévame a casa con ${+applicationName}|Ir a casa con ${+applicationName}|${+applicationName} a casa' for es
+2026-11-20 04:44:13.270 appintentsnltrainingprocessor[3833:14792] Training 'Llévame al trabajo con ${+applicationName}|Ir al trabajo con ${+applicationName}|${+applicationName} al trabajo' for es
+2026-11-20 04:44:13.270 appintentsnltrainingprocessor[3833:14792] Training Negative Phrases '' for es
+2026-11-20 04:44:13.272 appintentsnltrainingprocessor[3833:14792] Application name 'MotoLink' for es
+2026-11-20 04:44:13.295 appintentsnltrainingprocessor[3833:14792] Generated AppIntents SSU YAML files in file:///Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Intermediates.noindex/CFMotoLink.build/Release-iphonesimulator/CFMotoLink.build/ssu/
+2026-11-20 04:44:13.296 appintentsnltrainingprocessor[3833:14792] Copied AppIntents SSU YAML files to file:///Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/Metadata.appintents/
+Archiving all locales.
+[------------------------------------------------------------] 0% archiving es[🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢] 100% archived es[🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢] 100% archived 1 locales/Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/es.lproj/nlu.appintents
+/Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app/es.lproj/nlu.appintents/4e1d4907d14d7a3b9188885d416c32be.version
+
+
+RegisterExecutionPolicyException /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    builtin-RegisterExecutionPolicyException /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app
+
+Validate /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    builtin-validationUtility /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app -infoplist-subpath Info.plist
+
+Touch /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app (in target 'CFMotoLink' from project 'CFMotoLink')
+    cd /Users/runner/work/cfmoto-ios/cfmoto-ios
+    /usr/bin/touch -c /Users/runner/work/cfmoto-ios/cfmoto-ios/buildsim/Build/Products/Release-iphonesimulator/CFMotoLink.app
+
+note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'CFMotoLinkBroadcast' from project 'CFMotoLink')
+note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'CFMotoLink' from project 'CFMotoLink')
+** BUILD SUCCEEDED **
+

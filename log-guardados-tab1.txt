@@ -1,0 +1,4 @@
+04:57:54.076 [APP] vuelve al frente
+04:57:54.413 [RED] con salida
+04:57:54.413 [RED] datos móviles: no disponibles
+04:57:55.809 [BUSCAR] índice sin internet: 72105 lugares en 1.07 s

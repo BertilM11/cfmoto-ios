@@ -1,0 +1,51 @@
+05:02:47.816 [APP] vuelve al frente
+05:02:48.120 [RED] con salida
+05:02:48.121 [RED] datos móviles: no disponibles
+05:02:48.611 [RUTA] mapa elegido: OpenStreetMap (sin internet)
+05:02:49.133 [RUTA] OpenStreetMap: 3 ruta(s) en 0.25 s (app: al frente)
+05:02:49.133 [RUTA] 3 ruta(s) a «Aeropuerto La Aurora»: 8057 m/11 min, 9137 m/11 min, 8264 m/11 min
+05:02:49.278 [RUTA] tráfico: ×1.00 sobre 11 min calculados (por la hora)
+05:02:49.278 [RUTA] guía lista: 8057 m, 10 maniobras, textos al maniobras propias de OpenStreetMap
+05:02:49.279 [RUTA] paso 0: 260 m «Gira a la izquierda por 4a Avenida»
+05:02:49.279 [RUTA] paso 1: 1378 m «Mantente a la izquierda»
+05:02:49.279 [RUTA] paso 2: 273 m «Gira ligeramente a la derecha por 6a Avenida»
+05:02:49.279 [RUTA] paso 3: 3000 m «Gira a la derecha por Calle Montúfar»
+05:02:49.279 [RUTA] paso 4: 822 m «Gira ligeramente a la izquierda por 7a Avenida»
+05:02:49.279 [RUTA] paso 5: 1481 m «Gira ligeramente a la izquierda por 10a Calle»
+05:02:49.279 [RUTA] paso 6: 71 m «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+05:02:49.279 [RUTA] paso 7: 388 m «En la rotonda, toma la 3.ª salida hacia Llegadas»
+05:02:49.279 [RUTA] paso 8: 176 m «Gira a la izquierda por Llegadas»
+05:02:49.279 [RUTA] paso 9: 204 m «Has llegado a tu destino»
+05:02:49.287 [RUTA] maniobra 0: a 260 m, tipo left, «Gira a la izquierda por 4a Avenida»
+05:02:49.287 [RUTA] maniobra 1: a 1639 m, tipo keepLeft, «Mantente a la izquierda»
+05:02:49.288 [RUTA] maniobra 2: a 1913 m, tipo slightRight, «Gira ligeramente a la derecha por 6a Avenida»
+05:02:49.288 [RUTA] maniobra 3: a 4913 m, tipo right, «Gira a la derecha por Calle Montúfar»
+05:02:49.288 [RUTA] maniobra 4: a 5735 m, tipo slightLeft, «Gira ligeramente a la izquierda por 7a Avenida»
+05:02:49.288 [RUTA] maniobra 5: a 7217 m, tipo slightLeft, «Gira ligeramente a la izquierda por 10a Calle»
+05:02:49.288 [RUTA] maniobra 6: a 7288 m, tipo roundabout, «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+05:02:49.288 [RUTA] maniobra 7: a 7676 m, tipo roundabout, «En la rotonda, toma la 3.ª salida hacia Llegadas»
+05:02:49.288 [RUTA] maniobra 8: a 7853 m, tipo left, «Gira a la izquierda por Llegadas»
+05:02:49.288 [RUTA] maniobra 9: a 8057 m, tipo arrive, «Has llegado a tu destino»
+05:02:49.291 [VOZ] Simulación de recorrido iniciada
+05:02:50.202 [VOZ] En 250 metros, mantente a la izquierda
+05:02:58.122 [DIAG] app=al frente gps=10s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=157MB red=con salida · sin datos móviles temp=normal
+05:03:06.680 [VOZ] Mantente a la izquierda
+05:03:08.126 [DIAG] app=al frente gps=20s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=159MB red=con salida · sin datos móviles temp=normal
+05:03:11.153 [VOZ] En 250 metros, gira ligeramente a la derecha por 6a Avenida
+05:03:18.121 [DIAG] app=al frente gps=30s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=171MB red=con salida · sin datos móviles temp=normal
+05:03:27.658 [VOZ] Gira ligeramente a la derecha por 6a Avenida
+05:03:28.122 [DIAG] app=al frente gps=40s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=173MB red=con salida · sin datos móviles temp=normal
+05:03:31.649 [VOZ] Continúa 3 kilómetros
+05:03:38.144 [DIAG] app=al frente gps=50s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=157MB red=con salida · sin datos móviles temp=normal
+05:03:41.694 [MAPA] la app pasa a segundo plano: el mapa propio sigue dibujándose en el iPhone
+05:03:48.123 [DIAG] app=al frente gps=60s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=133MB red=con salida · sin datos móviles temp=normal
+05:03:48.926 [APP] pasa a segundo plano
+05:03:58.121 [DIAG] app=segundo plano gps=70s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=119MB red=con salida · sin datos móviles temp=normal
+05:04:08.121 [DIAG] app=segundo plano gps=80s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=131MB red=con salida · sin datos móviles temp=normal
+05:04:18.122 [DIAG] app=segundo plano gps=90s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=129MB red=con salida · sin datos móviles temp=normal
+05:04:28.126 [DIAG] app=segundo plano gps=100s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=131MB red=con salida · sin datos móviles temp=normal
+05:04:38.123 [DIAG] app=segundo plano gps=110s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=127MB red=con salida · sin datos móviles temp=normal
+05:04:39.281 [APP] vuelve al frente
+05:04:39.333 [DIAG] la app estuvo 50 s en segundo plano
+05:04:39.837 [MAPA] la app vuelve al frente (mapa propio)
+05:04:48.123 [DIAG] app=al frente gps=120s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=167MB red=con salida · sin datos móviles temp=normal

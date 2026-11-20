@@ -1,0 +1,46 @@
+05:01:42.680 [APP] vuelve al frente
+05:01:43.018 [RED] con salida
+05:01:43.018 [RED] datos móviles: no disponibles
+05:01:44.386 [RUTA] 3 ruta(s) a «Aeropuerto La Aurora»: 8787 m/19 min, 9086 m/20 min, 9648 m/23 min
+05:01:44.597 [RUTA] tráfico: ×1.00 sobre 19 min calculados (por la hora)
+05:01:44.598 [RUTA] guía lista: 8757 m, 12 maniobras, textos al final del tramo (A=-4, B=6)
+05:01:44.599 [RUTA] paso 0: 0 m «»
+05:01:44.599 [RUTA] paso 1: 246 m «Da vuelta a la izquierda por 4a Avenida»
+05:01:44.599 [RUTA] paso 2: 1632 m «Da una vuelta amplia a la izquierda por 3a Avenida»
+05:01:44.599 [RUTA] paso 3: 321 m «Da vuelta a la derecha por 24 Calle»
+05:01:44.599 [RUTA] paso 4: 208 m «Da vuelta a la izquierda por 1a Avenida»
+05:01:44.600 [RUTA] paso 5: 2149 m «Da una vuelta amplia a la derecha por CA-1 Occ»
+05:01:44.601 [RUTA] paso 6: 235 m «Mantente a la izquierda por CA-1 Occ»
+05:01:44.601 [RUTA] paso 7: 1959 m «Da una vuelta amplia a la derecha por 11 Avenida»
+05:01:44.601 [RUTA] paso 8: 1285 m «En la glorieta, toma la primera salida por 8a Avenida»
+05:01:44.601 [RUTA] paso 9: 482 m «En la glorieta, toma la tercera salida por Llegadas»
+05:01:44.601 [RUTA] paso 10: 60 m «Da vuelta a la izquierda por Llegadas»
+05:01:44.601 [RUTA] paso 11: 123 m «Mantente a la derecha para entrar al estacionamiento»
+05:01:44.609 [RUTA] maniobra 0: a 247 m, tipo left, «Da vuelta a la izquierda por 4a Avenida»
+05:01:44.610 [RUTA] maniobra 1: a 1871 m, tipo left, «Da una vuelta amplia a la izquierda por 3a Avenida»
+05:01:44.610 [RUTA] maniobra 2: a 2190 m, tipo right, «Da vuelta a la derecha por 24 Calle»
+05:01:44.611 [RUTA] maniobra 3: a 2399 m, tipo left, «Da vuelta a la izquierda por 1a Avenida»
+05:01:44.611 [RUTA] maniobra 4: a 4543 m, tipo slightRight, «Da una vuelta amplia a la derecha por CA-1 Occ»
+05:01:44.611 [RUTA] maniobra 5: a 4778 m, tipo keepLeft, «Mantente a la izquierda por CA-1 Occ»
+05:01:44.611 [RUTA] maniobra 6: a 6731 m, tipo slightRight, «Da una vuelta amplia a la derecha por 11 Avenida»
+05:01:44.612 [RUTA] maniobra 7: a 8012 m, tipo roundabout, «En la glorieta, toma la primera salida por 8a Avenida»
+05:01:44.612 [RUTA] maniobra 8: a 8492 m, tipo roundabout, «En la glorieta, toma la tercera salida por Llegadas»
+05:01:44.613 [RUTA] maniobra 9: a 8553 m, tipo left, «Da vuelta a la izquierda por Llegadas»
+05:01:44.613 [RUTA] maniobra 10: a 8675 m, tipo keepRight, «Mantente a la derecha para entrar al estacionamiento»
+05:01:44.614 [RUTA] maniobra 11: a 8757 m, tipo arrive, «Llegaste al destino»
+05:01:44.619 [VOZ] Simulación de recorrido iniciada
+05:01:44.936 [VOZ] En 250 metros, da una vuelta amplia a la izquierda por 3a Avenida
+05:01:45.002 [MAPA] ruta para guardar: 8.8 km y 13 giros; se conservan 0 de 0 imágenes
+05:01:45.004 [MAPA] Guardando el mapa: 0 m de 7.1 km
+05:01:46.670 [MAPA] calles de Apple Maps en la moto (unos 498 m de alto en la imagen)
+05:01:46.670 [MAPA] vista inclinada (3D) aplicada
+05:01:53.045 [DIAG] app=al frente gps=10s±5m fijos=1/0bg mapa=en vivo edad=6s cobertura=0.3/7.0km imgs=4(0.2MB) pend=4 envio=0.0fps cod=-/0f mem=171MB red=con salida · sin datos móviles temp=normal
+05:02:02.096 [VOZ] Da una vuelta amplia a la izquierda por 3a Avenida
+05:02:03.066 [DIAG] app=al frente gps=20s±5m fijos=1/0bg mapa=en vivo edad=4s cobertura=1.2/6.9km imgs=12(0.8MB) pend=4 envio=0.0fps cod=-/0f mem=158MB red=con salida · sin datos móviles temp=normal
+05:02:09.943 [VOZ] En 250 metros, da vuelta a la derecha por 24 Calle
+05:02:13.025 [DIAG] app=al frente gps=30s±5m fijos=1/0bg mapa=en vivo edad=5s cobertura=2.3/6.8km imgs=19(1.3MB) pend=4 envio=0.0fps cod=-/0f mem=173MB red=con salida · sin datos móviles temp=normal
+05:02:18.520 [MAPA] hueco del mapa guardado a 2.5 km (curva): se pide una imagen más
+05:02:23.049 [DIAG] app=al frente gps=40s±5m fijos=1/0bg mapa=en vivo edad=4s cobertura=3.2/6.7km imgs=25(1.8MB) pend=4 envio=0.0fps cod=-/0f mem=171MB red=con salida · sin datos móviles temp=normal
+05:02:25.018 [MAPA] hueco del mapa guardado a 3.1 km (curva): se pide una imagen más
+05:02:26.443 [VOZ] Da vuelta a la derecha por 24 Calle
+05:02:30.959 [VOZ] En 200 metros, da vuelta a la izquierda por 1a Avenida

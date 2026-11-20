@@ -1,0 +1,46 @@
+05:00:43.019 [APP] vuelve al frente
+05:00:43.303 [RED] con salida
+05:00:43.303 [RED] datos móviles: no disponibles
+05:00:44.158 [RUTA] mapa elegido: Apple Maps
+05:00:45.175 [BUSCAR] índice sin internet: 72105 lugares en 1.23 s
+05:00:45.392 [RUTA] 3 ruta(s) a «Aeropuerto La Aurora»: 8246 m/20 min, 8787 m/20 min, 9648 m/23 min
+05:00:45.888 [RUTA] tráfico: ×1.00 sobre 20 min calculados (por la hora)
+05:00:45.888 [RUTA] guía lista: 8209 m, 12 maniobras, textos al final del tramo (A=1, B=5)
+05:00:45.889 [RUTA] paso 0: 0 m «»
+05:00:45.889 [RUTA] paso 1: 246 m «Da vuelta a la izquierda por 4a Avenida»
+05:00:45.889 [RUTA] paso 2: 1386 m «Da una vuelta amplia a la izquierda por 21 Calle»
+05:00:45.889 [RUTA] paso 3: 274 m «Da vuelta a la derecha por 6a Avenida»
+05:00:45.889 [RUTA] paso 4: 3169 m «Da vuelta a la derecha por 13 Calle»
+05:00:45.890 [RUTA] paso 5: 534 m «Mantente a la derecha por 13 Calle»
+05:00:45.890 [RUTA] paso 6: 250 m «Da una vuelta amplia a la izquierda por 7a Avenida hacia Aeropuerto»
+05:00:45.891 [RUTA] paso 7: 1462 m «Mantente a la derecha por 7a Avenida»
+05:00:45.891 [RUTA] paso 8: 495 m «Da vuelta a la izquierda por 15 Calle»
+05:00:45.891 [RUTA] paso 9: 159 m «En la glorieta, toma la segunda salida por Llegadas»
+05:00:45.891 [RUTA] paso 10: 60 m «Da vuelta a la izquierda por Llegadas»
+05:00:45.892 [RUTA] paso 11: 123 m «Mantente a la derecha para entrar al estacionamiento»
+05:00:45.898 [RUTA] maniobra 0: a 247 m, tipo left, «Da vuelta a la izquierda por 4a Avenida»
+05:00:45.898 [RUTA] maniobra 1: a 1625 m, tipo slightLeft, «Da una vuelta amplia a la izquierda por 21 Calle»
+05:00:45.899 [RUTA] maniobra 2: a 1899 m, tipo slightRight, «Da vuelta a la derecha por 6a Avenida»
+05:00:45.899 [RUTA] maniobra 3: a 5051 m, tipo right, «Da vuelta a la derecha por 13 Calle»
+05:00:45.899 [RUTA] maniobra 4: a 5586 m, tipo keepRight, «Mantente a la derecha por 13 Calle»
+05:00:45.899 [RUTA] maniobra 5: a 5839 m, tipo left, «Da una vuelta amplia a la izquierda por 7a Avenida hacia Aeropuerto»
+05:00:45.899 [RUTA] maniobra 6: a 7339 m, tipo keepRight, «Mantente a la derecha por 7a Avenida»
+05:00:45.899 [RUTA] maniobra 7: a 7785 m, tipo left, «Da vuelta a la izquierda por 15 Calle»
+05:00:45.899 [RUTA] maniobra 8: a 7944 m, tipo roundabout, «En la glorieta, toma la segunda salida por Llegadas»
+05:00:45.900 [RUTA] maniobra 9: a 8005 m, tipo left, «Da vuelta a la izquierda por Llegadas»
+05:00:45.900 [RUTA] maniobra 10: a 8128 m, tipo keepRight, «Mantente a la derecha para entrar al estacionamiento»
+05:00:45.900 [RUTA] maniobra 11: a 8209 m, tipo arrive, «Llegaste al destino»
+05:00:45.904 [VOZ] Simulación de recorrido iniciada
+05:00:46.468 [MAPA] ruta para guardar: 8.2 km y 8 giros; se conservan 0 de 0 imágenes
+05:00:46.864 [VOZ] En 250 metros, da una vuelta amplia a la izquierda por 21 Calle
+05:00:47.626 [MAPA] Guardando el mapa: 0 m de 6.8 km
+05:00:53.087 [MAPA] calles de Apple Maps en la moto (unos 465 m de alto en la imagen)
+05:00:53.316 [DIAG] app=al frente gps=9s±5m fijos=1/0bg mapa=ninguna: mapa simple cobertura=0.0/6.8km imgs=0(0.0MB) pend=3 envio=0.0fps cod=-/0f mem=194MB red=con salida · sin datos móviles temp=normal
+05:00:57.832 [MAPA] vista inclinada (3D) aplicada
+05:01:03.314 [DIAG] app=al frente gps=19s±5m fijos=1/0bg mapa=en vivo edad=5s cobertura=0.5/6.6km imgs=6(0.4MB) pend=4 envio=0.0fps cod=-/0f mem=195MB red=con salida · sin datos móviles temp=normal
+05:01:03.325 [VOZ] Da una vuelta amplia a la izquierda por 21 Calle
+05:01:07.823 [VOZ] En 250 metros, da vuelta a la derecha por 6a Avenida
+05:01:13.320 [DIAG] app=al frente gps=29s±5m fijos=1/0bg mapa=en vivo edad=2s cobertura=1.7/6.5km imgs=12(0.8MB) pend=4 envio=0.0fps cod=-/0f mem=200MB red=con salida · sin datos móviles temp=normal
+05:01:23.312 [DIAG] app=al frente gps=39s±5m fijos=1/0bg mapa=en vivo edad=2s cobertura=2.8/6.4km imgs=17(1.2MB) pend=4 envio=0.0fps cod=-/0f mem=203MB red=con salida · sin datos móviles temp=normal
+05:01:24.362 [VOZ] Da vuelta a la derecha por 6a Avenida
+05:01:28.323 [VOZ] Continúa 3.1 kilómetros

@@ -1,0 +1,38 @@
+04:54:57.071 [APP] vuelve al frente
+04:54:57.465 [RED] con salida
+04:54:57.465 [RED] datos móviles: no disponibles
+04:54:58.257 [RUTA] OpenStreetMap: 3 ruta(s) en 0.09 s (app: al frente)
+04:54:58.257 [RUTA] 3 ruta(s) a «Aeropuerto La Aurora»: 8057 m/11 min, 9137 m/11 min, 8264 m/11 min
+04:54:58.458 [RUTA] tráfico: ×1.00 sobre 11 min calculados (por la hora)
+04:54:58.459 [RUTA] guía lista: 8057 m, 10 maniobras, textos al maniobras propias de OpenStreetMap
+04:54:58.459 [RUTA] paso 0: 260 m «Gira a la izquierda por 4a Avenida»
+04:54:58.459 [RUTA] paso 1: 1378 m «Mantente a la izquierda»
+04:54:58.459 [RUTA] paso 2: 273 m «Gira ligeramente a la derecha por 6a Avenida»
+04:54:58.459 [RUTA] paso 3: 3000 m «Gira a la derecha por Calle Montúfar»
+04:54:58.459 [RUTA] paso 4: 822 m «Gira ligeramente a la izquierda por 7a Avenida»
+04:54:58.459 [RUTA] paso 5: 1481 m «Gira ligeramente a la izquierda por 10a Calle»
+04:54:58.460 [RUTA] paso 6: 71 m «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+04:54:58.460 [RUTA] paso 7: 388 m «En la rotonda, toma la 3.ª salida hacia Llegadas»
+04:54:58.460 [RUTA] paso 8: 176 m «Gira a la izquierda por Llegadas»
+04:54:58.460 [RUTA] paso 9: 204 m «Has llegado a tu destino»
+04:54:58.466 [RUTA] maniobra 0: a 260 m, tipo left, «Gira a la izquierda por 4a Avenida»
+04:54:58.466 [RUTA] maniobra 1: a 1639 m, tipo keepLeft, «Mantente a la izquierda»
+04:54:58.467 [RUTA] maniobra 2: a 1913 m, tipo slightRight, «Gira ligeramente a la derecha por 6a Avenida»
+04:54:58.467 [RUTA] maniobra 3: a 4913 m, tipo right, «Gira a la derecha por Calle Montúfar»
+04:54:58.467 [RUTA] maniobra 4: a 5735 m, tipo slightLeft, «Gira ligeramente a la izquierda por 7a Avenida»
+04:54:58.467 [RUTA] maniobra 5: a 7217 m, tipo slightLeft, «Gira ligeramente a la izquierda por 10a Calle»
+04:54:58.467 [RUTA] maniobra 6: a 7288 m, tipo roundabout, «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+04:54:58.467 [RUTA] maniobra 7: a 7676 m, tipo roundabout, «En la rotonda, toma la 3.ª salida hacia Llegadas»
+04:54:58.468 [RUTA] maniobra 8: a 7853 m, tipo left, «Gira a la izquierda por Llegadas»
+04:54:58.468 [RUTA] maniobra 9: a 8057 m, tipo arrive, «Has llegado a tu destino»
+04:54:58.470 [VOZ] Simulación de recorrido iniciada
+04:54:58.684 [BUSCAR] índice sin internet: 72105 lugares en 0.91 s
+04:54:59.655 [VOZ] En 250 metros, mantente a la izquierda
+04:55:07.472 [DIAG] app=al frente gps=11s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=160MB red=con salida · sin datos móviles temp=normal
+04:55:15.774 [VOZ] Mantente a la izquierda
+04:55:17.474 [DIAG] app=al frente gps=21s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=161MB red=con salida · sin datos móviles temp=normal
+04:55:20.274 [VOZ] En 250 metros, gira ligeramente a la derecha por 6a Avenida
+04:55:27.514 [DIAG] app=al frente gps=31s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=174MB red=con salida · sin datos móviles temp=normal
+04:55:36.775 [VOZ] Gira ligeramente a la derecha por 6a Avenida
+04:55:37.486 [DIAG] app=al frente gps=41s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=176MB red=con salida · sin datos móviles temp=normal
+04:55:40.793 [VOZ] Continúa 3 kilómetros
