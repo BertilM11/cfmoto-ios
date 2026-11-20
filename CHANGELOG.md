@@ -1,5 +1,21 @@
 # Registro de cambios
 
+## 0.7.4 — Hora de llegada con tráfico y claves fuera del registro (19 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.7.3` y etiqueta `v0.7.3`. Sale de la prueba en la
+moto del 19 de noviembre (27 min calculados que fueron 56 a la hora pico).
+
+- **Hora de llegada con tráfico** (rutas de OpenStreetMap): al empezar se corrige según la hora y el
+  día en Guatemala (lunes a viernes 6:00–9:00 ×1,6; 16:30–19:30 ×1,7; resto del día ×1,25; noche ×1;
+  fines de semana ×1,15 de día). Ya en camino se ajusta con el ritmo real: después de 2 min y 500 m
+  empieza a pesar, y a los 4 km manda del todo; se suaviza para que no salte en cada semáforo.
+  Tras un recálculo se conserva el ritmo aprendido. Las rutas de Apple ya traen el tráfico: solo
+  se ajustan con el ritmo real. Las tarjetas de rutas también muestran el tiempo con tráfico.
+  No cambia la ruta ni las indicaciones.
+- El registro anota la corrección al empezar y, al llegar, los minutos reales frente a los calculados.
+- **Claves fuera del registro**: las que manda la moto (`password`, `pwd`, `btPin`…) salen como
+  «•••» para poder compartir el registro. Lo que se envía y recibe de la moto no cambia.
+
 ## 0.7.3 — El mapa guardado busca todos los lugares con nombre (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: etiqueta `v0.7.2` (y rama `backup/v0.7.1`).

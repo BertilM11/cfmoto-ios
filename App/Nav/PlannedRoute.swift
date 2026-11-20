@@ -18,6 +18,11 @@ final class PlannedRoute {
     let distance: Double
     /// Segundos previstos.
     let expectedTravelTime: TimeInterval
+
+    /// 0.7.4: tiempo previsto con el tráfico según la hora (las rutas de Apple ya lo traen).
+    var estimatedTime: TimeInterval {
+        source == .apple ? expectedTravelTime : expectedTravelTime * TrafficPace.hourFactor(Date())
+    }
     /// Calles principales de la ruta («Avenida La Reforma y 14 Calle»).
     let name: String
     /// La ruta original de Apple (solo en el modo Apple Maps).

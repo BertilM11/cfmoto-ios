@@ -302,7 +302,7 @@ struct RouteChip: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(HUDFormat.duration(route.expectedTravelTime))
+                Text(HUDFormat.duration(route.estimatedTime))
                     .font(.system(size: 19, weight: .bold, design: .rounded))
                 if fastest {
                     Text("Más rápida")

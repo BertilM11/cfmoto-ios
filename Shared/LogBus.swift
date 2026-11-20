@@ -19,7 +19,22 @@ final class LogBus: ObservableObject {
         return f
     }()
 
+    /// 0.7.4: las claves que manda la moto (contraseña del servicio, la de actualizaciones…)
+    /// no se escriben en el registro, para poder compartirlo. Solo cambia el texto del
+    /// registro: lo que se envía y recibe de la moto es igual.
+    private static let secretPattern = try? NSRegularExpression(
+        pattern: #"("(?:password|passwd|pwd|pass|btPin|pin|token|secret|secretKey|privateKey)"\s*:\s*")([^"]*)(")"#,
+        options: [.caseInsensitive])
+
+    static func redact(_ text: String) -> String {
+        guard let re = secretPattern, text.contains("\"") else { return text }
+        let ns = text as NSString
+        return re.stringByReplacingMatches(in: text, range: NSRange(location: 0, length: ns.length),
+                                           withTemplate: "$1•••$3")
+    }
+
     func log(_ message: String) {
+        let message = LogBus.redact(message)
         lock.lock()
         let line = formatter.string(from: Date()) + " " + message
         buffer.append(line)

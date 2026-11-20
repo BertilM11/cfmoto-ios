@@ -64,6 +64,10 @@ final class NavEngine: ObservableObject {
     }
 
     private(set) var guided: GuidedRoute?
+    /// 0.7.4: corrección de la hora de llegada por el tráfico.
+    private var pace = TrafficPace()
+    private var guidanceStarted = Date()
+    private var guidancePlanned: TimeInterval = 0
 
     private var destinationItem: MKMapItem?
     private var directions: MKDirections?
@@ -389,6 +393,12 @@ final class NavEngine: ObservableObject {
 
     private func startGuidance(_ route: PlannedRoute) {
         let g = GuidedRoute(route: route)
+        // 0.7.4: hora de llegada con tráfico (tras un recálculo se conserva el ritmo aprendido).
+        pace.start(at: Date(), progress: 0, trafficIncluded: route.source == .apple, keepLearned: guided != nil)
+        guidanceStarted = Date()
+        guidancePlanned = route.expectedTravelTime
+        logLine(String(format: "[RUTA] tráfico: ×%.2f sobre %d min calculados (%@)", pace.factor,
+                       Int(route.expectedTravelTime / 60), guided != nil ? "ritmo aprendido" : "por la hora"))
         guided = g
         lastSegment = 0
         progress = 0
@@ -500,7 +510,9 @@ final class NavEngine: ObservableObject {
         next.text = maneuver.text
         next.thenKind = then
         next.remainingDistance = g.route.distance * ratio
-        next.remainingTime = g.route.expectedTravelTime * ratio
+        let traffic = simulating ? 1 : pace.update(at: Date(), progress: progress, length: length,
+                                                     plannedSeconds: g.route.expectedTravelTime)
+        next.remainingTime = g.route.expectedTravelTime * ratio * traffic
         next.eta = Date().addingTimeInterval(next.remainingTime)
         next.fraction = 1 - ratio
         next.rerouting = rerouting
@@ -530,7 +542,8 @@ final class NavEngine: ObservableObject {
         stopSimulationTimer()
         phase = .arrived
         voice.say("Has llegado a tu destino")
-        logLine("[RUTA] llegada a «\(destinationName)»")
+        logLine(String(format: "[RUTA] llegada a «%@»: %d min reales, %d min calculados sin tráfico, corrección ×%.2f",
+                       destinationName, Int(Date().timeIntervalSince(guidanceStarted) / 60), Int(guidancePlanned / 60), pace.factor))
         refreshDriving()
         pushHUD()
     }
@@ -689,7 +702,7 @@ final class NavEngine: ObservableObject {
             s.previewRoutes = previewRoutes()
             s.previewSelected = selectedIndex
             s.previewDistances = routes.map { $0.distance }
-            s.previewTimes = routes.map { $0.expectedTravelTime }
+            s.previewTimes = routes.map { $0.estimatedTime }
             s.routeFromApple = routes.contains { $0.source == .apple }
         }
         HUDState.shared.set(s)
