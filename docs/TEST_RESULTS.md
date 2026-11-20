@@ -11,6 +11,21 @@ Hay tres niveles y no se mezclan:
    Las fotos de la TFT que enviaste muestran el diseño de la 0.6.2 (Música + Avisos con ruta y
    Spotify) y otra pantalla con solo música.
 
+## Prueba en la moto — 19 de noviembre de 2026, 17:05–18:03 (registro de MotoLink 0.7.1)
+
+Datos del registro de la app (Diagnóstico), ruta de unos 24 km por Bulevar El Naranjo, 11 Avenida,
+30 Calle y Avenida Petapa hasta un «Punto en el mapa»:
+
+- Conexión al primer intento; **58 min** de vídeo a **10 fps** constantes, unos 34 500 fotogramas
+  enviados y ninguno repetido. Un fallo del codificador al bloquear el iPhone, reiniciado solo en
+  11 ms.
+- **Todo el viaje con el iPhone bloqueado** (3369 s en segundo plano): mapa, guía y voz siguieron.
+- GPS de ±2–5 m casi todo el tiempo; dibujo de 27–30 ms por cuadro con la pantalla bloqueada.
+- Memoria estable en unos 345 MB; batería del 100 % al 90 %.
+- Rutas en 0,09 s; **un recálculo** al salirse (17:32:58), hecho en 0,04 s; **llegada anunciada**.
+- La hora de llegada no cuenta el tráfico: la ruta calculada en 27 min tomó unos 56.
+- Al apagar la moto, la app intentó reconectar como se espera.
+
 ## Prueba en la moto — 19 de noviembre de 2026 (mapa propio de OpenStreetMap)
 
 Reporte de Bertil después de rodar con el mapa propio:
