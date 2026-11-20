@@ -2434,6 +2434,53 @@ do {
           got.map { "\($0.title) | \($0.subtitle)" }.joined(separator: " ; "))
 }
 
+// 10d. 0.7.4: claves fuera del registro y hora de llegada con tráfico.
+do {
+    let raw = "ctrl 0x103b0 len=126 {\n   \"channel\" : \"66660721\",\n   \"password\" : \"ASDF!@#$asdf1234\",\n   \"pwd\" : \"gJQw+AKn/E0R=\",\n   \"btPin\" : \"\",\n   \"uuid\" : \"CRCP230702962\"\n}"
+    let red = LogBus.redact(raw)
+    check("0.7.4: el registro oculta las claves que manda la moto (y deja lo demás igual)",
+          !red.contains("ASDF") && !red.contains("gJQw") && red.contains("\"password\" : \"•••\"")
+            && red.contains("66660721") && red.contains("CRCP230702962") && LogBus.redact("[RUTA] paso 0") == "[RUTA] paso 0", red)
+
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "America/Guatemala")!
+    func at(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {
+        cal.date(from: DateComponents(year: y, month: mo, day: d, hour: h, minute: mi))!
+    }
+    let rush = TrafficPace.hourFactor(at(2026, 11, 19, 17, 5))
+    let night = TrafficPace.hourFactor(at(2026, 11, 19, 23, 30))
+    let sunday = TrafficPace.hourFactor(at(2026, 11, 22, 17, 5))
+    check("0.7.4: la hora pico de un jueves aumenta el tiempo; de noche y el domingo, poco o nada",
+          rush >= 1.6 && night == 1.0 && sunday < 1.2, String(format: "×%.2f, ×%.2f, ×%.2f", rush, night, sunday))
+
+    // El viaje del 19 de noviembre: 23,6 km calculados en 27 min (1620 s) que tomaron 56.
+    var pace = TrafficPace()
+    let t0 = at(2026, 11, 19, 17, 7)
+    pace.start(at: t0, progress: 0, trafficIncluded: false, keepLearned: false)
+    let length = 23_600.0, planned = 1620.0
+    var f = pace.factor
+    for i in 1...(20 * 60 / 5) {
+        let t = t0.addingTimeInterval(Double(i) * 5)
+        let progress = length * (Double(i) * 5) / (56 * 60)
+        f = pace.update(at: t, progress: progress, length: length, plannedSeconds: planned)
+    }
+    let left = planned * (1 - 1200.0 / 3360.0) * f / 60
+    check("0.7.4: con el ritmo real, la llegada se acerca a lo que de verdad tarda (faltaban 36 min)",
+          f > 1.8 && f < 2.3 && abs(left - 36) < 6, String(format: "×%.2f, faltan %.0f min", f, left))
+
+    var apple = TrafficPace()
+    apple.start(at: t0, progress: 0, trafficIncluded: true, keepLearned: false)
+    var fast = TrafficPace()
+    let n0 = at(2026, 11, 19, 23, 0)
+    fast.start(at: n0, progress: 0, trafficIncluded: false, keepLearned: false)
+    for i in 1...120 {
+        let t = n0.addingTimeInterval(Double(i) * 5)
+        fast.update(at: t, progress: length * Double(i) * 5 / planned, length: length, plannedSeconds: planned)
+    }
+    check("0.7.4: las rutas de Apple (ya con tráfico) empiezan sin corrección; sin tráfico, el factor queda en 1",
+          apple.factor == 1 && abs(fast.factor - 1) < 0.08, String(format: "Apple ×%.2f, noche ×%.2f", apple.factor, fast.factor))
+}
+
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).
 let renderer = HUDRenderer(width: Int(W), height: Int(H))
 var snap = streetsSnapshot(.preset(.full), theme: .dark)
