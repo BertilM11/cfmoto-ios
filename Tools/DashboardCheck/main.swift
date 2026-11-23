@@ -577,6 +577,35 @@ small.privacy = true
 check("Otra resolución (640x320)", DashPreview.image(small, width: 640, height: 320, now: now) != nil)
 if let image = DashPreview.image(small, width: 640, height: 320, now: now) { save(image, "panel-640x320") }
 
+// 0.8.1: señal del límite de velocidad junto a la brújula (normal y pasado del límite).
+var limitBase = streetsSnapshot(.preset(.full), theme: .light)
+limitBase.nav.speedLimit = 0
+var limit60 = limitBase
+limit60.nav.speedLimit = 60
+limit60.nav.speed = 50 / 3.6
+var limitOver = limit60
+limitOver.nav.speed = 80 / 3.6
+let lb = pixels(limitBase)
+let l60 = pixels(limit60)
+let lOver = pixels(limitOver)
+func differing(_ a: (image: CGImage?, data: [UInt8], rowBytes: Int), _ b: (image: CGImage?, data: [UInt8], rowBytes: Int)) -> Int {
+    guard a.data.count == b.data.count else { return -1 }
+    var n = 0
+    var i = 0
+    while i < a.data.count { if a.data[i] != b.data[i] || a.data[i + 1] != b.data[i + 1] || a.data[i + 2] != b.data[i + 2] { n += 1 }; i += 4 }
+    return n
+}
+let signPixels = differing(lb, l60)
+let overPixels = differing(l60, lOver)
+check("0.8.1: la señal del límite de velocidad se dibuja en la TFT", signPixels > 400, "\(signPixels) píxeles")
+check("0.8.1: la señal cambia (se llena de rojo) al pasar el límite", overPixels > 200, "\(overPixels) píxeles")
+if let image = l60.image { save(image, "panel-limite-60") }
+if let image = lOver.image { save(image, "panel-limite-pasado") }
+var limitSplit = streetsSnapshot(.preset(.split), theme: .dark)
+limitSplit.nav.speedLimit = 40
+limitSplit.nav.speed = 30 / 3.6
+if let image = pixels(limitSplit).image { save(image, "panel-limite-dividida") }
+
 // 10b. Láminas de lo nuevo de la 0.6.
 var dyn = streetsSnapshot(.preset(.gpsMusic), theme: .dark)
 dyn.music.artwork = redBlack
