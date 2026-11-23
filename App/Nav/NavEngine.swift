@@ -760,5 +760,6 @@ final class NavEngine: ObservableObject {
             s.routeFromApple = routes.contains { $0.source == .apple }
         }
         HUDState.shared.set(s)
+        LiveGuide.shared.update(s)
     }
 }

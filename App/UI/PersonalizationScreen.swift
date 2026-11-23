@@ -60,6 +60,9 @@ struct PersonalizationScreen: View {
                 Toggle("Avisar si va a llover en la ruta", isOn: $store.config.map.rainAlerts)
                 Text("Con internet, al empezar y cada 15 minutos. Pronóstico de Open-Meteo.")
                     .font(.caption).foregroundColor(Brand.dim)
+                Toggle("Guía en la pantalla bloqueada", isOn: $store.config.map.liveActivity)
+                Text("El próximo giro, la distancia y la hora de llegada en la pantalla bloqueada y en la Dynamic Island (iOS 16.2 o más reciente).")
+                    .font(.caption).foregroundColor(Brand.dim)
             }
             .font(.subheadline)
             .tint(Brand.blue)

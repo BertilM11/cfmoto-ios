@@ -270,6 +270,8 @@ struct MapSettings: Codable, Equatable {
     var speedLimit = true
     /// 0.8.1: avisar si se pronostica lluvia en la ruta (con internet).
     var rainAlerts = true
+    /// 0.8.2: guía en la pantalla bloqueada y en la Dynamic Island (Live Activity).
+    var liveActivity = true
 
     var routeOptions: RouteOptions { RouteOptions(avoidUnpaved: avoidUnpaved, avoidHighways: avoidHighways) }
 
@@ -295,6 +297,7 @@ struct MapSettings: Codable, Equatable {
         avoidHighways = (try? c.decode(Bool.self, forKey: .avoidHighways)) ?? d.avoidHighways
         speedLimit = (try? c.decode(Bool.self, forKey: .speedLimit)) ?? d.speedLimit
         rainAlerts = (try? c.decode(Bool.self, forKey: .rainAlerts)) ?? d.rainAlerts
+        liveActivity = (try? c.decode(Bool.self, forKey: .liveActivity)) ?? d.liveActivity
     }
 
     /// Lo que cambia el aspecto de la imagen (para descartar instantáneas viejas).

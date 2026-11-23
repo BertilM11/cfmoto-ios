@@ -18,15 +18,17 @@ targets:
         excludes:
           - Info.plist
       - path: Shared
+      - path: LiveShared
     dependencies:
       - target: CFMotoLinkBroadcast
+      - target: CFMotoLinkLive
       - package: SpotifyiOS
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: MotoLink
-        CFBundleShortVersionString: "0.8.1"
-        CFBundleVersion: "23"
+        CFBundleShortVersionString: "0.8.2"
+        CFBundleVersion: "24"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
@@ -48,6 +50,7 @@ targets:
           - location
           - audio
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.cfmotolink.app
@@ -71,8 +74,8 @@ targets:
       path: Broadcast/Info.plist
       properties:
         CFBundleDisplayName: MotoLink
-        CFBundleShortVersionString: "0.8.1"
-        CFBundleVersion: "23"
+        CFBundleShortVersionString: "0.8.2"
+        CFBundleVersion: "24"
         NSLocalNetworkUsageDescription: MotoLink se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.broadcast-services-upload
@@ -82,6 +85,34 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.cfmotolink.app.broadcast
         PRODUCT_NAME: CFMotoLinkBroadcast
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+        ENABLE_BITCODE: "NO"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+  CFMotoLinkLive:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.2"
+    sources:
+      - path: LiveActivity
+        excludes:
+          - Info.plist
+      - path: LiveShared
+    info:
+      path: LiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: MotoLink
+        CFBundleShortVersionString: "0.8.2"
+        CFBundleVersion: "24"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.cfmotolink.app.live
+        PRODUCT_NAME: CFMotoLinkLive
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGNING_ALLOWED: "NO"

@@ -1,5 +1,18 @@
 # Registro de cambios
 
+## 0.8.2 — Guía en la pantalla bloqueada (23 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.8.1` y etiqueta `v0.8.1`.
+
+- **Guía en la pantalla bloqueada y en la Dynamic Island** (Live Activity, iOS 16.2 o más
+  reciente): el próximo giro con su flecha, la distancia, la calle, la hora de llegada, lo que
+  falta y el límite de velocidad cuando se conoce. Empieza sola al iniciar la guía, se actualiza
+  solo cuando cambia algo que se ve (como mucho cada 2 s) y se quita al cancelar; al llegar
+  queda «Has llegado» 2 minutos. Se puede apagar en Personalización › Rutas. Sin servidores:
+  todo se actualiza desde el iPhone.
+- Nueva extensión dentro de la app (`CFMotoLinkLive`). Con un Apple ID gratuito en Sideloadly
+  ocupa un identificador de app más (Apple limita cuántos se crean por semana).
+
 ## 0.8.1 — Límite de velocidad, opciones de ruta, mapa actualizable y avisos de lluvia (23 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.8.0` y etiqueta `v0.8.0`.
