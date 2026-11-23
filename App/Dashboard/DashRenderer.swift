@@ -393,7 +393,10 @@ extension HUDRenderer {
         let o = s.layout.overlay
         let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty)
         let compass = cards.first { $0.item == .compass }?.rect
-        mapAvoid = cards.map { $0.rect } + (statusReserve.map { [$0] } ?? [])
+        // 0.8.1: señal del límite de velocidad junto a la brújula, sin tapar ninguna tarjeta.
+        let sign = n.navigating && !n.arrived && n.speedLimit > 0
+            ? compass.flatMap { signRect(near: $0, zone: area, busy: cards.filter { $0.item != .compass }.map { $0.rect }) } : nil
+        mapAvoid = cards.map { $0.rect } + (statusReserve.map { [$0] } ?? []) + (sign.map { [$0] } ?? [])
         var streets = drawStreetMap(s, p, now, area, ctx, compass: compass)
         mapAvoid = []
         if !streets {
@@ -429,6 +432,9 @@ extension HUDRenderer {
             case .compass:
                 break
             }
+        }
+        if let sign = sign {
+            drawSpeedLimit(n.speedLimit, over: n.speed * 3.6 > Double(n.speedLimit) + 5, in: sign, ctx)
         }
         return streets
     }
@@ -732,17 +738,25 @@ extension HUDRenderer {
     /// 0.8.1: lugar de la señal de velocidad máxima: junto a la brújula (encima si la brújula
     /// está abajo, debajo si está arriba; si no cabe, a su izquierda).
     func speedSignRect(_ L: NavZoneLayout, zone: CGRect) -> CGRect? {
+        signRect(near: L.compass, zone: zone, busy: [L.card, L.trip] + (statusReserve.map { [$0] } ?? []))
+    }
+
+    /// Un sitio libre de 44×44 junto a la brújula: encima o debajo (hacia el centro de la zona)
+    /// y, si no cabe, a su lado.
+    func signRect(near c: CGRect, zone: CGRect, busy: [CGRect]) -> CGRect? {
+        guard !c.isEmpty else { return nil }
         let size = 44 * k
-        let c = L.compass
         let gap = 6 * k
         let below = c.midY < zone.midY
+        let inward = c.midX > zone.midX ? c.minX - gap - size : c.maxX + gap
         let candidates = [
             CGRect(x: c.midX - size / 2, y: below ? c.maxY + gap : c.minY - gap - size, width: size, height: size),
-            CGRect(x: c.minX - gap - size, y: c.midY - size / 2, width: size, height: size),
+            CGRect(x: inward, y: c.midY - size / 2, width: size, height: size),
+            CGRect(x: c.midX - size / 2, y: below ? c.minY - gap - size : c.maxY + gap, width: size, height: size),
         ]
-        let busy = [L.card, L.trip].filter { !$0.isEmpty }
+        let others = busy.filter { !$0.isEmpty }
         return candidates.first { cand in
-            zone.contains(cand) && !busy.contains { $0.intersects(cand.insetBy(dx: -3 * k, dy: -3 * k)) }
+            zone.contains(cand) && !others.contains { $0.intersects(cand.insetBy(dx: -3 * k, dy: -3 * k)) }
         }
     }
 

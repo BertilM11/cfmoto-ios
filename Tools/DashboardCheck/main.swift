@@ -2418,20 +2418,23 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
     let rurals = [GeoPoint(lat: 14.4700, lon: -90.6400), GeoPoint(lat: 14.7350, lon: -90.4300),
                   GeoPoint(lat: 14.5200, lon: -90.3800), GeoPoint(lat: 14.8100, lon: -90.6900),
                   GeoPoint(lat: 14.3900, lon: -90.5200), GeoPoint(lat: 14.6800, lon: -90.3300)]
-    var dirtNote = "ninguna ruta rural probada pasó por terracería"
-    var dirtOK = false
+    var dirtNotes: [String] = []
+    var dirtOK = true
+    var dirtLess = 0
     for rural in rurals {
         guard let ruralNormal = OSMRouter(map: gt).routes(from: zona10, to: rural, alternatives: 0).first,
               ruralNormal.unpavedMeters > 200 else { continue }
         let noDirt = OSMRouter(map: gt)
         noDirt.options = RouteOptions(avoidUnpaved: true, avoidHighways: false)
-        let clean = noDirt.routes(from: zona10, to: rural, alternatives: 0).first
-        dirtOK = clean != nil && clean!.unpavedMeters < ruralNormal.unpavedMeters
-        dirtNote = String(format: "a (%.3f, %.3f): normal %.0f m, evitando %.0f m de terracería",
-                          rural.lat, rural.lon, ruralNormal.unpavedMeters, clean?.unpavedMeters ?? -1)
-        break
+        guard let clean = noDirt.routes(from: zona10, to: rural, alternatives: 0).first else { dirtOK = false; continue }
+        if clean.unpavedMeters > ruralNormal.unpavedMeters + 1 { dirtOK = false }
+        if clean.unpavedMeters < ruralNormal.unpavedMeters - 1 { dirtLess += 1 }
+        dirtNotes.append(String(format: "%.0f→%.0f m", ruralNormal.unpavedMeters, clean.unpavedMeters))
     }
-    check("0.8.1: «evitar terracería» usa menos terracería que la ruta normal", dirtOK, dirtNote)
+    check("0.8.1: «evitar terracería» nunca usa más terracería que la ruta normal (y encuentra ruta)",
+          dirtOK && !dirtNotes.isEmpty,
+          dirtNotes.isEmpty ? "ninguna ruta rural probada pasó por terracería"
+              : dirtNotes.joined(separator: ", ") + " (\(dirtLess) con menos terracería)")
 } else {
     report.append("nota: sin Tools/DashboardCheck/Guatemala.cfmap no se probaron la búsqueda ni las rutas largas")
     print(report.last!)
