@@ -2365,6 +2365,35 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
         check("0.7: recálculo en marcha sin internet (desvío de 120 m camino a Antigua) en menos de 3 s",
               again.first != nil && sec < 3, String(format: "%.2f s, %.1f km, sale a %.0f° del rumbo", sec, (again.first?.distance ?? 0) / 1000, startTurn))
     }
+
+    // 0.8.1: límites de velocidad, terracería y opciones de ruta.
+    if let r = toAntigua {
+        let sorted = zip(r.speedLimits, r.speedLimits.dropFirst()).allSatisfy { $0.at <= $1.at }
+        let sane = r.speedLimits.allSatisfy { (10...150).contains($0.kmh) && $0.at >= 0 && $0.at <= r.distance + 1 }
+        check("0.8.1: la ruta a Antigua trae límites de velocidad ordenados y razonables", sorted && sane,
+              "\(r.speedLimits.count) cambios de límite: " + r.speedLimits.prefix(6).map { String(format: "%.1f km→%d", $0.at / 1000, $0.kmh) }.joined(separator: ", "))
+        let planned = PlannedRoute(osm: r)
+        check("0.8.1: la ruta planificada conserva límites y metros de terracería",
+              planned.speedLimits.count == r.speedLimits.count && abs(planned.unpavedMeters - r.unpavedMeters) < 1,
+              String(format: "%.0f m de terracería", r.unpavedMeters))
+    }
+    let antigua = GeoPoint(lat: 14.5568, lon: -90.7337)
+    let normal = OSMRouter(map: gt).routes(from: zona10, to: antigua, alternatives: 0).first
+    let noHwRouter = OSMRouter(map: gt)
+    noHwRouter.options = RouteOptions(avoidUnpaved: false, avoidHighways: true)
+    let noHw = noHwRouter.routes(from: zona10, to: antigua, alternatives: 0).first
+    check("0.8.1: «evitar autopistas» sigue encontrando ruta y no es más rápida que la normal",
+          noHw != nil && normal != nil && noHw!.time >= normal!.time * 0.97,
+          String(format: "normal %.0f min, sin autopistas %.0f min", (normal?.time ?? 0) / 60, (noHw?.time ?? 0) / 60))
+    // Un destino rural, para que haya terracería de por medio.
+    let rural = GeoPoint(lat: 14.4700, lon: -90.6400)
+    let ruralNormal = OSMRouter(map: gt).routes(from: zona10, to: rural, alternatives: 0).first
+    let noDirt = OSMRouter(map: gt)
+    noDirt.options = RouteOptions(avoidUnpaved: true, avoidHighways: false)
+    let ruralClean = noDirt.routes(from: zona10, to: rural, alternatives: 0).first
+    check("0.8.1: «evitar terracería» no usa más terracería que la ruta normal",
+          ruralNormal != nil && ruralClean != nil && ruralClean!.unpavedMeters <= ruralNormal!.unpavedMeters + 1,
+          String(format: "normal %.0f m, evitando %.0f m de terracería", ruralNormal?.unpavedMeters ?? -1, ruralClean?.unpavedMeters ?? -1))
 } else {
     report.append("nota: sin Tools/DashboardCheck/Guatemala.cfmap no se probaron la búsqueda ni las rutas largas")
     print(report.last!)
@@ -2523,6 +2552,33 @@ do {
     let back = store.all()
     check("0.8.0: los viajes se guardan y se leen de nuevo igual", back.count == 1 && back.first == trip, "")
     try? FileManager.default.removeItem(at: dir)
+}
+
+// 0.8.1: pronóstico de lluvia (Open-Meteo) — lectura de la respuesta y primer punto con lluvia.
+do {
+    let base = 1_800_000_000.0
+    let json = """
+    [{"hourly":{"time":[\(Int(base)),\(Int(base + 3600))],"precipitation_probability":[10,20],"precipitation":[0,0.1]}},
+     {"hourly":{"time":[\(Int(base)),\(Int(base + 3600))],"precipitation_probability":[30,70],"precipitation":[0,1.2]}}]
+    """
+    let hourly = RainForecast.parse(Data(json.utf8))
+    check("0.8.1: se lee el pronóstico de varias ubicaciones", hourly.count == 2 && hourly[1].probability == [30, 70], "\(hourly.count) ubicaciones")
+    let single = RainForecast.parse(Data(#"{"hourly":{"time":[1],"precipitation_probability":[5],"precipitation":[0]}}"#.utf8))
+    check("0.8.1: también se lee una sola ubicación", single.count == 1 && single[0].times == [1], "")
+    let samples = [
+        RainForecast.Sample(lat: 14.6, lon: -90.5, when: Date(timeIntervalSince1970: base + 600)),
+        RainForecast.Sample(lat: 14.5, lon: -90.7, when: Date(timeIntervalSince1970: base + 4000)),
+    ]
+    let alert = RainForecast.firstRain(samples, hourly)
+    check("0.8.1: avisa la lluvia en el punto y la hora en que se pasará", alert?.probability == 70 && alert?.fraction == 1,
+          alert.map { RainForecast.text($0) } ?? "sin aviso")
+    let dry = RainForecast.firstRain([samples[0]], hourly)
+    check("0.8.1: sin lluvia probable no hay aviso", dry == nil, "")
+    check("0.8.1: «evitar» multiplica el costo solo de los tramos afectados",
+          RouteOptions().factor(cls: 7, unpaved: true) == 1
+          && RouteOptions(avoidUnpaved: true, avoidHighways: false).factor(cls: 2, unpaved: true) > 1
+          && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 7, unpaved: false) > 1
+          && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 2, unpaved: false) == 1, "")
 }
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).

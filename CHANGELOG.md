@@ -1,5 +1,24 @@
 # Registro de cambios
 
+## 0.8.1 — Límite de velocidad, opciones de ruta, mapa actualizable y avisos de lluvia (23 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.8.0` y etiqueta `v0.8.0`.
+
+- **Límite de velocidad**: señal redonda junto a la brújula en la TFT y en el iPhone con el
+  límite de la calle actual (cuando OpenStreetMap lo tiene: unas 6 000 calles de Guatemala). Se
+  pone roja si se va más de 5 km/h por encima según el GPS. Es solo informativo; no toca la
+  velocidad, RPM ni nada de la moto. Se puede apagar en Personalización › Rutas.
+- **Opciones de ruta** (Personalización › Rutas): evitar terracería y evitar autopistas o
+  carreteras troncales. No las prohíbe: las usa solo si no hay otra forma razonable.
+- **Actualizar el mapa desde la app** (Personalización): descarga el mapa más reciente publicado
+  en el repositorio, comprueba su huella SHA-256 y que se pueda leer, y lo usa desde el siguiente
+  inicio. Se puede volver al mapa incluido en la app.
+- **Avisos de lluvia** en la ruta (pronóstico de Open-Meteo, CC BY 4.0): al empezar la guía y
+  cada 15 minutos revisa 4 puntos de la ruta a la hora en que se pasará por ellos; si es probable
+  que llueva, lo avisa en la TFT, en el iPhone y por voz. Sin internet no hay aviso.
+- Mapa nuevo con límites de velocidad y calles de terracería (las versiones anteriores de la
+  app lo leen igual, ignorando esos datos).
+
 ## 0.8.0 — Seguridad, viajes guardados, «Llévame a casa» y compartir la llegada (19 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.7.6` y etiqueta `v0.7.6`.
