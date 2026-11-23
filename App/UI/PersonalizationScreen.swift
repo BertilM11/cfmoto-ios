@@ -47,6 +47,23 @@ struct PersonalizationScreen: View {
                     .font(.caption).foregroundColor(Brand.dim)
             }
             .tint(Brand.blue)
+            // 0.8.1: preferencias de ruta, velocidad máxima, lluvia y actualización del mapa.
+            Card {
+                Text("Rutas").font(.headline)
+                Toggle("Evitar terracería", isOn: $store.config.map.avoidUnpaved)
+                Toggle("Evitar autopistas y carreteras principales", isOn: $store.config.map.avoidHighways)
+                Text("Solo con el mapa propio. Se evitan si hay otra forma razonable; si no, se usan igual.")
+                    .font(.caption).foregroundColor(Brand.dim)
+                Toggle("Mostrar la velocidad máxima de la calle", isOn: $store.config.map.speedLimit)
+                Text("Cuando OpenStreetMap la tiene (sobre todo en carreteras). Se pone roja si vas más de 5 km/h arriba. No cambia el velocímetro de la moto.")
+                    .font(.caption).foregroundColor(Brand.dim)
+                Toggle("Avisar si va a llover en la ruta", isOn: $store.config.map.rainAlerts)
+                Text("Con internet, al empezar y cada 15 minutos. Pronóstico de Open-Meteo.")
+                    .font(.caption).foregroundColor(Brand.dim)
+            }
+            .font(.subheadline)
+            .tint(Brand.blue)
+            MapUpdateCard()
             Card {
                 Text("Vista del mapa").font(.headline)
                 Picker("Vista", selection: $store.config.map.threeD) {

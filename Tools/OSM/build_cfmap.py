@@ -68,6 +68,26 @@ ALT_NAMES = ('alt_name', 'short_name', 'loc_name', 'official_name', 'name:es')
 # Límites administrativos que dan el «dónde» de cada lugar: departamentos y municipios.
 ADMIN_LEVELS = {'4': 41, '6': 40}
 ALIAS = 0x80
+# 0.8.1: terracería (bit 0x40 de las banderas de la calle) y velocidad máxima (los 4 bits altos
+# del byte de sentido, en decenas de km/h). Las versiones anteriores de la app los ignoran.
+UNPAVED = {'unpaved', 'gravel', 'fine_gravel', 'dirt', 'ground', 'earth', 'mud', 'sand', 'compacted',
+           'grass', 'pebblestone', 'rock', 'woodchips', 'grass_paver'}
+
+
+def parse_maxspeed(v):
+    """«60», «60 km/h», «40 mph» → km/h (0 si no se entiende)."""
+    if not v:
+        return 0
+    v = v.strip().lower().split(';')[0]
+    mph = 'mph' in v
+    digits = ''.join(ch for ch in v if ch.isdigit() or ch == '.')
+    try:
+        n = float(digits)
+    except ValueError:
+        return 0
+    if mph:
+        n *= 1.609
+    return int(n) if 5 <= n <= 150 else 0
 # 0.7.2: todos los demás lugares con nombre también se buscan (negocios, oficinas, bodegas,
 # edificios, colegios dibujados como edificio…). 33 = negocio o lugar; 34 = residencial.
 BUSINESS = 33
@@ -115,6 +135,8 @@ class Reader(osmium.SimpleHandler):
         self.names = {}
         self.admin = []      # (tipo 41/40, nombre, [anillos exteriores])
         self.admin_levels = {}
+        self.unpaved = 0
+        self.with_maxspeed = 0
 
     def name_id(self, text):
         if not text:
@@ -176,6 +198,9 @@ class Reader(osmium.SimpleHandler):
                 flags |= 0x10
             if hw in LINKS:
                 flags |= 0x20
+            if hw == 'track' or t.get('surface', '') in UNPAVED or t.get('tracktype') in ('grade3', 'grade4', 'grade5'):
+                flags |= 0x40
+                self.unpaved += 1
             ow = t.get('oneway', '')
             direction = 0
             if ow in ('yes', 'true', '1') or (ow == '' and (t.get('junction') == 'roundabout' or hw == 'motorway')):
@@ -186,6 +211,10 @@ class Reader(osmium.SimpleHandler):
                 direction |= 4
             if t.get('tunnel', 'no') not in ('no', ''):
                 direction |= 8
+            ms = parse_maxspeed(t.get('maxspeed'))
+            if ms:
+                direction |= min(15, int(ms / 10 + 0.5)) << 4
+                self.with_maxspeed += 1
             name = t.get('name') or t.get('ref') or ''
             self.roads.append((flags, direction, self.name_id(name), pts))
             # Las calles con nombre también se buscan (en su punto medio).
@@ -524,6 +553,7 @@ def build(src, dst, bbox=None, date=None):
     for text, _ in names:
         offsets.append(len(name_bytes))
         name_bytes += text.encode('utf-8')
+    print(f'calles con velocidad máxima: {r.with_maxspeed}; de terracería: {r.unpaved}')
     name_sec = struct.pack('<I', len(names)) + b''.join(struct.pack('<I', o) for o in offsets) + bytes(name_bytes)
     place_sec = b''.join(struct.pack('<iiIBxH', x, y, n, k, owner) for x, y, n, k, owner in places)
 

@@ -112,6 +112,16 @@ struct NavScreen: View {
             VStack(spacing: 6) {
                 ManeuverBanner(guidance: engine.guidance, simulated: engine.simulating, palette: p)
                 MapCoverageChip(palette: p)
+                if let rain = engine.guidance.rain {
+                    // 0.8.1: lluvia pronosticada en la ruta (Open-Meteo).
+                    Label(rain, systemImage: "cloud.rain.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(p.card, in: Capsule())
+                        .foregroundColor(p.cardText)
+                        .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, 6)
@@ -185,8 +195,16 @@ struct NavScreen: View {
             .padding(.bottom, 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         case .navigating:
-            TripBar(guidance: engine.guidance, palette: p, muted: $engine.voiceMuted, share: shareText(),
-                    onEnd: { engine.cancel() })
+            VStack(alignment: .leading, spacing: 8) {
+                if engine.guidance.speedLimit > 0 {
+                    // 0.8.1: velocidad máxima de la calle.
+                    SpeedLimitBadge(kmh: engine.guidance.speedLimit,
+                                    over: engine.guidance.speed * 3.6 > Double(engine.guidance.speedLimit) + 5)
+                        .padding(.leading, 6)
+                }
+                TripBar(guidance: engine.guidance, palette: p, muted: $engine.voiceMuted, share: shareText(),
+                        onEnd: { engine.cancel() })
+            }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))

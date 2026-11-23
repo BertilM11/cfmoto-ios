@@ -133,6 +133,10 @@ struct HUDSnapshot {
     /// 0.7: la ruta en pantalla viene de Apple Maps (no se dibuja sobre el mapa de OpenStreetMap).
     var routeFromApple = false
     var previewTimes: [Double] = []
+    /// 0.8.1: velocidad máxima de la calle en km/h (0 = no se sabe o está apagada).
+    var speedLimit = 0
+    /// 0.8.1: aviso de lluvia en la ruta.
+    var rain: String?
 }
 
 /// Textos de distancia, duración y hora. Los usan el iPhone y la moto para decir lo mismo.

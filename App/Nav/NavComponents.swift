@@ -513,3 +513,22 @@ struct ArrivedCard: View {
         .shadow(color: .black.opacity(0.22), radius: 16, y: -2)
     }
 }
+
+/// 0.8.1: señal de velocidad máxima en el iPhone (roja si se va más de 5 km/h por encima).
+struct SpeedLimitBadge: View {
+    let kmh: Int
+    let over: Bool
+
+    var body: some View {
+        ZStack {
+            Circle().fill(over ? Color.red : Color.white)
+            Circle().strokeBorder(Color.red, lineWidth: 5)
+            Text("\(kmh)")
+                .font(.system(size: kmh >= 100 ? 17 : 20, weight: .heavy, design: .rounded))
+                .foregroundColor(over ? .white : .black)
+        }
+        .frame(width: 54, height: 54)
+        .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+        .accessibilityLabel("Velocidad máxima \(kmh) kilómetros por hora")
+    }
+}

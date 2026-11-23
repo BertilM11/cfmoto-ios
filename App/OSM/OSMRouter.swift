@@ -18,10 +18,33 @@ struct OSMRoute {
     var summary: String
     /// Tramos usados (para buscar alternativas distintas).
     var edges: [Int]
+    /// 0.8.1: velocidad máxima por tramos de la ruta: desde qué metro rige y cuántos km/h
+    /// (0 = OpenStreetMap no la tiene).
+    var speedLimits: [(at: Double, kmh: Int)] = []
+    /// 0.8.1: metros de terracería en la ruta.
+    var unpavedMeters: Double = 0
+}
+
+/// 0.8.1: preferencias para elegir la ruta.
+struct RouteOptions: Equatable {
+    /// Evitar terracería (se usa solo si no hay otra forma razonable).
+    var avoidUnpaved = false
+    /// Evitar autopistas y carreteras troncales.
+    var avoidHighways = false
+
+    /// Cuánto «pesa» un tramo según las preferencias (1 = normal).
+    func factor(cls: Int, unpaved: Bool) -> Double {
+        var f = 1.0
+        if avoidUnpaved && unpaved { f *= 4 }
+        if avoidHighways && cls >= 6 { f *= 2.5 }
+        return f
+    }
 }
 
 final class OSMRouter {
     let map: OSMMapData
+    /// 0.8.1: preferencias de ruta.
+    var options = RouteOptions()
     /// Tamaño del último grafo (para el diagnóstico y las pruebas de rendimiento). `wide`: hizo
     /// falta el grafo amplio (la ruta da un rodeo grande, como a Petén).
     private(set) var lastStats = (tiles: 0, nodes: 0, edges: 0, wide: false)
@@ -57,6 +80,9 @@ final class OSMRouter {
         var link: Bool
         var forward: Bool
         var backward: Bool
+        /// 0.8.1: terracería y velocidad máxima (decenas de km/h; 0 si no se sabe).
+        var unpaved: Bool = false
+        var limitTens: UInt8 = 0
 
         var cls: Int { Int(clsByte) }
         var length: Double {
@@ -121,7 +147,8 @@ final class OSMRouter {
             let key = Int64(min(a, b)) << 32 | Int64(max(a, b))
             guard seen.insert(key).inserted else { return }
             let e = Edge(a: a, b: b, len: Float(p.geo.distance(to: q.geo)), name: road.name, clsByte: UInt8(max(0, min(255, road.cls))),
-                         roundabout: road.roundabout, link: road.link, forward: road.oneway != 2, backward: road.oneway != 1)
+                         roundabout: road.roundabout, link: road.link, forward: road.oneway != 2, backward: road.oneway != 1,
+                         unpaved: road.unpaved, limitTens: UInt8(max(0, min(15, road.maxspeed / 10))))
             let id = Int32(edges.count)
             edges.append(e)
             link(a, id)
@@ -299,6 +326,7 @@ final class OSMRouter {
                 let vi = Int(v)
                 if closed[vi] { continue }
                 var c = e.length / OSMRouter.speed(e.cls, roundabout: e.roundabout) * (penalty[Int(eid)] ?? 1)
+                    * options.factor(cls: e.cls, unpaved: e.unpaved)
                 // Al salir: no dar la vuelta si se va en otra dirección (recalcular en marcha).
                 if u == from, let h = heading, h >= 0 {
                     let b = g.nodes[ui].geo.bearing(to: g.nodes[vi].geo)
@@ -344,9 +372,15 @@ final class OSMRouter {
         for i in 1..<points.count { cum.append(cum[i - 1] + points[i - 1].distance(to: points[i])) }
         let total = cum.last ?? 0
         var time = 0.0
-        for step in path {
+        // 0.8.1: velocidad máxima por tramos (se juntan los tramos seguidos con la misma).
+        var limits: [(at: Double, kmh: Int)] = []
+        var unpavedMeters = 0.0
+        for (i, step) in path.enumerated() {
             let e = g.edges[step.edge]
             time += e.length / OSMRouter.speed(e.cls, roundabout: e.roundabout)
+            if e.unpaved { unpavedMeters += e.length }
+            let kmh = Int(e.limitTens) * 10
+            if limits.last?.kmh != kmh { limits.append((at: cum[i], kmh: kmh)) }
         }
         func point(at d: Double) -> GeoPoint {
             let x = max(0, min(total, d))
@@ -448,7 +482,7 @@ final class OSMRouter {
         let top = byName.sorted { $0.value > $1.value }.prefix(2).map { name($0.key) }
         let summary = top.isEmpty ? "" : "por " + top.joined(separator: " y ")
         return OSMRoute(points: points, distance: total, time: time, maneuvers: maneuvers, summary: summary,
-                        edges: path.map { $0.edge })
+                        edges: path.map { $0.edge }, speedLimits: limits, unpavedMeters: unpavedMeters)
     }
 
     /// Giro de `a` a `b` en grados (-180…180, positivo a la derecha).

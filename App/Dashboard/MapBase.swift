@@ -263,6 +263,15 @@ struct MapSettings: Codable, Equatable {
     var routeStyle: RouteStyle = .standard
     /// Zoom según la velocidad y antes de cada giro; apagado, distancia fija.
     var autoZoom = true
+    /// 0.8.1: preferencias de ruta (mapa propio).
+    var avoidUnpaved = false
+    var avoidHighways = false
+    /// 0.8.1: mostrar la velocidad máxima de la calle (cuando OpenStreetMap la tiene).
+    var speedLimit = true
+    /// 0.8.1: avisar si se pronostica lluvia en la ruta (con internet).
+    var rainAlerts = true
+
+    var routeOptions: RouteOptions { RouteOptions(avoidUnpaved: avoidUnpaved, avoidHighways: avoidHighways) }
 
     static let zoomRange = 0.6...1.6
 
@@ -282,6 +291,10 @@ struct MapSettings: Codable, Equatable {
         zoom = min(max(z, MapSettings.zoomRange.lowerBound), MapSettings.zoomRange.upperBound)
         routeStyle = (try? c.decode(RouteStyle.self, forKey: .routeStyle)) ?? d.routeStyle
         autoZoom = (try? c.decode(Bool.self, forKey: .autoZoom)) ?? d.autoZoom
+        avoidUnpaved = (try? c.decode(Bool.self, forKey: .avoidUnpaved)) ?? d.avoidUnpaved
+        avoidHighways = (try? c.decode(Bool.self, forKey: .avoidHighways)) ?? d.avoidHighways
+        speedLimit = (try? c.decode(Bool.self, forKey: .speedLimit)) ?? d.speedLimit
+        rainAlerts = (try? c.decode(Bool.self, forKey: .rainAlerts)) ?? d.rainAlerts
     }
 
     /// Lo que cambia el aspecto de la imagen (para descartar instantáneas viejas).

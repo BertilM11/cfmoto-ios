@@ -33,6 +33,19 @@ final class PlannedRoute {
     let steps: [(distance: Double, text: String)]
     /// La línea para el mapa del iPhone.
     let polyline: MKPolyline
+    /// 0.8.1: velocidad máxima por tramos (solo rutas de OpenStreetMap; 0 = no se sabe).
+    let speedLimits: [(at: Double, kmh: Int)]
+    /// 0.8.1: metros de terracería (solo rutas de OpenStreetMap).
+    let unpavedMeters: Double
+
+    /// Velocidad máxima a `meters` del inicio (0 si no se sabe).
+    func speedLimit(at meters: Double) -> Int {
+        var kmh = 0
+        for l in speedLimits {
+            if l.at <= meters + 0.5 { kmh = l.kmh } else { break }
+        }
+        return kmh
+    }
 
     init(apple route: MKRoute) {
         source = .apple
@@ -44,6 +57,8 @@ final class PlannedRoute {
         osmManeuvers = []
         steps = route.steps.map { (distance: $0.distance, text: $0.instructions) }
         polyline = route.polyline
+        speedLimits = []
+        unpavedMeters = 0
     }
 
     init(osm route: OSMRoute) {
@@ -63,6 +78,8 @@ final class PlannedRoute {
             previous = m.at
         }
         steps = list
+        speedLimits = route.speedLimits
+        unpavedMeters = route.unpavedMeters
         var line = c
         polyline = MKPolyline(coordinates: &line, count: line.count)
     }

@@ -34,6 +34,10 @@ struct OSMRoad {
     var tunnel: Bool
     var name: UInt32
     var points: [OSMPoint]
+    /// 0.8.1: terracería o tierra (pista, grava, lastre…).
+    var unpaved: Bool = false
+    /// 0.8.1: velocidad máxima en km/h (0 si OpenStreetMap no la tiene).
+    var maxspeed: Int = 0
 }
 
 struct OSMArea {
@@ -114,11 +118,24 @@ struct OSMPlace {
 
 final class OSMMapData {
     static let noName = UInt32.max
-    /// El mapa de Guatemala que viene con la app (nil si no está en el paquete).
+    /// El mapa de Guatemala: el descargado desde la app (0.8.1) si es válido y no es más viejo
+    /// que el que viene con la app; si no, el de la app. Se elige al abrir la app.
     static let shared: OSMMapData? = {
-        guard let url = Bundle.main.url(forResource: "Guatemala", withExtension: "cfmap") else { return nil }
-        return OSMMapData(url: url)
+        let bundled = Bundle.main.url(forResource: "Guatemala", withExtension: "cfmap").flatMap { OSMMapData(url: $0) }
+        if let downloaded = OSMMapData(url: downloadedURL), downloaded.version >= 2,
+           bundled == nil || downloaded.date >= bundled!.date {
+            usingDownloaded = true
+            return downloaded
+        }
+        return bundled
     }()
+    /// 0.8.1: el mapa en uso es uno descargado desde la app.
+    private(set) static var usingDownloaded = false
+    /// 0.8.1: dónde se guarda el mapa descargado.
+    static var downloadedURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Mapas", isDirectory: true).appendingPathComponent("Guatemala.cfmap")
+    }
     /// Para las pruebas: otro archivo en lugar del de la app.
     static var override: OSMMapData?
     static var current: OSMMapData? { override ?? shared }
@@ -357,7 +374,8 @@ final class OSMMapData {
             }
             guard let pts = points(n) else { return nil }
             roads.append(OSMRoad(cls: flags & 0x0F, roundabout: flags & 0x10 != 0, link: flags & 0x20 != 0,
-                                 oneway: dir & 3, bridge: dir & 4 != 0, tunnel: dir & 8 != 0, name: name, points: pts))
+                                 oneway: dir & 3, bridge: dir & 4 != 0, tunnel: dir & 8 != 0, name: name, points: pts,
+                                 unpaved: flags & 0x40 != 0, maxspeed: ((dir >> 4) & 0x0F) * 10))
         }
         if minClass != nil {
             return OSMTile(row: row, col: col, roads: roads, areas: [], lines: [])

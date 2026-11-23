@@ -711,9 +711,13 @@ extension HUDRenderer {
         let o = s.layout.overlay
         let showTrip = n.navigating && !n.arrived
         let L = NavZoneLayout.make(r, o, k: k, reserve: statusReserve, trip: showTrip)
-        mapAvoid = [L.card, L.compass] + (showTrip ? [L.trip] : []) + (statusReserve.map { [$0] } ?? [])
+        let sign = showTrip && n.speedLimit > 0 ? speedSignRect(L, zone: r) : nil
+        mapAvoid = [L.card, L.compass] + (showTrip ? [L.trip] : []) + (statusReserve.map { [$0] } ?? []) + (sign.map { [$0] } ?? [])
         dashMap(s, p, now, r, ctx, anchorX: 0.5, compassRect: L.compass)
         mapAvoid = []
+        if let sign = sign {
+            drawSpeedLimit(n.speedLimit, over: n.speed * 3.6 > Double(n.speedLimit) + 5, in: sign, ctx)
+        }
         let zoneBox = textBox
         textBox = L.card
         drawManeuverCard(s, p, now, L.card, top: o.maneuverSpot.isTop, ctx)
@@ -723,6 +727,44 @@ extension HUDRenderer {
             drawTripBlocks(n, p, L.trip, value: 16 * k, card: true, progress: false, ctx)
         }
         textBox = zoneBox
+    }
+
+    /// 0.8.1: lugar de la señal de velocidad máxima: junto a la brújula (encima si la brújula
+    /// está abajo, debajo si está arriba; si no cabe, a su izquierda).
+    func speedSignRect(_ L: NavZoneLayout, zone: CGRect) -> CGRect? {
+        let size = 44 * k
+        let c = L.compass
+        let gap = 6 * k
+        let below = c.midY < zone.midY
+        let candidates = [
+            CGRect(x: c.midX - size / 2, y: below ? c.maxY + gap : c.minY - gap - size, width: size, height: size),
+            CGRect(x: c.minX - gap - size, y: c.midY - size / 2, width: size, height: size),
+        ]
+        let busy = [L.card, L.trip].filter { !$0.isEmpty }
+        return candidates.first { cand in
+            zone.contains(cand) && !busy.contains { $0.intersects(cand.insetBy(dx: -3 * k, dy: -3 * k)) }
+        }
+    }
+
+    /// 0.8.1: señal redonda de velocidad máxima (aro rojo). Si se va más de 5 km/h por encima,
+    /// se llena de rojo. Es un dibujo de la app sobre su propio mapa: no toca el velocímetro ni
+    /// los indicadores de la moto.
+    func drawSpeedLimit(_ kmh: Int, over: Bool, in r: CGRect, _ ctx: CGContext) {
+        ctx.saveGState()
+        let red = CGColor(red: 0.86, green: 0.1, blue: 0.12, alpha: 1)
+        ctx.setShadow(offset: CGSize(width: 0, height: 2 * k), blur: 6 * k, color: CGColor(gray: 0, alpha: 0.35))
+        ctx.setFillColor(over ? red : CGColor(gray: 1, alpha: 1))
+        ctx.fillEllipse(in: r)
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        let ring = 4.5 * k
+        ctx.setStrokeColor(red)
+        ctx.setLineWidth(ring)
+        ctx.strokeEllipse(in: r.insetBy(dx: ring / 2, dy: ring / 2))
+        ctx.restoreGState()
+        let text = "\(kmh)"
+        let size = (kmh >= 100 ? 15 : 18) * k
+        let m = measure(text, size: size, bold: true, color: over ? CGColor(gray: 1, alpha: 1) : CGColor(gray: 0.05, alpha: 1))
+        put(m, x: r.midX - m.width / 2, baseline: r.midY + (m.ascent - m.descent) / 2, ctx)
     }
 
     /// La tarjeta de la maniobra (sobre el mapa completo y en las zonas con mapa): misma forma

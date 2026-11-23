@@ -23,6 +23,10 @@ struct Guidance {
     var snapped: CLLocationCoordinate2D?
     /// Rumbo de la ruta en la posición actual, en grados.
     var bearing: Double = 0
+    /// 0.8.1: velocidad máxima de la calle en km/h (0 si no se sabe o está apagada).
+    var speedLimit = 0
+    /// 0.8.1: aviso de lluvia en la ruta («Posible lluvia hacia las 6:40 p. m.»), si hay.
+    var rain: String?
 }
 
 /// Motor de navegación: calcula rutas reales (con el mapa propio de OpenStreetMap, en el
@@ -66,6 +70,8 @@ final class NavEngine: ObservableObject {
     private(set) var guided: GuidedRoute?
     /// 0.7.4: corrección de la hora de llegada por el tráfico.
     private var pace = TrafficPace()
+    /// 0.8.1: aviso de lluvia vigente para la ruta (lo pone RainWatch).
+    var rainNote: String?
     private var guidanceStarted = Date()
     private var guidancePlanned: TimeInterval = 0
 
@@ -158,6 +164,7 @@ final class NavEngine: ObservableObject {
 
     /// Cancela la vista previa o termina la navegación y vuelve al mapa.
     func cancel() {
+        RainWatch.shared.routeEnded()
         directions?.cancel()
         directions = nil
         osmToken += 1
@@ -253,8 +260,10 @@ final class NavEngine: ObservableObject {
         let b = GeoPoint(lat: target.latitude, lon: target.longitude)
         let started = Date()
         let wide = reroute && osmNeedsWide
+        let options = DashStore.shared.config.map.routeOptions
         osmQueue.async { [weak self] in
             let router = OSMRouter(map: map)
+            router.options = options
             let found = router.routes(from: a, to: b, alternatives: reroute ? 0 : 2, heading: heading, wide: wide)
             let usedWide = router.lastStats.wide
             let seconds = Date().timeIntervalSince(started)
@@ -395,6 +404,10 @@ final class NavEngine: ObservableObject {
         let g = GuidedRoute(route: route)
         // 0.7.4: hora de llegada con tráfico (tras un recálculo se conserva el ritmo aprendido).
         pace.start(at: Date(), progress: 0, trafficIncluded: route.source == .apple, keepLearned: guided != nil)
+        if guided == nil {
+            // 0.8.1: pronóstico de lluvia (solo al empezar; los recálculos siguen con el mismo).
+            DispatchQueue.main.async { RainWatch.shared.routeStarted() }
+        }
         guidanceStarted = Date()
         guidancePlanned = route.expectedTravelTime
         logLine(String(format: "[RUTA] tráfico: ×%.2f sobre %d min calculados (%@)", pace.factor,
@@ -524,6 +537,9 @@ final class NavEngine: ObservableObject {
         }
         next.speed = speed
         next.bearing = bearing
+        // 0.8.1: velocidad máxima de la calle (solo rutas propias y si OpenStreetMap la tiene).
+        next.speedLimit = DashStore.shared.config.map.speedLimit && !off ? g.route.speedLimit(at: progress) : 0
+        next.rain = rainNote
         next.snapped = off ? location.coordinate : g.coordinate(g.shape.point(at: progress))
         guidance = next
         fixTime = Date().timeIntervalSinceReferenceDate
@@ -544,7 +560,26 @@ final class NavEngine: ObservableObject {
         }
     }
 
+    /// 0.8.1: puntos de lo que falta de la ruta y cuándo se pasará por cada uno (para el
+    /// pronóstico de lluvia).
+    func rainSamples() -> [RainForecast.Sample]? {
+        guard let g = guided else { return nil }
+        let length = g.shape.length
+        let left = max(0, length - progress)
+        let now = Date()
+        return [0, 1.0 / 3, 2.0 / 3, 1].map { f in
+            let c = g.coordinate(g.shape.point(at: progress + left * f))
+            return RainForecast.Sample(lat: c.latitude, lon: c.longitude, when: now.addingTimeInterval(guidance.remainingTime * f))
+        }
+    }
+
+    /// Dice algo por la voz de la guía (si no está en silencio).
+    func say(_ text: String) {
+        voice.say(text)
+    }
+
     private func arrive() {
+        RainWatch.shared.routeEnded()
         guard phase == .navigating else { return }
         stopSimulationTimer()
         phase = .arrived
@@ -710,6 +745,8 @@ final class NavEngine: ObservableObject {
             s.geo = g.geoFrame
             s.course = current.bearing
             s.routeFromApple = g.route.source == .apple
+            s.speedLimit = current.speedLimit
+            s.rain = current.rain
             if let snapped = current.snapped {
                 s.here = GeoPoint(lat: snapped.latitude, lon: snapped.longitude)
             }
