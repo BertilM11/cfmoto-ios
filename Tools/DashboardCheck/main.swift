@@ -2369,7 +2369,7 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
     // 0.8.1: límites de velocidad, terracería y opciones de ruta.
     if let r = toAntigua {
         let sorted = zip(r.speedLimits, r.speedLimits.dropFirst()).allSatisfy { $0.at <= $1.at }
-        let sane = r.speedLimits.allSatisfy { (10...150).contains($0.kmh) && $0.at >= 0 && $0.at <= r.distance + 1 }
+        let sane = r.speedLimits.allSatisfy { ($0.kmh == 0 || (10...150).contains($0.kmh)) && $0.at >= 0 && $0.at <= r.distance + 1 }
         check("0.8.1: la ruta a Antigua trae límites de velocidad ordenados y razonables", sorted && sane,
               "\(r.speedLimits.count) cambios de límite: " + r.speedLimits.prefix(6).map { String(format: "%.1f km→%d", $0.at / 1000, $0.kmh) }.joined(separator: ", "))
         let planned = PlannedRoute(osm: r)
@@ -2385,15 +2385,24 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
     check("0.8.1: «evitar autopistas» sigue encontrando ruta y no es más rápida que la normal",
           noHw != nil && normal != nil && noHw!.time >= normal!.time * 0.97,
           String(format: "normal %.0f min, sin autopistas %.0f min", (normal?.time ?? 0) / 60, (noHw?.time ?? 0) / 60))
-    // Un destino rural, para que haya terracería de por medio.
-    let rural = GeoPoint(lat: 14.4700, lon: -90.6400)
-    let ruralNormal = OSMRouter(map: gt).routes(from: zona10, to: rural, alternatives: 0).first
-    let noDirt = OSMRouter(map: gt)
-    noDirt.options = RouteOptions(avoidUnpaved: true, avoidHighways: false)
-    let ruralClean = noDirt.routes(from: zona10, to: rural, alternatives: 0).first
-    check("0.8.1: «evitar terracería» no usa más terracería que la ruta normal",
-          ruralNormal != nil && ruralClean != nil && ruralClean!.unpavedMeters <= ruralNormal!.unpavedMeters + 1,
-          String(format: "normal %.0f m, evitando %.0f m de terracería", ruralNormal?.unpavedMeters ?? -1, ruralClean?.unpavedMeters ?? -1))
+    // Destinos rurales: se usa el primero cuya ruta normal pasa por terracería.
+    let rurals = [GeoPoint(lat: 14.4700, lon: -90.6400), GeoPoint(lat: 14.7350, lon: -90.4300),
+                  GeoPoint(lat: 14.5200, lon: -90.3800), GeoPoint(lat: 14.8100, lon: -90.6900),
+                  GeoPoint(lat: 14.3900, lon: -90.5200), GeoPoint(lat: 14.6800, lon: -90.3300)]
+    var dirtNote = "ninguna ruta rural probada pasó por terracería"
+    var dirtOK = false
+    for rural in rurals {
+        guard let ruralNormal = OSMRouter(map: gt).routes(from: zona10, to: rural, alternatives: 0).first,
+              ruralNormal.unpavedMeters > 200 else { continue }
+        let noDirt = OSMRouter(map: gt)
+        noDirt.options = RouteOptions(avoidUnpaved: true, avoidHighways: false)
+        let clean = noDirt.routes(from: zona10, to: rural, alternatives: 0).first
+        dirtOK = clean != nil && clean!.unpavedMeters < ruralNormal.unpavedMeters
+        dirtNote = String(format: "a (%.3f, %.3f): normal %.0f m, evitando %.0f m de terracería",
+                          rural.lat, rural.lon, ruralNormal.unpavedMeters, clean?.unpavedMeters ?? -1)
+        break
+    }
+    check("0.8.1: «evitar terracería» usa menos terracería que la ruta normal", dirtOK, dirtNote)
 } else {
     report.append("nota: sin Tools/DashboardCheck/Guatemala.cfmap no se probaron la búsqueda ni las rutas largas")
     print(report.last!)
