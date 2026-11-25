@@ -12,10 +12,18 @@ jobs:
         run: |
           Q='[out:json][timeout:120];(way["building"](14.5905,-90.5225,14.6065,-90.5005);way["highway"](14.5905,-90.5225,14.6065,-90.5005);way["leisure"~"park|garden|pitch|playground"](14.5905,-90.5225,14.6065,-90.5005);way["landuse"~"grass|forest|recreation_ground|cemetery"](14.5905,-90.5225,14.6065,-90.5005);way["natural"~"water|wood|scrub"](14.5905,-90.5225,14.6065,-90.5005);way["amenity"~"parking"](14.5905,-90.5225,14.6065,-90.5005););out geom;'
           for u in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter; do
-            curl -sS --fail -m 180 --data-urlencode "data=$Q" "$u" -o zona.json && break
+            curl -sS --fail -m 180 -A "MotoLink-muestra/1.0 (github.com/BertilM11/cfmoto-ios)" --data-urlencode "data=$Q" "$u" -o zona.json && break
           done
+          if [ ! -s zona.json ]; then
+            sudo apt-get -qq install -y osmium-tool >/dev/null
+            curl -sS -L -o gt.pbf https://download.geofabrik.de/central-america/guatemala-latest.osm.pbf
+            osmium extract -b -90.5225,14.5905,-90.5005,14.6065 gt.pbf -o zona.osm.pbf
+            osmium export zona.osm.pbf -f geojson -o zona.geojson
+            echo '{"geojson":true}' > marca.json
+            python3 -c "import json;g=json.load(open('zona.geojson'));json.dump({'geojson':g},open('zona.json','w'))"
+          fi
           ls -la zona.json
-          python3 -c "import json;d=json.load(open('zona.json'));print(len(d['elements']))"
+          python3 -c "import json;d=json.load(open('zona.json'));print(len(d.get('elements',[])) or 'geojson')"
       - name: Publicar
         run: |
           mkdir pub && cd pub && git init -q && cp ../zona.json . 
