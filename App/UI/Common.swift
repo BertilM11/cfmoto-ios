@@ -152,6 +152,7 @@ struct RootTabs: View {
             DashStore.shared.start()
             MusicService.shared.start()
             TripRecorder.shared.start()
+            SpotifyWeb.shared.start()
         }
     }
 }

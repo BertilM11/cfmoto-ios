@@ -69,6 +69,7 @@ struct MusicScreen: View {
     @ObservedObject private var store = DashStore.shared
     @ObservedObject private var music = MusicService.shared
     @ObservedObject private var spotify = SpotifyService.shared
+    @ObservedObject private var spotifyWeb = SpotifyWeb.shared
 
     private var useSpotify: Bool { store.config.musicProvider == .spotify }
 
@@ -192,6 +193,32 @@ struct MusicScreen: View {
                     .disabled(store.config.spotifyClientID.trimmingCharacters(in: .whitespaces).isEmpty || !SpotifyService.available)
             }
             Text("El permiso de Spotify dura una hora; si caduca, toca Conectar otra vez. Conecta antes de salir: con el iPhone bloqueado no siempre se puede reconectar.")
+                .font(.caption).foregroundColor(Brand.dim)
+            Divider()
+            // 0.9.1: Spotify por internet, para cuando la conexión local se corta.
+            Text("Spotify por internet (recomendado)").font(.subheadline.weight(.semibold))
+            Text("Si Spotify se pausa o entra una llamada, la conexión local se corta y no se puede rehacer con el iPhone bloqueado. Con esto, MotoLink pregunta a Spotify por internet qué suena (cada 4 s, unos 2–4 MB por hora) y los botones siguen funcionando (Premium). Se usa solo cuando la conexión local no está.")
+                .font(.caption).foregroundColor(Brand.dim)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Antes, en developer.spotify.com › tu app › Settings › Edit:")
+                Text("• En «APIs used» marca también «Web API».")
+                Text("• Agrega la dirección de vuelta: cfmotolink://spotify-web")
+            }
+            .font(.caption).foregroundColor(Brand.dim)
+            HStack {
+                Circle().fill(spotifyWeb.signedIn ? Color.green : Color.gray).frame(width: 10, height: 10)
+                Text(spotifyWeb.statusText).font(.footnote)
+                Spacer()
+            }
+            if spotifyWeb.signedIn {
+                Button("Cerrar sesión por internet") { spotifyWeb.signOut() }
+                    .buttonStyle(.bordered).tint(.red)
+            } else {
+                Button("Iniciar sesión en Spotify") { spotifyWeb.signIn(clientID: store.config.spotifyClientID) }
+                    .buttonStyle(.borderedProminent).tint(Color(red: 0.12, green: 0.84, blue: 0.38))
+                    .disabled(store.config.spotifyClientID.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            Text("El permiso se guarda solo en el llavero de este iPhone; «Cerrar sesión» lo borra.")
                 .font(.caption).foregroundColor(Brand.dim)
             // Spotify pide que cualquier uso de su contenido enlace con su app.
             Button(spotifyInstalled ? "ABRIR SPOTIFY" : "OBTENER SPOTIFY GRATIS") { openSpotify() }

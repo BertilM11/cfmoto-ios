@@ -27,8 +27,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: MotoLink
-        CFBundleShortVersionString: "0.9.0"
-        CFBundleVersion: "25"
+        CFBundleShortVersionString: "0.9.1"
+        CFBundleVersion: "26"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
@@ -74,8 +74,8 @@ targets:
       path: Broadcast/Info.plist
       properties:
         CFBundleDisplayName: MotoLink
-        CFBundleShortVersionString: "0.9.0"
-        CFBundleVersion: "25"
+        CFBundleShortVersionString: "0.9.1"
+        CFBundleVersion: "26"
         NSLocalNetworkUsageDescription: MotoLink se conecta por Wi-Fi a la pantalla de tu moto para enviarle la imagen.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.broadcast-services-upload
@@ -105,8 +105,8 @@ targets:
       path: LiveActivity/Info.plist
       properties:
         CFBundleDisplayName: MotoLink
-        CFBundleShortVersionString: "0.9.0"
-        CFBundleVersion: "25"
+        CFBundleShortVersionString: "0.9.1"
+        CFBundleVersion: "26"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

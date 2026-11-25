@@ -105,7 +105,8 @@ final class SpotifyService: NSObject, ObservableObject {
         let now = Date()
         let lost = lostAt ?? now
         let otherAudio = AVAudioSession.sharedInstance().isOtherAudioPlaying
-        let wait = otherAudio ? 4 : SpotifyService.retryDelay(sinceLost: now.timeIntervalSince(lost))
+        // 0.9.1: si ya se lee por internet, la conexión local se reintenta sin prisa.
+        let wait = SpotifyWeb.shared.polling ? 30 : (otherAudio ? 4 : SpotifyService.retryDelay(sinceLost: now.timeIntervalSince(lost)))
         guard now.timeIntervalSince(lastAttempt) >= wait else { return }
         attempt(r, reason: otherAudio ? "Spotify está sonando" : "reintento")
         #endif
@@ -148,6 +149,38 @@ final class SpotifyService: NSObject, ObservableObject {
     }
 
     var connected: Bool { phase == .connected }
+
+    // MARK: - 0.9.1: lo que llega por internet (SpotifyWeb) cuando no hay conexión local
+
+    func adoptFromWeb(_ m: MusicSnapshot, started: Bool) {
+        guard !connected else { return }
+        title = m.title
+        artist = m.artist
+        playing = m.playing
+        lastSnapshot = m
+        if DashStore.shared.config.musicProvider == .spotify {
+            DashState.shared.setMusic(m)
+            if started { DashStore.shared.musicStarted() }
+        }
+    }
+
+    func artworkFromWeb(_ image: CGImage, _ colors: ArtPalette?) {
+        guard !connected, lastSnapshot.available else { return }
+        lastSnapshot.artwork = image
+        lastSnapshot.palette = colors
+        if DashStore.shared.config.musicProvider == .spotify { DashState.shared.setMusic(lastSnapshot) }
+    }
+
+    func pausedFromWeb() {
+        guard !connected, lastSnapshot.available else { return }
+        var m = lastSnapshot
+        if m.playing { m.position = min(m.duration, m.position + max(0, Date().timeIntervalSinceReferenceDate - m.positionTime)) }
+        m.positionTime = Date().timeIntervalSinceReferenceDate
+        m.playing = false
+        lastSnapshot = m
+        playing = false
+        if DashStore.shared.config.musicProvider == .spotify { DashState.shared.setMusic(m) }
+    }
 
     var statusText: String {
         switch phase {
@@ -235,8 +268,13 @@ final class SpotifyService: NSObject, ObservableObject {
 
     func toggle() {
         #if canImport(SpotifyiOS)
-        guard let api = remote?.playerAPI else {
-            logLine("[SPOTIFY] no hay conexión para pausar o reanudar")
+        guard let api = remote?.playerAPI, connected else {
+            // 0.9.1: sin conexión local, por internet (Spotify Premium).
+            if SpotifyWeb.shared.signedIn {
+                SpotifyWeb.shared.control(playing ? "pause" : "play")
+            } else {
+                logLine("[SPOTIFY] no hay conexión para pausar o reanudar")
+            }
             return
         }
         if playing {
@@ -248,6 +286,10 @@ final class SpotifyService: NSObject, ObservableObject {
     }
 
     func next() {
+        if !connected && SpotifyWeb.shared.signedIn {
+            SpotifyWeb.shared.control("next")
+            return
+        }
         #if canImport(SpotifyiOS)
         remote?.playerAPI?.skip(toNext: { _, error in
             if let e = error { logLine("[SPOTIFY] no se pudo pasar a la siguiente: \(e.localizedDescription)") }
@@ -256,6 +298,10 @@ final class SpotifyService: NSObject, ObservableObject {
     }
 
     func previous() {
+        if !connected && SpotifyWeb.shared.signedIn {
+            SpotifyWeb.shared.control("previous")
+            return
+        }
         #if canImport(SpotifyiOS)
         remote?.playerAPI?.skip(toPrevious: { _, error in
             if let e = error { logLine("[SPOTIFY] no se pudo volver a la anterior: \(e.localizedDescription)") }

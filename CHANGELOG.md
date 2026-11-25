@@ -9,6 +9,26 @@
 - Flujos de GitHub fijados por SHA, análisis de código con CodeQL y Dependabot para las acciones.
 - Política de seguridad (`SECURITY.md`) y documentación en `SECURITY/`.
 
+## 0.9.1 — Spotify por internet y diagnóstico de la letra (25 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.0` y etiqueta `v0.9.0`.
+
+- **Spotify por internet** (Más › Música › Spotify › «Iniciar sesión en Spotify»): en la prueba
+  del 25 de noviembre la conexión local (App Remote) se cortó al pausar y los reintentos fallaron
+  todos, aun con MotoLink en pantalla: Spotify solo la deja rehacer con su app abierta en
+  pantalla. Ahora, cuando la conexión local no está, MotoLink pregunta a Spotify por internet
+  (Web API) qué suena cada 4 s: título, artista, portada y tiempo, también con el iPhone
+  bloqueado. Los botones de la moto (pausa, siguiente, anterior) siguen funcionando por internet
+  (Spotify Premium). Solo se usa con la moto conectada o MotoLink en pantalla; unos 2–4 MB por
+  hora. Requiere marcar «Web API» y agregar `cfmotolink://spotify-web` en la app de
+  developer.spotify.com.
+- Seguridad: inicio de sesión con PKCE (sin clave secreta), permiso guardado solo en el llavero
+  del iPhone, «Cerrar sesión» lo borra (ver SECURITY/SECURITY_FIXES.md).
+- **Letra**: el registro ahora dice si la opción está encendida, cuándo se busca la letra de
+  una canción nueva y qué respondió LRCLIB.
+- Incluye los cambios de seguridad de la rama `seguridad/protocolo` (registro de la extensión
+  solo en el propio iPhone, lluvia con coordenadas de ~1 km, vuelta de Spotify validada, CodeQL).
+
 ## 0.9.0 — Spotify sin trabarse, letra de la canción, mapa «Póster» con edificios y correcciones (25 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.8.2` y etiqueta `v0.8.2`.
