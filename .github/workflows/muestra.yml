@@ -1,0 +1,24 @@
+name: Muestra de mapa (datos OSM)
+on:
+  push:
+    branches: ['wip/muestra-**']
+permissions:
+  contents: write
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar zona de muestra (Overpass)
+        run: |
+          Q='[out:json][timeout:120];(way["building"](14.5905,-90.5225,14.6065,-90.5005);way["highway"](14.5905,-90.5225,14.6065,-90.5005);way["leisure"~"park|garden|pitch|playground"](14.5905,-90.5225,14.6065,-90.5005);way["landuse"~"grass|forest|recreation_ground|cemetery"](14.5905,-90.5225,14.6065,-90.5005);way["natural"~"water|wood|scrub"](14.5905,-90.5225,14.6065,-90.5005);way["amenity"~"parking"](14.5905,-90.5225,14.6065,-90.5005););out geom;'
+          for u in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter; do
+            curl -sS --fail -m 180 --data-urlencode "data=$Q" "$u" -o zona.json && break
+          done
+          ls -la zona.json
+          python3 -c "import json;d=json.load(open('zona.json'));print(len(d['elements']))"
+      - name: Publicar
+        run: |
+          mkdir pub && cd pub && git init -q && cp ../zona.json . 
+          git config user.name ci && git config user.email ci@example.com
+          git add . && git commit -qm muestra
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" HEAD:ci-muestra
