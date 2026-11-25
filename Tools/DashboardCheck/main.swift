@@ -2435,6 +2435,78 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
           dirtOK && !dirtNotes.isEmpty,
           dirtNotes.isEmpty ? "ninguna ruta rural probada pasó por terracería"
               : dirtNotes.joined(separator: ", ") + " (\(dirtLess) con menos terracería)")
+
+    // 0.9.0: edificios guardados en el mapa (sección aparte) y tema Póster.
+    check("0.9.0: el mapa trae edificios", gt.hasBuildings, "\(gt.buildingTileCount) cuadros con edificios")
+    let z10cell = gt.cell(of: OSMPoint(zona10))
+    var z10buildings = 0
+    var badRings = 0
+    for dr in -1...1 {
+        for dc in -1...1 {
+            if let t = gt.buildings(row: z10cell.row + dr, col: z10cell.col + dc) {
+                z10buildings += t.count
+                for i in 0..<t.count {
+                    let a = Int(t.starts[i]), b = Int(t.starts[i + 1])
+                    if b - a < 3 { badRings += 1; continue }
+                    let lat = Double(t.ys[a]) / 1e6, lon = Double(t.xs[a]) / 1e6
+                    if abs(lat - zona10.lat) > 0.03 || abs(lon - zona10.lon) > 0.03 { badRings += 1 }
+                }
+            }
+        }
+    }
+    check("0.9.0: los edificios de la zona 10 se leen y caen en su sitio", z10buildings > 100 && badRings == 0,
+          "\(z10buildings) edificios alrededor de la zona 10, \(badRings) fuera de sitio")
+    let tB = Date()
+    var allB = 0
+    for dr in -6...6 { for dc in -6...6 { allB += gt.buildings(row: z10cell.row + 40 + dr, col: z10cell.col + dc)?.count ?? 0 } }
+    let bMs = Date().timeIntervalSince(tB) * 1000
+    check("0.9.0: leer 169 cuadros de edificios tarda poco", bMs < 1500, String(format: "%d edificios en %.0f ms", allB, bMs))
+    // Ruta corta en la zona 10 para dibujar el mapa con los dos temas.
+    OSMMapData.override = gt
+    if let rr = OSMRouter(map: gt).routes(from: GeoPoint(lat: 14.59379, lon: -90.51747), to: GeoPoint(lat: 14.60132, lon: -90.50959), alternatives: 0).first {
+        let frame = GeoFrame(origin: rr.points[0])
+        func posterSnap(_ theme: DashTheme, poster: Bool, limit: Int = 0) -> DashSnapshot {
+            var s = DashDemo.snapshot(layout: DashLayout.preset(.gps), theme: theme, now: now)
+            s.nav.shape = HUDRouteShape(points: rr.points.map { frame.local($0) })
+            s.nav.geo = frame
+            s.nav.progress = 300
+            s.nav.speed = 0
+            let next = rr.maneuvers.first { $0.at > 305 }
+            s.nav.maneuverAt = next?.at
+            s.nav.kind = next?.kind ?? .arrive
+            s.nav.instruction = next?.text ?? ""
+            s.nav.distanceToManeuver = (next?.at ?? rr.distance) - 300
+            s.nav.remainingDistance = rr.distance - 300
+            s.nav.fixTime = now.timeIntervalSinceReferenceDate
+            s.nav.speedLimit = limit
+            s.map = nil
+            var m = MapSettings()
+            m.provider = .osm
+            m.osmTheme = poster ? .poster : .classic
+            s.mapSettings = m
+            return s
+        }
+        let classic = render(posterSnap(.light, poster: false)).px
+        let posterDay = render(posterSnap(.light, poster: true, limit: 60)).px
+        let posterNight = render(posterSnap(.dark, poster: true)).px
+        OSMPalette.current = false
+        check("0.9.0: el tema Póster cambia el mapa (colores de prettymaps y edificios)",
+              differing(classic, posterDay) > 40_000 && colors(posterDay, rows: 120..<330) > 40,
+              "\(differing(classic, posterDay)) píxeles distintos, \(colors(posterDay, rows: 120..<330)) colores")
+        if let img = posterDay.image { save(img, "090-poster-dia") }
+        if let img = posterNight.image { save(img, "090-poster-noche") }
+        if let img = classic.image { save(img, "090-clasico-dia") }
+        var tPoster = 0.0
+        let perfR = HUDRenderer(width: Int(W), height: Int(H))
+        let snapP = posterSnap(.light, poster: true)
+        _ = DashPreview.image(snapP, now: now, renderer: perfR)
+        let t0 = Date()
+        for _ in 0..<20 { _ = DashPreview.image(snapP, now: now, renderer: perfR) }
+        tPoster = Date().timeIntervalSince(t0) * 1000 / 20
+        OSMPalette.current = false
+        check("0.9.0: el mapa Póster se dibuja rápido una vez guardado su fondo", tPoster < 40, String(format: "%.1f ms por fotograma", tPoster))
+    }
+    OSMMapData.override = nil
 } else {
     report.append("nota: sin Tools/DashboardCheck/Guatemala.cfmap no se probaron la búsqueda ni las rutas largas")
     print(report.last!)
@@ -2620,6 +2692,63 @@ do {
           && RouteOptions(avoidUnpaved: true, avoidHighways: false).factor(cls: 2, unpaved: true) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 7, unpaved: false) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 2, unpaved: false) == 1, "")
+}
+
+// 0.9.0: letra sincronizada (formato LRC), su línea según la posición y su dibujo en la moto.
+do {
+    let lrc = "[ar:Banda de ejemplo]\n[00:01.50] Las calles se encienden\n[00:04.00][00:20.00] cuando cae la tarde\n\n[00:07.25]y el motor me cuenta\n[00:10:50] lo que no se dice\n[01:02.00] sin mirar atrás"
+    let lines = LRC.parse(lrc)
+    check("0.9.0: se lee la letra LRC (varias marcas, sin etiquetas ni líneas vacías)",
+          lines.count == 6 && lines.first?.time == 1.5 && lines.last?.time == 62 && lines.contains { $0.time == 20 && $0.text == "cuando cae la tarde" },
+          lines.map { String(format: "%.2f %@", $0.time, $0.text) }.joined(separator: " | "))
+    let ly = LyricsSnapshot(key: LyricsSnapshot.key(title: "Luces de la ciudad", artist: "Banda de ejemplo"), lines: lines, synced: true)
+    check("0.9.0: la línea que suena sale de la posición de la canción",
+          ly.index(at: 0.5) == nil && ly.index(at: 1.5) == 0 && ly.index(at: 5) == 1 && ly.index(at: 10.6) == 3 && ly.index(at: 300) == 5, "")
+    var ms = musicSnap(.preset(.musicNotices), .light, art: neon)
+    ms.notices = []
+    ms.music.position = 7.4
+    ms.music.positionTime = now.timeIntervalSinceReferenceDate
+    ms.music.playing = false
+    ms.lyricsOn = true
+    ms.lyrics = ly
+    let cur = ms.currentLyrics(now: now)
+    check("0.9.0: la letra solo se usa con la opción encendida y si es de la canción que suena",
+          cur?.index == 2 && { var o = ms; o.lyricsOn = false; return o.currentLyrics(now: now) == nil }()
+            && { var o = ms; o.music.title = "Otra"; return o.currentLyrics(now: now) == nil }(), "")
+    let withLyrics = render(ms).px
+    var noLyrics = ms
+    noLyrics.lyricsOn = false
+    let without = render(noLyrics).px
+    check("0.9.0: la letra ocupa la zona de avisos (Música + Avisos)", differing(withLyrics, without) > 3000,
+          "\(differing(withLyrics, without)) píxeles distintos")
+    if let img = withLyrics.image { save(img, "090-letra-musica-dia") }
+    var dark = ms
+    dark.theme = .dark
+    dark.night = true
+    if let img = render(dark).px.image { save(img, "090-letra-musica-noche") }
+    var nav = musicSnap(.preset(.gpsNotices), .light, art: neon)
+    nav.notices = []
+    nav.music = ms.music
+    nav.lyricsOn = true
+    nav.lyrics = ly
+    nav.nav.distanceToManeuver = 800
+    let navLyrics = render(nav).px
+    var navNear = nav
+    navNear.nav.distanceToManeuver = 150
+    let near = render(navNear).px
+    var navOff = nav
+    navOff.lyricsOn = false
+    let off = render(navOff).px
+    check("0.9.0: sobre el mapa, la tarjeta de la letra aparece y se quita cerca de un giro",
+          differing(navLyrics, off) > 3000 && differing(near, off) < differing(navLyrics, off) / 3,
+          "con letra \(differing(navLyrics, off)), cerca del giro \(differing(near, off)) píxeles distintos")
+    if let img = navLyrics.image { save(img, "090-letra-navegacion") }
+    var noted = nav
+    noted.notices = [NoticeSnapshot(id: 1, kind: .nav, title: "Ruta iniciada", text: "18 min hasta el destino", time: now.timeIntervalSinceReferenceDate)]
+    let withNote = render(noted).px
+    var notedOff = noted
+    notedOff.lyricsOn = false
+    check("0.9.0: si llega un aviso, se muestra el aviso y no la letra", differing(withNote, render(notedOff).px) == 0, "")
 }
 
 // 11. Rendimiento del dibujo (mapa de calles + tarjetas).

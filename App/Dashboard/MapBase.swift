@@ -227,6 +227,14 @@ enum MapStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 0.9.0: colores del mapa propio. «Póster» se inspira en prettymaps (Marcelo Prates, AGPL-3.0):
+/// fondo crema, calles oscuras, parques con trama y edificios de colores al acercarse.
+enum OSMTheme: String, Codable, CaseIterable, Identifiable {
+    case classic, poster
+    var id: String { rawValue }
+    var title: String { self == .classic ? "Clásico" : "Póster" }
+}
+
 enum MapLabelSize: String, Codable, CaseIterable, Identifiable {
     case normal, large
     var id: String { rawValue }
@@ -272,6 +280,8 @@ struct MapSettings: Codable, Equatable {
     var rainAlerts = true
     /// 0.8.2: guía en la pantalla bloqueada y en la Dynamic Island (Live Activity).
     var liveActivity = true
+    /// 0.9.0: colores del mapa propio (Clásico o Póster, con edificios).
+    var osmTheme: OSMTheme = .classic
 
     var routeOptions: RouteOptions { RouteOptions(avoidUnpaved: avoidUnpaved, avoidHighways: avoidHighways) }
 
@@ -298,6 +308,7 @@ struct MapSettings: Codable, Equatable {
         speedLimit = (try? c.decode(Bool.self, forKey: .speedLimit)) ?? d.speedLimit
         rainAlerts = (try? c.decode(Bool.self, forKey: .rainAlerts)) ?? d.rainAlerts
         liveActivity = (try? c.decode(Bool.self, forKey: .liveActivity)) ?? d.liveActivity
+        osmTheme = (try? c.decode(OSMTheme.self, forKey: .osmTheme)) ?? d.osmTheme
     }
 
     /// Lo que cambia el aspecto de la imagen (para descartar instantáneas viejas).

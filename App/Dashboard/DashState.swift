@@ -41,10 +41,27 @@ final class DashState {
         base.artworkSize = c.artworkSize
         base.showArtist = c.showArtist
         base.showSource = c.showSource
+        let lyricsWas = base.lyricsOn
+        base.lyricsOn = c.lyricsMode
         animations = c.animations
         noticeSeconds = c.noticeSeconds
         lock.unlock()
         TFTMap.shared.configure(c.map)
+        if lyricsWas != c.lyricsMode { LyricsService.shared.settingChanged(c.lyricsMode) }
+    }
+
+    /// 0.9.0: la canción que suena ahora (para buscar su letra).
+    func currentMusic() -> MusicSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return base.music
+    }
+
+    /// 0.9.0: letra de la canción que suena (nil: no hay o no se encontró).
+    func setLyrics(_ l: LyricsSnapshot?) {
+        lock.lock()
+        base.lyrics = l
+        lock.unlock()
     }
 
     func currentLayout() -> DashLayout {
@@ -110,8 +127,14 @@ final class DashState {
             playChanged = t
         }
         track.update(old: base.music, new: m, at: t)
+        let changed = LyricsSnapshot.key(base.music) != LyricsSnapshot.key(m) || base.music.available != m.available
         base.music = m
+        let lyricsOn = base.lyricsOn
         lock.unlock()
+        // 0.9.0: canción nueva: se busca su letra (si la opción está encendida).
+        if changed && lyricsOn {
+            DispatchQueue.main.async { LyricsService.shared.trackChanged(m) }
+        }
     }
 
     func setExternal(_ e: ExternalGuide?) {

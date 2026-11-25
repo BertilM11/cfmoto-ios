@@ -41,6 +41,9 @@ Lo más interesante por dentro:
   el iPhone bloqueado**. Apple Maps sigue como opción en Personalizar > Mapa y navegación.
   Detalles: [docs/DISENO_0.7.md](docs/DISENO_0.7.md). Datos © colaboradores de OpenStreetMap
   (ODbL).
+- **Tema «Póster»** (0.9.0): colores y estilo inspirados en
+  [prettymaps](https://github.com/marceloprates/prettymaps) de Marcelo Prates (AGPL-3.0), con los
+  edificios de OpenStreetMap de toda Guatemala guardados de forma compacta en el mapa.
 - **Mapa guardado más fiable** (0.6.5, modo Apple Maps): la moto usa siempre el tema del mapa que se ve (nunca
   tarjetas claras con el mapa oscuro); si Apple no entrega imágenes, el guardado espera y sigue,
   y el iPhone lo dice; si queda un hueco que no se volvía a pedir, se pide una imagen ahí.

@@ -79,10 +79,41 @@ struct OSMPalette {
     let label: CGColor
     let halo: CGColor
     let attribution: CGColor
+    /// 0.9.0: tema Póster (edificios de colores y trama en los parques).
+    var poster = false
+    var buildings: [CGColor] = []
+    var buildingEdge: CGColor = CGColor(gray: 0, alpha: 0)
+    var hatch: CGColor?
 
-    static func make(night: Bool) -> OSMPalette {
+    /// 0.9.0: el tema elegido (lo pone el dibujo del tablero en cada fotograma).
+    static var current = false
+
+    static func make(night: Bool, poster: Bool = OSMPalette.current) -> OSMPalette {
         func c(_ h: UInt32, _ a: CGFloat = 1) -> CGColor {
             CGColor(srgbRed: CGFloat(h >> 16 & 255) / 255, green: CGFloat(h >> 8 & 255) / 255, blue: CGFloat(h & 255) / 255, alpha: a)
+        }
+        if poster {
+            // Paleta de prettymaps (fondo crema, calles oscuras, edificios cálidos); de noche, apagada.
+            if night {
+                var p = OSMPalette(bgTop: c(0x1D2228), bgBottom: c(0x1D2228), bgMid: c(0x1D2228), park: c(0x2F4A35), water: c(0x2A4E66),
+                                   river: c(0x2A4E66), casing: c(0x1D2228),
+                                   roads: [0x6F6C5C, 0x8E8A74, 0xA9A48A, 0xB8B397, 0xC9C3A3, 0xC9C3A3, 0xD6D0AF].map { c($0) },
+                                   label: c(0xEDE6C8), halo: c(0x1D2228, 0.92), attribution: c(0xEDE6C8, 0.6))
+                p.poster = true
+                p.buildings = [0xB98A2E, 0xA8503A, 0x8C2338, 0xB86A2C].map { c($0) }
+                p.buildingEdge = c(0x0E1114, 0.9)
+                p.hatch = c(0x4F7A55, 0.7)
+                return p
+            }
+            var p = OSMPalette(bgTop: c(0xF2F4CB), bgBottom: c(0xF2F4CB), bgMid: c(0xF2F4CB), park: c(0xB9DFA6), water: c(0xA1E3FF),
+                               river: c(0x7FCDEB), casing: c(0xF2F4CB),
+                               roads: [0x4A5252, 0x2F3737, 0x2F3737, 0x2F3737, 0x2F3737, 0x2F3737, 0x2F3737].map { c($0) },
+                               label: c(0x1E2424), halo: c(0xF2F4CB, 0.94), attribution: c(0x2F3737, 0.75))
+            p.poster = true
+            p.buildings = [0xFFC857, 0xE9724C, 0xC5283D, 0xF28F3B].map { c($0) }
+            p.buildingEdge = c(0x2F3737, 0.9)
+            p.hatch = c(0x8FBF7A, 0.6)
+            return p
         }
         if night {
             return OSMPalette(bgTop: c(0x111C30), bgBottom: c(0x080F1C), bgMid: c(0x0D1626), park: c(0x14301F), water: c(0x10284A), river: c(0x173A63),
@@ -181,7 +212,7 @@ final class OSMLabelCache {
     }
 
     func label(_ text: String, size: CGFloat, night: Bool, pal: OSMPalette) -> Label {
-        let key = "\(night ? 1 : 0)|\(size)|\(text)"
+        let key = "\(night ? 1 : 0)\(pal.poster ? "p" : "")|\(size)|\(text)"
         lock.lock()
         defer { lock.unlock() }
         if let l = items[key] { return l }
@@ -250,8 +281,8 @@ extension HUDRenderer {
     }
 
     static func paintOSMBase(_ map: OSMMapData, _ cam: OSMCamera, night: Bool, _ r: CGRect, _ ctx: CGContext,
-                             unit u: CGFloat, gradient: Bool) -> Int {
-        let pal = OSMPalette.make(night: night)
+                             unit u: CGFloat, gradient: Bool, poster: Bool = OSMPalette.current) -> Int {
+        let pal = OSMPalette.make(night: night, poster: poster)
         if gradient, let g = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [pal.bgTop, pal.bgBottom] as CFArray, locations: [0, 1]) {
             // Degradado de fondo.
             ctx.saveGState()
@@ -281,6 +312,58 @@ extension HUDRenderer {
                 ctx.addPath(path)
                 ctx.setFillColor(kind == 1 ? pal.park : pal.water)
                 ctx.fillPath(using: .evenOdd)
+                // 0.9.0 (Póster): trama diagonal en los parques, como en prettymaps.
+                if kind == 1, let hatch = pal.hatch {
+                    ctx.saveGState()
+                    ctx.addPath(path)
+                    ctx.clip(using: .evenOdd)
+                    let box = path.boundingBoxOfPath.intersection(r.insetBy(dx: -20, dy: -20))
+                    if !box.isNull {
+                        let gap = 7 * u
+                        let lines = CGMutablePath()
+                        var x = box.minX - box.height
+                        while x < box.maxX {
+                            lines.move(to: CGPoint(x: x, y: box.minY))
+                            lines.addLine(to: CGPoint(x: x + box.height, y: box.maxY))
+                            x += gap
+                        }
+                        ctx.addPath(lines)
+                        ctx.setStrokeColor(hatch)
+                        ctx.setLineWidth(0.8 * u)
+                        ctx.strokePath()
+                    }
+                    ctx.restoreGState()
+                }
+            }
+        }
+        // 0.9.0 (Póster): edificios de colores, solo de cerca (de lejos serían puntitos y costaría
+        // más dibujarlos). El color sale de la posición del edificio: siempre el mismo.
+        if pal.poster && map.hasBuildings && cam.metersPerPixel <= 3.2 {
+            let b = cam.bounds(r)
+            let groups = (0..<4).map { _ in CGMutablePath() }
+            let limit2 = r.insetBy(dx: -20 * u, dy: -20 * u)
+            for t in map.buildingTiles(minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY) {
+                for i in 0..<t.count {
+                    let s0 = Int(t.starts[i])
+                    let s1 = Int(t.starts[i + 1])
+                    guard s1 - s0 >= 3 else { continue }
+                    let first = cam.screen(OSMPoint(x: t.xs[s0], y: t.ys[s0]))
+                    if !limit2.contains(first) { continue }
+                    let h = (UInt32(bitPattern: t.xs[s0]) &* 73_856_093) ^ (UInt32(bitPattern: t.ys[s0]) &* 19_349_663)
+                    let path = groups[Int(h % 4)]
+                    path.move(to: first)
+                    for j in (s0 + 1)..<s1 { path.addLine(to: cam.screen(OSMPoint(x: t.xs[j], y: t.ys[j]))) }
+                    path.closeSubpath()
+                }
+            }
+            for (i, path) in groups.enumerated() where !path.isEmpty && i < pal.buildings.count {
+                ctx.addPath(path)
+                ctx.setFillColor(pal.buildings[i])
+                ctx.fillPath()
+                ctx.addPath(path)
+                ctx.setStrokeColor(pal.buildingEdge)
+                ctx.setLineWidth(0.8 * u)
+                ctx.strokePath()
             }
         }
         ctx.setLineCap(.round)
@@ -448,7 +531,8 @@ extension HUDRenderer {
     func drawOSMAttribution(night: Bool, _ r: CGRect, _ ctx: CGContext) {
         if HUDRenderer.hideText { return }
         let pal = OSMPalette.make(night: night)
-        let m = measure("© OpenStreetMap", size: 10 * k, bold: false, color: pal.attribution)
+        // 0.9.0: con el tema Póster, también el crédito de prettymaps (lo pide su autor).
+        let m = measure(pal.poster ? "© OpenStreetMap · prettymaps" : "© OpenStreetMap", size: 10 * k, bold: false, color: pal.attribution)
         ctx.saveGState()
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         ctx.textPosition = CGPoint(x: r.minX + 8 * k, y: r.maxY - 7 * k)
@@ -524,6 +608,8 @@ final class OSMBaseCache {
         /// Medio lado de la imagen, en puntos.
         let half: CGFloat
         let drawn: Int
+        /// 0.9.0: tema Póster.
+        var poster = false
     }
 
     /// Las pruebas pueden apagarlo para comparar con el dibujo directo.
@@ -547,7 +633,7 @@ final class OSMBaseCache {
         let current = entry
         lock.unlock()
         var use: Entry?
-        if let e = current, e.night == night, e.unit == unit {
+        if let e = current, e.night == night, e.unit == unit, e.poster == OSMPalette.current {
             let scale = e.mpp / cam.metersPerPixel
             let off = OSMBaseCache.offset(of: cam.center, from: e.center, mpp: cam.metersPerPixel)
             let reach = e.half * CGFloat(scale) - hypot(off.x, off.y)
@@ -639,8 +725,9 @@ final class OSMBaseCache {
         let center = cam.heading != 0 ? cam.center.moved(ahead, bearing: cam.heading) : cam.center
         let mpp = cam.metersPerPixel
         let space = ctx.colorSpace
+        let poster = OSMPalette.current
         OSMBaseCache.queue.async { [weak self] in
-            let made = OSMBaseCache.render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: space)
+            let made = OSMBaseCache.render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: space, poster: poster)
             guard let self = self else { return }
             self.lock.lock()
             if let made = made { self.entry = made }
@@ -652,11 +739,11 @@ final class OSMBaseCache {
 
     private static func render(_ map: OSMMapData, center: GeoPoint, mpp: Double, night: Bool, unit: CGFloat, half: CGFloat,
                                like ctx: CGContext) -> Entry? {
-        render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: ctx.colorSpace)
+        render(map, center: center, mpp: mpp, night: night, unit: unit, half: half, space: ctx.colorSpace, poster: OSMPalette.current)
     }
 
     private static func render(_ map: OSMMapData, center: GeoPoint, mpp: Double, night: Bool, unit: CGFloat, half: CGFloat,
-                               space: CGColorSpace?) -> Entry? {
+                               space: CGColorSpace?, poster: Bool) -> Entry? {
         let side = Int(2 * half)
         guard side > 0, side < 6000 else { return nil }
         let info = CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
@@ -667,8 +754,8 @@ final class OSMBaseCache {
         c.scaleBy(x: 1, y: -1)
         let cam = OSMCamera(center: center, heading: 0, metersPerPixel: mpp, anchor: CGPoint(x: half, y: half))
         let drawn = HUDRenderer.paintOSMBase(map, cam, night: night, CGRect(x: 0, y: 0, width: CGFloat(side), height: CGFloat(side)), c,
-                                             unit: unit, gradient: false)
+                                             unit: unit, gradient: false, poster: poster)
         guard let image = c.makeImage() else { return nil }
-        return Entry(image: image, center: center, mpp: mpp, night: night, unit: unit, half: half, drawn: drawn)
+        return Entry(image: image, center: center, mpp: mpp, night: night, unit: unit, half: half, drawn: drawn, poster: poster)
     }
 }

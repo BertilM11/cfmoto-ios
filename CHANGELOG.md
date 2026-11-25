@@ -1,5 +1,37 @@
 # Registro de cambios
 
+## 0.9.0 — Spotify sin trabarse, letra de la canción, mapa «Póster» con edificios y correcciones (25 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.8.2` y etiqueta `v0.8.2`.
+
+- **Spotify ya no se queda trabado** tras una pausa o una llamada: iOS duerme a Spotify y se
+  cortaba la conexión; antes solo se reintentaba dos veces y luego al abrir MotoLink. Ahora se
+  reconecta en cuanto iOS avisa que vuelve a sonar audio y, si no, sigue intentando (cada 5 s al
+  principio, hasta cada 30 s). Mientras no hay conexión, la moto muestra la última canción en
+  pausa con «Spotify · reconectando» (no un tiempo congelado como si sonara).
+- **Letra de la canción** (Personalización › Música › «Letra de la canción en lugar de avisos»):
+  letra sincronizada de LRCLIB, línea por línea. Ocupa el panel de Avisos (Música + Avisos) o la
+  tarjeta de avisos sobre el mapa; sobre el mapa se quita a menos de 300 m de un giro, y si llega
+  un aviso se muestra el aviso. Necesita internet; no todas las canciones tienen letra.
+- **Mapa «Póster»** (Personalización › Mapa y navegación › Colores del mapa), inspirado en
+  prettymaps de Marcelo Prates (AGPL-3.0): fondo crema, calles oscuras, parques con trama y
+  edificios de colores al acercarse; de noche, la misma paleta apagada. Crédito en la moto:
+  «© OpenStreetMap · prettymaps».
+- **Edificios de toda Guatemala** en el mapa: 3,16 millones de edificios de OpenStreetMap en una
+  sección aparte del archivo (las versiones anteriores la ignoran), guardados de forma compacta:
+  los rectángulos con su esquina, un lado y el ancho; precisión de 0,9 m; 6,2 bytes por edificio
+  (19,5 MB). El mapa pasa de 26 a 46 MB. En algunas zonas OpenStreetMap tiene pocos edificios.
+- **Logo de BERL** encima de la señal de velocidad (o encima de la brújula si la calle no tiene
+  límite conocido).
+- **Retornos**: dos giros al mismo lado casi seguidos que dejan en sentido contrario (un retorno
+  en una calle de doble vía) se anuncian como una sola indicación, «Da la vuelta en U en el
+  retorno hacia …», en vez de «Gira cerrado a la izquierda» y otro giro a los 18 m.
+- **Memoria**: el índice de la búsqueda sin internet se suelta a los 3 min sin buscar, al pasar
+  a segundo plano o con un aviso de memoria de iOS; los nombres de calle preparados ya no crecen
+  sin límite durante el viaje; en segundo plano se guardan menos cuadros del mapa.
+- La «vuelta a la manzana» al salir de casa no se cambió: en OpenStreetMap falta un tramo de la
+  36 Avenida porque en la realidad no conecta, así que la ruta es correcta.
+
 ## 0.8.2 — Guía en la pantalla bloqueada (23 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.8.1` y etiqueta `v0.8.1`.

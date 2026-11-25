@@ -45,6 +45,18 @@ struct PersonalizationScreen: View {
                         : "Mapa de Guatemala guardado en el iPhone: no descarga nada, funciona sin internet y con el iPhone bloqueado. La ruta, la búsqueda y el recálculo se hacen en el teléfono (sin tráfico en vivo). © colaboradores de OpenStreetMap.")
                      : "Imágenes, búsqueda y rutas de Apple: necesita internet y el mapa se guarda por tramos antes de bloquear el iPhone.")
                     .font(.caption).foregroundColor(Brand.dim)
+                if store.config.map.provider == .osm {
+                    // 0.9.0: tema del mapa propio.
+                    Text("Colores del mapa").font(.footnote).foregroundColor(Brand.dim)
+                    Picker("Colores", selection: $store.config.map.osmTheme) {
+                        ForEach(OSMTheme.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    if store.config.map.osmTheme == .poster {
+                        Text("Estilo póster, inspirado en prettymaps (Marcelo Prates): fondo crema, calles oscuras y edificios de colores al acercarse. Los edificios son los que hay en OpenStreetMap: en algunas zonas faltan.")
+                            .font(.caption).foregroundColor(Brand.dim)
+                    }
+                }
             }
             .tint(Brand.blue)
             // 0.8.1: preferencias de ruta, velocidad máxima, lluvia y actualización del mapa.
@@ -118,6 +130,10 @@ struct PersonalizationScreen: View {
                 Toggle("Barra de progreso", isOn: $store.config.showProgress)
                 Toggle("Artista", isOn: $store.config.showArtist)
                 Toggle("Nombre del servicio", isOn: $store.config.showSource)
+                // 0.9.0: letra sincronizada.
+                Toggle("Letra de la canción en lugar de avisos", isOn: $store.config.lyricsMode)
+                Text("Sale donde estaba el panel o la tarjeta de Avisos, línea por línea al ritmo de la canción. Necesita internet (una consulta por canción a LRCLIB) y no todas las canciones tienen letra. Si llega un aviso, se muestra el aviso; sobre el mapa, la letra se quita al acercarte a un giro.")
+                    .font(.caption).foregroundColor(Brand.dim)
             }
             .font(.subheadline)
             .tint(Brand.blue)

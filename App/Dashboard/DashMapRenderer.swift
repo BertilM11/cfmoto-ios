@@ -42,6 +42,7 @@ extension HUDRenderer {
         if s.mapSettings.provider == .osm {
             // 0.7: mapa propio de OpenStreetMap (sin imágenes de Apple).
             guard let map = OSMMapData.current else { return false }
+            OSMPalette.current = s.mapSettings.osmTheme == .poster
             // Una ruta de Apple (calculada antes de cambiar de mapa) no va sobre este mapa: hasta
             // que llegue la ruta de OpenStreetMap se usa el dibujo simple de la ruta.
             if s.nav.routeFromApple && (s.nav.navigating || !s.nav.previewRoutes.isEmpty) { return false }

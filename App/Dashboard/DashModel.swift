@@ -530,6 +530,8 @@ struct DashConfig: Codable, Equatable {
     var showSource = true
     /// Transiciones suaves (colores, mapa, ruta nueva).
     var animations = true
+    /// 0.9.0: letra sincronizada de la canción en lugar de los avisos (si la canción tiene).
+    var lyricsMode = false
 
     var layout: DashLayout { (mode == .custom ? custom : DashLayout.preset(mode)).normalized }
 
@@ -623,6 +625,7 @@ extension DashConfig {
         showArtist = (try? c.decode(Bool.self, forKey: .showArtist)) ?? d.showArtist
         showSource = (try? c.decode(Bool.self, forKey: .showSource)) ?? d.showSource
         animations = (try? c.decode(Bool.self, forKey: .animations)) ?? d.animations
+        lyricsMode = (try? c.decode(Bool.self, forKey: .lyricsMode)) ?? d.lyricsMode
     }
 }
 
@@ -754,7 +757,8 @@ extension DashLayoutEngine {
 
     /// Tarjetas flotantes sobre el mapa. Las que comparten esquina se apilan; ninguna se sale
     /// del área ni se monta sobre otra (si no caben, se descartan las menos importantes).
-    static func overlayCards(_ o: OverlaySettings, in area: CGRect, k: CGFloat, showNotices: Bool = true) -> [OverlayCard] {
+    static func overlayCards(_ o: OverlaySettings, in area: CGRect, k: CGFloat, showNotices: Bool = true,
+                             noticesSize: CGSize? = nil) -> [OverlayCard] {
         let margin = 12 * k
         let gap = 8 * k
         let inner = area.insetBy(dx: margin, dy: margin)
@@ -775,7 +779,7 @@ extension DashLayoutEngine {
         stackTop[.topRight] = clock.maxY + gap
 
         func attempt(_ item: OverlayItem, _ spot: CardSpot) -> CGRect? {
-            var size = cardSize(item, o)
+            var size = (item == .notices ? noticesSize : nil) ?? cardSize(item, o)
             size = CGSize(width: min(size.width * k, inner.width), height: min(size.height * k, inner.height))
             var rect: CGRect
             switch spot {
@@ -1291,6 +1295,21 @@ struct DashSnapshot {
     var external: ExternalGuide?
     /// 0.6.3: cuánta ruta tiene mapa guardado (para avisar en la moto cuando se acaba).
     var mapCoverage = MapCoverageState.none
+    /// 0.9.0: letra de la canción (si la opción está encendida y se encontró).
+    var lyricsOn = false
+    var lyrics: LyricsSnapshot?
+
+    /// 0.9.0: la letra que toca mostrar ahora (de esta canción y sincronizada), o nil.
+    func currentLyrics(now: Date) -> (lines: [LyricLine], index: Int)? {
+        guard lyricsOn, let l = lyrics, music.available, l.key == LyricsSnapshot.key(music) else { return nil }
+        var pos = music.position
+        if music.playing { pos += max(0, now.timeIntervalSinceReferenceDate - music.positionTime) }
+        guard let i = l.index(at: pos) else {
+            // Antes de la primera línea: se muestra la primera como «siguiente».
+            return l.lines.isEmpty ? nil : (l.lines, -1)
+        }
+        return (l.lines, i)
+    }
 }
 
 // MARK: - Reglas automáticas

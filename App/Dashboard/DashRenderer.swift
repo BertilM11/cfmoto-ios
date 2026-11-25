@@ -391,7 +391,12 @@ extension HUDRenderer {
     func drawOverlay(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ area: CGRect, _ ctx: CGContext) -> Bool {
         let n = s.nav
         let o = s.layout.overlay
-        let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty)
+        // 0.9.0: letra en la tarjeta de avisos mientras no haya avisos; se quita cerca de un giro.
+        let lyricsNow = s.notices.isEmpty ? s.currentLyrics(now: now) : nil
+        let nearTurn = n.navigating && !n.arrived && n.distanceToManeuver < 300
+        let showLyrics = lyricsNow != nil && !nearTurn
+        let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty || showLyrics,
+                                                  noticesSize: showLyrics ? CGSize(width: 320, height: 104) : nil)
         let compass = cards.first { $0.item == .compass }?.rect
         // 0.8.1: señal del límite de velocidad junto a la brújula, sin tapar ninguna tarjeta.
         let sign = n.navigating && !n.arrived && n.speedLimit > 0
@@ -426,6 +431,8 @@ extension HUDRenderer {
                 if let note = s.notices.max(by: { $0.time < $1.time }) {
                     cardBackground(r, p, ctx, radius: 14 * k)
                     dashNoticeCard(note, s.privacy, p, now, r, ctx)
+                } else if showLyrics, let ly = lyricsNow {
+                    dashLyricsCard(ly.lines, ly.index, s.music, p, r, ctx)
                 }
             case .clock:
                 dashClockPill(p, now, r, ctx)
@@ -1801,6 +1808,11 @@ extension HUDRenderer {
     /// lo envía, el título, el mensaje y cuánto hace; sin avisos, un estado vacío centrado (antes
     /// quedaba casi toda la zona en blanco).
     func dashNotices(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+        // 0.9.0: con «Letra en lugar de avisos», la letra ocupa la zona mientras no haya avisos.
+        if s.notices.isEmpty, let ly = s.currentLyrics(now: now) {
+            dashLyricsPanel(ly.lines, ly.index, p, r, ctx)
+            return
+        }
         let pad = max(9 * k, min(14 * k, min(r.width, r.height) * 0.05))
         let hs = 14 * k
         let bell = CGRect(x: r.minX + pad, y: r.minY + pad + 1 * k, width: hs, height: hs)
@@ -1860,6 +1872,95 @@ extension HUDRenderer {
             textLine(s.privacy ? "Contenido oculto" : note.text, sizes: [13 * k, 12 * k, 11.5 * k], bold: false, color: p.dim,
                      x: tx, top: top + 19.5 * k, width: tw, ctx)
             y += ch + gap
+        }
+    }
+
+    // MARK: - Letra (0.9.0)
+
+    /// Nota musical pequeña (cabecera de la letra).
+    func noteGlyph(_ r: CGRect, _ color: CGColor, _ ctx: CGContext) {
+        let u = r.height / 14
+        ctx.saveGState()
+        ctx.setFillColor(color)
+        ctx.fillEllipse(in: CGRect(x: r.minX, y: r.maxY - 6.5 * u, width: 6.5 * u, height: 6.5 * u))
+        ctx.fill(CGRect(x: r.minX + 4.7 * u, y: r.minY, width: 1.8 * u, height: r.height - 3.2 * u))
+        ctx.move(to: CGPoint(x: r.minX + 6.5 * u, y: r.minY))
+        ctx.addLine(to: CGPoint(x: r.minX + 11.5 * u, y: r.minY + 3 * u))
+        ctx.addLine(to: CGPoint(x: r.minX + 6.5 * u, y: r.minY + 4.6 * u))
+        ctx.closePath()
+        ctx.fillPath()
+        ctx.restoreGState()
+    }
+
+    /// Zona completa de la letra (en lugar de «Avisos»): la línea que suena en grande, las
+    /// anteriores y siguientes en gris, y el crédito de LRCLIB abajo.
+    func dashLyricsPanel(_ lines: [LyricLine], _ index: Int, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
+        let pad = max(10 * k, min(16 * k, min(r.width, r.height) * 0.05))
+        let hs = 14 * k
+        let note = CGRect(x: r.minX + pad, y: r.minY + pad + 1 * k, width: hs * 0.85, height: hs)
+        noteGlyph(note, p.text, ctx)
+        let head = measure("Letra", size: 15 * k, bold: true, color: p.text)
+        put(head, x: note.maxX + 6 * k, baseline: note.midY + (head.ascent - head.descent) / 2, ctx)
+        let tag = measure("sincronizada", size: 12 * k, bold: false, color: p.dim)
+        put(tag, x: note.maxX + 6 * k + head.width + 8 * k, baseline: note.midY + (head.ascent - head.descent) / 2, ctx)
+        let credit = measure("Letra: LRCLIB", size: 10 * k, bold: false, color: p.faint)
+        put(credit, x: r.minX + pad, baseline: r.maxY - pad, ctx)
+        let top = note.maxY + 14 * k
+        let bottom = r.maxY - pad - 16 * k
+        guard bottom - top > 60 * k else { return }
+        let w = r.width - 2 * pad
+        let x = r.minX + pad
+        let cur = max(0, index)
+        let mid = top + (bottom - top) * 0.42
+        // Línea actual (hasta dos renglones). Antes de que empiece la letra, la primera en gris.
+        let curTop = mid - 26 * k
+        let curEnd = paragraph(lines[cur].text, sizes: [24 * k, 22 * k, 20 * k, 18 * k], bold: true,
+                               color: index < 0 ? p.dim : p.text, x: x, top: curTop, width: w, maxLines: 2, ctx)
+        // Siguientes, hacia abajo.
+        var y = curEnd + 12 * k
+        var i = cur + 1
+        var fade: CGFloat = 0.85
+        while i < lines.count && y + 18 * k <= bottom {
+            textLine(lines[i].text, sizes: [16 * k, 15 * k, 14 * k], bold: false, color: p.dim.copy(alpha: fade) ?? p.dim,
+                     x: x, top: y, width: w, ctx)
+            y += 30 * k
+            i += 1
+            fade *= 0.7
+        }
+        // Anteriores, hacia arriba.
+        y = curTop - 12 * k - 18 * k
+        i = cur - 1
+        fade = 0.6
+        while index >= 0 && i >= 0 && y >= top {
+            textLine(lines[i].text, sizes: [15 * k, 14 * k], bold: false, color: p.faint.copy(alpha: fade) ?? p.faint,
+                     x: x, top: y, width: w, ctx)
+            y -= 30 * k
+            i -= 1
+            fade *= 0.6
+        }
+    }
+
+    /// Tarjeta de la letra sobre el mapa: anterior, actual (grande) y siguiente.
+    func dashLyricsCard(_ lines: [LyricLine], _ index: Int, _ music: MusicSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
+        cardBackground(r, p, ctx, radius: 14 * k)
+        let pad = 14 * k
+        let x = r.minX + pad
+        let w = r.width - 2 * pad
+        let note = CGRect(x: x, y: r.minY + 10 * k, width: 10 * k, height: 12 * k)
+        noteGlyph(note, p.dim, ctx)
+        let title = [music.title, music.artist].filter { !$0.isEmpty }.joined(separator: " · ")
+        textLine(title, sizes: [11 * k, 10 * k], bold: true, color: p.dim, x: note.maxX + 6 * k, top: r.minY + 9 * k,
+                 width: w - 16 * k, ctx)
+        let cur = max(0, index)
+        var y = r.minY + 30 * k
+        if index > 0 {
+            textLine(lines[cur - 1].text, sizes: [13 * k, 12 * k], bold: false, color: p.faint, x: x, top: y, width: w, ctx)
+        }
+        y += 22 * k
+        let end = paragraph(lines[cur].text, sizes: [20 * k, 18 * k, 16 * k], bold: true, color: index < 0 ? p.dim : p.text,
+                            x: x, top: y, width: w, maxLines: 1, ctx)
+        if cur + 1 < lines.count, end + 20 * k <= r.maxY - 4 * k {
+            textLine(lines[cur + 1].text, sizes: [13 * k, 12 * k], bold: false, color: p.dim, x: x, top: end + 6 * k, width: w, ctx)
         }
     }
 
