@@ -164,13 +164,14 @@ final class TcpListener {
     private var open = true
     private let lock = NSLock()
 
-    init(port: UInt16) throws {
+    /// `host`: "0.0.0.0" acepta conexiones de la red (la moto); "127.0.0.1" solo del propio iPhone.
+    init(port: UInt16, host: String = "0.0.0.0") throws {
         self.port = port
         fd = socket(AF_INET, SOCK_STREAM, 0)
         if fd < 0 { throw SockError.io("socket", errno) }
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
-        var addr = makeSockAddr("0.0.0.0", port)
+        var addr = makeSockAddr(host, port)
         let b = withUnsafePointer(to: &addr) { p in
             p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))

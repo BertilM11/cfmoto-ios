@@ -3,6 +3,7 @@ import Foundation
 
 /// La extensión de transmisión no tiene pantalla propia. Para poder ver su registro, sirve el
 /// texto en el puerto 10950 del propio iPhone y la app lo lee por 127.0.0.1.
+/// Solo escucha en 127.0.0.1: otros equipos de la misma red Wi-Fi no pueden leer el registro.
 /// Formato: [longitud u32 LE][texto UTF-8] y se cierra la conexión.
 enum LogShare {
     static let port: UInt16 = 10950
@@ -30,7 +31,7 @@ final class LogServer {
     private var open = true
 
     init?() {
-        guard let l = try? TcpListener(port: LogShare.port) else {
+        guard let l = try? TcpListener(port: LogShare.port, host: "127.0.0.1") else {
             logLine("[registro] no se pudo abrir el puerto \(LogShare.port) para compartir el registro")
             return nil
         }

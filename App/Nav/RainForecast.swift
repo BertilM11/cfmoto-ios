@@ -31,9 +31,10 @@ enum RainForecast {
 
     static func request(_ samples: [Sample]) -> URLRequest? {
         guard !samples.isEmpty, var c = URLComponents(string: "https://api.open-meteo.com/v1/forecast") else { return nil }
+        // Privacidad: dos decimales (~1 km) bastan para el pronóstico y no revelan la ubicación exacta.
         c.queryItems = [
-            URLQueryItem(name: "latitude", value: samples.map { String(format: "%.4f", $0.lat) }.joined(separator: ",")),
-            URLQueryItem(name: "longitude", value: samples.map { String(format: "%.4f", $0.lon) }.joined(separator: ",")),
+            URLQueryItem(name: "latitude", value: samples.map { String(format: "%.2f", $0.lat) }.joined(separator: ",")),
+            URLQueryItem(name: "longitude", value: samples.map { String(format: "%.2f", $0.lon) }.joined(separator: ",")),
             URLQueryItem(name: "hourly", value: "precipitation_probability,precipitation"),
             URLQueryItem(name: "forecast_hours", value: "12"),
             URLQueryItem(name: "timeformat", value: "unixtime"),

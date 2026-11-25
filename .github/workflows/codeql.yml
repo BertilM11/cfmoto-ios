@@ -1,0 +1,50 @@
+name: Análisis de código (CodeQL)
+
+# Busca errores de seguridad en el código Swift con CodeQL (gratis en repositorios públicos).
+# Corre en cada pull request, al publicar en main, cada lunes y a mano. Solo lee el repositorio
+# y deja los resultados en Security › Code scanning; no publica versiones ni ramas.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 14 * * 1" # lunes 08:41 en Guatemala
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analizar:
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+      - name: Generar proyecto de Xcode
+        run: xcodegen generate
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: swift
+          build-mode: manual
+      # El mapa de Guatemala no hace falta para compilar (se carga al usar la app).
+      - name: Compilar para simulador (sin firma)
+        run: |
+          set -o pipefail
+          xcodebuild -project CFMotoLink.xcodeproj -scheme CFMotoLink -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath buildql \
+            ARCHS=$(uname -m) ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -n 60
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: "/language:swift"

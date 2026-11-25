@@ -1,0 +1,10 @@
+# Mantiene al día las acciones de GitHub fijadas por SHA (una revisión al mes).
+# El SDK de Spotify (project.yml) se revisa a mano: Dependabot no lee proyectos de XcodeGen.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
