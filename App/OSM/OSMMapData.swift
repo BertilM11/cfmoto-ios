@@ -67,6 +67,24 @@ final class OSMTile {
     }
 }
 
+/// 0.9.0: los edificios de un cuadro, en arreglos planos (pocas reservas de memoria):
+/// el edificio i va de `starts[i]` a `starts[i + 1]` en `xs`/`ys` (millonésimas de grado).
+final class OSMBuildingTile {
+    let row: Int
+    let col: Int
+    let xs: [Int32]
+    let ys: [Int32]
+    let starts: [Int32]
+    var count: Int { max(0, starts.count - 1) }
+    init(row: Int, col: Int, xs: [Int32], ys: [Int32], starts: [Int32]) {
+        self.row = row
+        self.col = col
+        self.xs = xs
+        self.ys = ys
+        self.starts = starts
+    }
+}
+
 /// Un lugar para buscar sin internet (pueblo, colonia, gasolinera, calle con nombre…).
 struct OSMPlace {
     var point: OSMPoint
@@ -160,12 +178,36 @@ final class OSMMapData {
     private let posData: Int
     private let nameText: Int
 
+    /// 0.9.0: sección de edificios (si el archivo la trae).
+    private let posBuildingIndex: Int
+    let buildingTileCount: Int
+    private let buildingQuantum: Int
+    var hasBuildings: Bool { buildingTileCount > 0 }
+
     private let lock = NSLock()
     private var cache: [Int: OSMTile] = [:]
+    private var buildingCache: [Int64: OSMBuildingTile] = [:]
+    private var buildingOrder: [Int64] = []
+    private var buildingMissing: Set<Int64> = []
+    static let buildingCacheLimit = 64
     private var missing: Set<Int> = []
     private var order: [Int] = []
     /// Cuadros descomprimidos que se guardan (los más recientes). Unos 30 KB cada uno.
     static let cacheLimit = 160
+
+    /// 0.9.0: deja solo los `keep` cuadros más recientes (aviso de memoria o segundo plano).
+    func trimCache(keep: Int) {
+        lock.lock()
+        while order.count > keep {
+            let old = order.removeFirst()
+            cache[old] = nil
+        }
+        missing.removeAll()
+        buildingCache.removeAll()
+        buildingOrder.removeAll()
+        buildingMissing.removeAll()
+        lock.unlock()
+    }
 
     convenience init?(url: URL) {
         guard let d = try? Data(contentsOf: url, options: .alwaysMapped) else { return nil }
@@ -195,6 +237,22 @@ final class OSMMapData {
         posData = u64(76)
         nameText = posNames + 4 + 4 * nameCount
         guard step > 0, posData <= d.count, posIndex + 16 * tileCount <= d.count else { return nil }
+        // 0.9.0: cola «CFBLD2\0\0» + posición del índice de edificios (u64) + cuadros (u32) + paso (u32).
+        var bIndex = 0, bCount = 0, bq = 0
+        let dataStart = u64(76)
+        if d.count >= dataStart + 24, d.subdata(in: (d.count - 24)..<(d.count - 16)) == Data("CFBLD2\0\0".utf8) {
+            let pi = u64(d.count - 16)
+            let n = u32(d.count - 8)
+            let q = u32(d.count - 4)
+            if pi >= dataStart, q > 0, pi + 20 * n <= d.count - 24 {
+                bIndex = pi
+                bCount = n
+                bq = q
+            }
+        }
+        posBuildingIndex = bIndex
+        buildingTileCount = bCount
+        buildingQuantum = bq
     }
 
     // MARK: - Lectura
@@ -319,6 +377,165 @@ final class OSMMapData {
         }
         guard written == e.raw else { return nil }
         return OSMMapData.parse(raw, row: row, col: col, step: step, roadsFrom: minClass)
+    }
+
+    // MARK: - Edificios (0.9.0)
+
+    /// Los edificios del cuadro de esa fila y columna absolutas (nil si no hay).
+    func buildings(row: Int, col: Int) -> OSMBuildingTile? {
+        guard buildingTileCount > 0 else { return nil }
+        let key = Int64(row) << 32 | Int64(UInt32(bitPattern: Int32(truncatingIfNeeded: col)))
+        lock.lock()
+        if let t = buildingCache[key] {
+            lock.unlock()
+            return t
+        }
+        if buildingMissing.contains(key) {
+            lock.unlock()
+            return nil
+        }
+        lock.unlock()
+        let t = loadBuildings(row: row, col: col)
+        lock.lock()
+        if let t = t {
+            buildingCache[key] = t
+            buildingOrder.append(key)
+            if buildingOrder.count > OSMMapData.buildingCacheLimit {
+                buildingCache[buildingOrder.removeFirst()] = nil
+            }
+        } else {
+            buildingMissing.insert(key)
+        }
+        lock.unlock()
+        return t
+    }
+
+    /// Los cuadros de edificios que tocan la caja (millonésimas de grado).
+    func buildingTiles(minX: Int, minY: Int, maxX: Int, maxY: Int) -> [OSMBuildingTile] {
+        guard buildingTileCount > 0 else { return [] }
+        let r0 = Int(floor(Double(minY) / Double(step)))
+        let r1 = Int(floor(Double(maxY) / Double(step)))
+        let c0 = Int(floor(Double(minX) / Double(step)))
+        let c1 = Int(floor(Double(maxX) / Double(step)))
+        guard r1 - r0 < 40, c1 - c0 < 40 else { return [] }
+        var out: [OSMBuildingTile] = []
+        for r in r0...r1 {
+            for c in c0...c1 {
+                if let t = buildings(row: r, col: c) { out.append(t) }
+            }
+        }
+        return out
+    }
+
+    private func loadBuildings(row: Int, col: Int) -> OSMBuildingTile? {
+        // Búsqueda binaria por (fila, columna) en el índice de 20 bytes por cuadro.
+        func i32(_ o: Int) -> Int { Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: Int32.self) }.littleEndian) }
+        func u32(_ o: Int) -> Int { Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) }.littleEndian) }
+        var lo = 0
+        var hi = buildingTileCount - 1
+        var found = -1
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            let o = posBuildingIndex + 20 * mid
+            let r = i32(o)
+            let c = i32(o + 4)
+            if r == row && c == col {
+                found = o
+                break
+            }
+            if r < row || (r == row && c < col) { lo = mid + 1 } else { hi = mid - 1 }
+        }
+        guard found >= 0 else { return nil }
+        let offset = u32(found + 8)
+        let size = u32(found + 12)
+        let rawLen = u32(found + 16)
+        let base = posBuildingIndex + 20 * buildingTileCount
+        guard rawLen > 0, rawLen < 64 << 20, base + offset + size <= data.count - 24 else { return nil }
+        var raw = [UInt8](repeating: 0, count: rawLen)
+        let written = data.withUnsafeBytes { src -> Int in
+            guard let b = src.baseAddress else { return 0 }
+            return compression_decode_buffer(&raw, rawLen, b.advanced(by: base + offset).assumingMemoryBound(to: UInt8.self),
+                                             size, nil, COMPRESSION_ZLIB)
+        }
+        guard written == rawLen else { return nil }
+        return OSMMapData.parseBuildings(raw, row: row, col: col, step: step, quantum: buildingQuantum)
+    }
+
+    /// Lee los edificios de un cuadro descomprimido (formato en Tools/OSM/build_cfmap.py).
+    static func parseBuildings(_ b: [UInt8], row: Int, col: Int, step: Int, quantum q: Int) -> OSMBuildingTile? {
+        var p = 0
+        var ok = true
+        func varint() -> Int {
+            var v = 0
+            var shift = 0
+            while p < b.count {
+                let byte = Int(b[p])
+                p += 1
+                v |= (byte & 0x7F) << shift
+                if byte & 0x80 == 0 { return v }
+                shift += 7
+                if shift > 56 { break }
+            }
+            ok = false
+            return 0
+        }
+        func zigzag() -> Int {
+            let v = varint()
+            return (v >> 1) ^ -(v & 1)
+        }
+        let n = varint()
+        guard ok, n < 1_000_000 else { return nil }
+        var xs: [Int32] = []
+        var ys: [Int32] = []
+        var starts: [Int32] = [0]
+        xs.reserveCapacity(n * 6)
+        ys.reserveCapacity(n * 6)
+        starts.reserveCapacity(n + 1)
+        let unitStep = step / max(1, q)
+        var px = col * unitStep
+        var py = row * unitStep
+        for _ in 0..<n {
+            let code = varint()
+            guard ok, code < 10_000 else { return nil }
+            px += zigzag()
+            py += zigzag()
+            if code == 0 {
+                // Rectángulo: lado p0→p1 y ancho con signo hacia la derecha (igual que el armador).
+                let ex = zigzag()
+                let ey = zigzag()
+                let w = zigzag()
+                guard ok else { return nil }
+                let len = (Double(ex * ex + ey * ey)).squareRoot()
+                guard len > 0 else { return nil }
+                func rint(_ v: Double) -> Int { Int((v + 0.5).rounded(.down)) }
+                let x1 = px + ex
+                let y1 = py + ey
+                let x2 = x1 + rint(Double(w * ey) / len)
+                let y2 = y1 - rint(Double(w * ex) / len)
+                let x3 = px + (x2 - x1)
+                let y3 = py + (y2 - y1)
+                for (x, y) in [(px, py), (x1, y1), (x2, y2), (x3, y3)] {
+                    xs.append(Int32(x * q))
+                    ys.append(Int32(y * q))
+                }
+            } else {
+                let count = code + 2
+                var lx = px
+                var ly = py
+                xs.append(Int32(lx * q))
+                ys.append(Int32(ly * q))
+                for _ in 1..<count {
+                    lx += zigzag()
+                    ly += zigzag()
+                    xs.append(Int32(lx * q))
+                    ys.append(Int32(ly * q))
+                }
+                guard ok else { return nil }
+            }
+            starts.append(Int32(xs.count))
+        }
+        guard p == b.count else { return nil }
+        return OSMBuildingTile(row: row, col: col, xs: xs, ys: ys, starts: starts)
     }
 
     /// Lee un cuadro descomprimido. Con `roadsFrom`, solo las calles de esa clase o más.

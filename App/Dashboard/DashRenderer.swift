@@ -396,7 +396,9 @@ extension HUDRenderer {
         // 0.8.1: señal del límite de velocidad junto a la brújula, sin tapar ninguna tarjeta.
         let sign = n.navigating && !n.arrived && n.speedLimit > 0
             ? compass.flatMap { signRect(near: $0, zone: area, busy: cards.filter { $0.item != .compass }.map { $0.rect }) } : nil
-        mapAvoid = cards.map { $0.rect } + (statusReserve.map { [$0] } ?? []) + (sign.map { [$0] } ?? [])
+        let busyCards = cards.filter { $0.item != .compass }.map { $0.rect } + (statusReserve.map { [$0] } ?? [])
+        brandSpot = brandRect(above: sign ?? compass, zone: area, busy: busyCards)
+        mapAvoid = cards.map { $0.rect } + (statusReserve.map { [$0] } ?? []) + (sign.map { [$0] } ?? []) + (brandSpot.map { [$0] } ?? [])
         var streets = drawStreetMap(s, p, now, area, ctx, compass: compass)
         mapAvoid = []
         if !streets {
@@ -436,6 +438,8 @@ extension HUDRenderer {
         if let sign = sign {
             drawSpeedLimit(n.speedLimit, over: n.speed * 3.6 > Double(n.speedLimit) + 5, in: sign, ctx)
         }
+        if let b = brandSpot { drawBrand(in: b, night: s.night, ctx) }
+        brandSpot = nil
         return streets
     }
 
@@ -718,12 +722,17 @@ extension HUDRenderer {
         let showTrip = n.navigating && !n.arrived
         let L = NavZoneLayout.make(r, o, k: k, reserve: statusReserve, trip: showTrip)
         let sign = showTrip && n.speedLimit > 0 ? speedSignRect(L, zone: r) : nil
+        brandSpot = brandRect(above: sign ?? L.compass, zone: r,
+                              busy: [L.card] + (showTrip ? [L.trip] : []) + (statusReserve.map { [$0] } ?? []))
         mapAvoid = [L.card, L.compass] + (showTrip ? [L.trip] : []) + (statusReserve.map { [$0] } ?? []) + (sign.map { [$0] } ?? [])
+            + (brandSpot.map { [$0] } ?? [])
         dashMap(s, p, now, r, ctx, anchorX: 0.5, compassRect: L.compass)
         mapAvoid = []
         if let sign = sign {
             drawSpeedLimit(n.speedLimit, over: n.speed * 3.6 > Double(n.speedLimit) + 5, in: sign, ctx)
         }
+        if let b = brandSpot { drawBrand(in: b, night: s.night, ctx) }
+        brandSpot = nil
         let zoneBox = textBox
         textBox = L.card
         drawManeuverCard(s, p, now, L.card, top: o.maneuverSpot.isTop, ctx)

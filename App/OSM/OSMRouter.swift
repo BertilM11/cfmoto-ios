@@ -463,7 +463,17 @@ final class OSMRouter {
                 if !street.isEmpty {
                     text += (k == .keepLeft || k == .keepRight) ? " hacia \(street)" : " por \(street)"
                 }
-                if let last = maneuvers.last, at - last.at < 15 {
+                let lefts: Set<ManeuverKind> = [.slightLeft, .left, .sharpLeft, .keepLeft]
+                let rights: Set<ManeuverKind> = [.slightRight, .right, .sharpRight, .keepRight]
+                if let last = maneuvers.last, at - last.at < 45,
+                   (lefts.contains(last.kind) && lefts.contains(k)) || (rights.contains(last.kind) && rights.contains(k)),
+                   abs(OSMRouter.turn(bearing(last.at - 25, last.at), bearing(at, at + 25))) >= 150 {
+                    // 0.9.0: dos giros al mismo lado casi seguidos que dejan mirando al revés (un
+                    // retorno en una calle de doble vía): una sola indicación, la vuelta en U.
+                    var text = OSMRouter.text(.uTurn) + " en el retorno"
+                    if !street.isEmpty { text += " hacia \(street)" }
+                    maneuvers[maneuvers.count - 1] = (last.at, .uTurn, text)
+                } else if let last = maneuvers.last, at - last.at < 15 {
                     // Dos cruces casi juntos: se queda el primero.
                 } else {
                     maneuvers.append((at, k, text))
@@ -503,7 +513,7 @@ final class OSMRouter {
         case .slightRight: return "Gira ligeramente a la derecha"
         case .right: return "Gira a la derecha"
         case .sharpRight: return "Gira cerrado a la derecha"
-        case .uTurn: return "Da la vuelta"
+        case .uTurn: return "Da la vuelta en U"
         case .roundabout: return "Entra en la rotonda"
         case .keepLeft: return "Mantente a la izquierda"
         case .keepRight: return "Mantente a la derecha"

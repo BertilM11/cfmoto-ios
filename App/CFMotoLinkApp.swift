@@ -82,6 +82,14 @@ enum AppRuntime {
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             update(foreground: false)
             logLine("[APP] pasa a segundo plano")
+            // 0.9.0: menos memoria en segundo plano (iOS cierra antes las apps que ocupan mucho).
+            OSMMapData.current?.trimCache(keep: 64)
+            OSMLabelCache.shared.trim()
+        }
+        center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
+            OSMMapData.current?.trimCache(keep: 24)
+            OSMLabelCache.shared.trim()
+            logLine("[APP] aviso de memoria de iOS: se soltaron cachés del mapa propio")
         }
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
             update(foreground: true)

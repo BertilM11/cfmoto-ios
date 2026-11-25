@@ -138,6 +138,7 @@ final class OSMLabelCache {
             lock.unlock()
             return cached
         }
+        if anchorTiles.count > 300 { anchorTiles.removeAll(keepingCapacity: true) }
         lock.unlock()
         var out: [Anchor] = []
         for road in t.roads where road.name != OSMMapData.noName && road.cls >= 2 && road.points.count >= 2 {
@@ -165,11 +166,28 @@ final class OSMLabelCache {
         return out
     }
 
+    /// 0.9.0: suelta todo (aviso de memoria de iOS o la app pasa a segundo plano).
+    func trim() {
+        lock.lock()
+        items.removeAll()
+        anchorTiles.removeAll()
+        lock.unlock()
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return items.count
+    }
+
     func label(_ text: String, size: CGFloat, night: Bool, pal: OSMPalette) -> Label {
         let key = "\(night ? 1 : 0)|\(size)|\(text)"
         lock.lock()
         defer { lock.unlock() }
         if let l = items[key] { return l }
+        // 0.9.0: sin límite crecía todo el viaje (una imagen por calle vista); se vacía al pasar
+        // de 600 nombres (se vuelven a preparar los que sigan a la vista).
+        if items.count > 600 { items.removeAll(keepingCapacity: true) }
         let f: CTFont
         if let cached = fonts[size] {
             f = cached
@@ -436,7 +454,39 @@ extension HUDRenderer {
         ctx.textPosition = CGPoint(x: r.minX + 8 * k, y: r.maxY - 7 * k)
         CTLineDraw(m.line, ctx)
         ctx.restoreGState()
-        drawBrandMark(color: pal.attribution, x: r.minX + 8 * k + m.width + 8 * k, baseline: r.maxY - 7 * k, ctx)
+        // 0.9.0: el emblema va encima de la señal de velocidad (o de la brújula); aquí solo si no
+        // cupo allí.
+        if brandSpot == nil {
+            drawBrandMark(color: pal.attribution, x: r.minX + 8 * k + m.width + 8 * k, baseline: r.maxY - 7 * k, ctx)
+        }
+    }
+
+    /// 0.9.0: tamaño del emblema de BERL.
+    var brandSize: CGSize {
+        let h = 26 * k
+        return CGSize(width: BrandMark.width(forHeight: h), height: h)
+    }
+
+    /// 0.9.0: sitio del emblema justo encima de `anchor` (la señal de velocidad o la brújula),
+    /// o debajo si `anchor` está en la mitad de arriba; nil si no cabe sin tapar nada.
+    func brandRect(above anchor: CGRect?, zone: CGRect, busy: [CGRect]) -> CGRect? {
+        guard let a = anchor, !a.isEmpty, BrandMark.mask != nil else { return nil }
+        let size = brandSize
+        let gap = 6 * k
+        let up = a.midY > zone.midY
+        var x = a.midX - size.width / 2
+        x = min(max(x, zone.minX + 4 * k), zone.maxX - size.width - 4 * k)
+        let y = up ? a.minY - gap - size.height : a.maxY + gap
+        let cand = CGRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
+        guard zone.contains(cand) else { return nil }
+        if busy.contains(where: { !$0.isEmpty && $0.intersects(cand.insetBy(dx: -2 * k, dy: -2 * k)) }) { return nil }
+        return cand
+    }
+
+    /// 0.9.0: dibuja el emblema en `rect` con el color tenue del aviso de la licencia.
+    func drawBrand(in rect: CGRect, night: Bool, _ ctx: CGContext) {
+        let pal = OSMPalette.make(night: night)
+        drawBrandMark(color: pal.attribution, x: rect.minX, baseline: rect.maxY - 2 * k, ctx)
     }
 
     /// 0.7.1: el emblema de BERL, pequeño y tenue, justo después de «© OpenStreetMap» (esa

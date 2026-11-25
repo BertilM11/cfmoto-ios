@@ -38,7 +38,7 @@ import numpy as np
 import osmium
 
 STEP = 10000          # 0,01° en 1e-6°
-BQ = 4                # 0.9.0: los edificios se guardan en pasos de 4 millonésimas (~0,45 m)
+BQ = 8                # 0.9.0: los edificios se guardan en pasos de 8 millonésimas (~0,9 m)
 MAX_SEG = 250.0       # metros: los tramos más largos se parten para que caigan en todos sus cuadros
 NONE = 0xFFFFFFFF
 
@@ -253,7 +253,7 @@ class Reader(osmium.SimpleHandler):
             self.buildings_small += 1
             return
         qpts = [(q(x), q(y)) for x, y in pts]
-        qpts = simplify_ring(qpts, 7)[:-1]
+        qpts = simplify_ring(qpts, 8)[:-1]
         qq = []
         for x, y in qpts:
             v = (int(round(x / BQ)), int(round(y / BQ)))
@@ -538,12 +538,37 @@ def zz(v):
     return (v << 1) ^ (v >> 63)
 
 
+def rint(v):
+    """Redondeo igual que en la app (floor(v + 0,5)), no el «del banquero» de Python."""
+    return int(math.floor(v + 0.5))
+
+
+def rect_of(b):
+    """Si el edificio de 4 puntos es un rectángulo (con ±1 paso de tolerancia), devuelve el
+    lado p0→p1 y el ancho con signo hacia la derecha; si no, None."""
+    if len(b) != 4:
+        return None
+    (x0, y0), (x1, y1), (x2, y2), (x3, y3) = b
+    ex, ey = x1 - x0, y1 - y0
+    L = math.hypot(ex, ey)
+    if L == 0:
+        return None
+    w = rint(((x2 - x1) * ey - (y2 - y1) * ex) / L)
+    rx2, ry2 = x1 + rint(w * ey / L), y1 - rint(w * ex / L)
+    rx3, ry3 = x0 + (rx2 - x1), y0 + (ry2 - y1)
+    if max(abs(rx2 - x2), abs(ry2 - y2), abs(rx3 - x3), abs(ry3 - y3)) <= 1:
+        return ex, ey, w
+    return None
+
+
 def building_section(buildings):
     """0.9.0: edificios por cuadro, en una sección aparte al final del archivo (las versiones
     anteriores de la app no la leen). Cada cuadro, comprimido con zlib:
-      varint n; por edificio: varint (puntos − 3), primer punto como diferencia zigzag con el
-      primer punto del edificio anterior (el primero, con la esquina del cuadro) y los demás como
-      diferencias zigzag con el punto anterior; todo en pasos de BQ millonésimas."""
+      varint n; por edificio: varint c. Con c = 0, un rectángulo: primer punto (diferencia
+      zigzag con el primer punto del edificio anterior; el primero, con la esquina del cuadro),
+      lado (zigzag dx, dy) y ancho con signo hacia la derecha (zigzag). Con c > 0, c + 2 puntos:
+      el primero como antes y los demás como diferencias zigzag con el anterior.
+      Todo en pasos de BQ millonésimas de grado."""
     step = STEP // BQ
     tiles = {}
     for b in buildings:
@@ -551,26 +576,37 @@ def building_section(buildings):
         tiles.setdefault((y0 // step, x0 // step), []).append(b)
     blobs = []
     raw_total = 0
+    rects = 0
     for key in sorted(tiles):
         lst = sorted(tiles[key], key=lambda b: (b[0][1], b[0][0]))
         out = bytearray()
         varint(out, len(lst))
         px, py = key[1] * step, key[0] * step
         for b in lst:
-            varint(out, len(b) - 3)
             fx, fy = b[0]
-            varint(out, zz(fx - px))
-            varint(out, zz(fy - py))
+            r = rect_of(b)
+            if r:
+                varint(out, 0)
+                varint(out, zz(fx - px))
+                varint(out, zz(fy - py))
+                for v in r:
+                    varint(out, zz(v))
+                rects += 1
+            else:
+                varint(out, len(b) - 2)
+                varint(out, zz(fx - px))
+                varint(out, zz(fy - py))
+                lx, ly = fx, fy
+                for x, y in b[1:]:
+                    varint(out, zz(x - lx))
+                    varint(out, zz(y - ly))
+                    lx, ly = x, y
             px, py = fx, fy
-            lx, ly = fx, fy
-            for x, y in b[1:]:
-                varint(out, zz(x - lx))
-                varint(out, zz(y - ly))
-                lx, ly = x, y
         c = zlib.compressobj(9, zlib.DEFLATED, -15)
         comp = c.compress(bytes(out)) + c.flush()
         blobs.append((key, comp, len(out)))
         raw_total += len(out)
+    print(f'edificios rectangulares: {rects} de {len(buildings)}')
     return blobs, raw_total
 
 
@@ -667,7 +703,7 @@ def build(src, dst, bbox=None, date=None):
     assert len(header) == header_len
     # 0.9.0: edificios. Sección aparte al final: índice (fila absoluta i32, columna absoluta i32,
     # posición u32, tamaño u32, tamaño sin comprimir u32) y datos; la cola del archivo dice dónde
-    # empieza: «CFBLD1\0\0», posición del índice (u64), número de cuadros (u32), BQ (u32).
+    # empieza: «CFBLD2\0\0», posición del índice (u64), número de cuadros (u32), BQ (u32).
     bblobs, braw = building_section(r.buildings)
     pos_bindex = header_len + len(name_sec) + len(place_sec) + len(index) + len(data)
     bindex = bytearray()
@@ -675,7 +711,7 @@ def build(src, dst, bbox=None, date=None):
     for (row, col), comp, rawlen in bblobs:
         bindex += struct.pack('<iiIII', row, col, len(bdata), len(comp), rawlen)
         bdata += comp
-    tail = b'CFBLD1\0\0' + struct.pack('<QII', pos_bindex, len(bblobs), BQ)
+    tail = b'CFBLD2\0\0' + struct.pack('<QII', pos_bindex, len(bblobs), BQ)
     with open(dst, 'wb') as f:
         f.write(header)
         f.write(name_sec)

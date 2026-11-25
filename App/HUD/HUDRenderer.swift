@@ -308,6 +308,9 @@ final class HUDRenderer {
     var cardImages: [String: CGImage] = [:]
     /// 0.7: rectángulos de las tarjetas que tapan el mapa, para no poner nombres de calles debajo.
     var mapAvoid: [CGRect] = []
+    /// 0.9.0: sitio del emblema de BERL en este fotograma (encima de la señal de velocidad o de
+    /// la brújula); nil: va junto a «© OpenStreetMap».
+    var brandSpot: CGRect?
     /// 0.7: imagen del fondo del mapa propio que se reutiliza entre fotogramas.
     let osmBaseCache = OSMBaseCache()
     static var cacheCards = true

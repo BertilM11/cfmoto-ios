@@ -277,6 +277,34 @@ final class OSMSearchService {
     static let shared = OSMSearchService()
     private let queue = DispatchQueue(label: "cfmoto.osm.busqueda", qos: .userInitiated)
     private var index: OSMSearch?
+    /// 0.9.0: el índice ocupa decenas de MB; se suelta a los 3 min sin buscar, al pasar la app a
+    /// segundo plano o con un aviso de memoria (se vuelve a armar en menos de medio segundo).
+    private var releaseWork: DispatchWorkItem?
+
+    init() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.release(reason: "la app pasó a segundo plano")
+        }
+        center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.release(reason: "aviso de memoria")
+        }
+    }
+
+    func release(reason: String) {
+        queue.async {
+            guard self.index != nil else { return }
+            self.index = nil
+            logLine("[BUSCAR] índice sin internet liberado (\(reason))")
+        }
+    }
+
+    private func scheduleRelease() {
+        releaseWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.release(reason: "3 min sin buscar") }
+        releaseWork = work
+        queue.asyncAfter(deadline: .now() + 180, execute: work)
+    }
 
     private func ready() -> OSMSearch? {
         if index == nil, let map = OSMMapData.current {
@@ -290,12 +318,16 @@ final class OSMSearchService {
 
     /// Prepara el índice antes de la primera búsqueda (al abrir el buscador).
     func warmUp() {
-        queue.async { _ = self.ready() }
+        queue.async {
+            _ = self.ready()
+            self.scheduleRelease()
+        }
     }
 
     func search(_ text: String, near: GeoPoint?, done: @escaping ([OSMSearchResult]) -> Void) {
         queue.async {
             let found = self.ready()?.search(text, near: near) ?? []
+            self.scheduleRelease()
             DispatchQueue.main.async { done(found) }
         }
     }
