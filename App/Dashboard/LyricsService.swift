@@ -26,6 +26,7 @@ final class LyricsService {
     /// Al encender o apagar la opción.
     func settingChanged(_ on: Bool) {
         DispatchQueue.main.async {
+            logLine(on ? "[LETRA] opción «letra en lugar de avisos» encendida" : "[LETRA] opción de la letra apagada")
             if on {
                 self.currentKey = ""
                 self.trackChanged(DashState.shared.currentMusic())
@@ -51,11 +52,16 @@ final class LyricsService {
         currentKey = key
         task?.cancel()
         if let hit = cache[key] {
+            logLine("[LETRA] canción nueva: letra ya guardada (\(hit.lines.count) líneas)")
             DashState.shared.setLyrics(hit)
             return
         }
         DashState.shared.setLyrics(nil)
-        if notFound.contains(key) { return }
+        if notFound.contains(key) {
+            logLine("[LETRA] canción nueva: ya se sabe que no tiene letra sincronizada")
+            return
+        }
+        logLine("[LETRA] canción nueva: buscando su letra en LRCLIB")
         fetch(title: m.title, artist: m.artist, album: m.album, duration: m.duration, key: key)
     }
 

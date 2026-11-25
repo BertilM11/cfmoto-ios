@@ -14,7 +14,7 @@
 | App (SwiftUI, iOS 16+) | Navegación con mapa propio de OpenStreetMap, panel para la moto, música (Música y Spotify), viajes |
 | Extensión de transmisión | Envía la pantalla del iPhone a la moto (H.264) |
 | Conexión con la moto (`Shared/BikeLink.swift`) | Wi-Fi Direct: la moto se conecta a los puertos 10920–10922 del iPhone; saludo con RSA |
-| Servicios externos (HTTPS) | Nominatim (búsqueda), Open-Meteo (lluvia), LRCLIB (letras), GitHub (mapa), Spotify (SDK oficial) |
+| Servicios externos (HTTPS) | Nominatim (búsqueda), Open-Meteo (lluvia), LRCLIB (letras), GitHub (mapa), Spotify (SDK oficial y, desde 0.9.1, Web API con PKCE) |
 | Mapa | Se descarga de Releases y se comprueba su huella SHA-256 antes de usarlo |
 
 ## Superficie de ataque y controles
