@@ -38,6 +38,7 @@ import numpy as np
 import osmium
 
 STEP = 10000          # 0,01° en 1e-6°
+BQ = 4                # 0.9.0: los edificios se guardan en pasos de 4 millonésimas (~0,45 m)
 MAX_SEG = 250.0       # metros: los tramos más largos se parten para que caigan en todos sus cuadros
 NONE = 0xFFFFFFFF
 
@@ -137,6 +138,10 @@ class Reader(osmium.SimpleHandler):
         self.admin_levels = {}
         self.unpaved = 0
         self.with_maxspeed = 0
+        # 0.9.0: edificios (contorno exterior, ya simplificado y en unidades de BQ millonésimas).
+        self.buildings = []
+        self.buildings_seen = 0
+        self.buildings_small = 0
 
     def name_id(self, text):
         if not text:
@@ -180,6 +185,9 @@ class Reader(osmium.SimpleHandler):
 
     def way(self, w):
         t = w.tags
+        if 'building' in t and t.get('building') != 'no' and not t.get('highway'):
+            self.building(w)
+            return
         hw = t.get('highway')
         try:
             pts = [(n.lon, n.lat) for n in w.nodes]
@@ -224,8 +232,42 @@ class Reader(osmium.SimpleHandler):
         elif t.get('waterway') in RIVERS:
             self.lines.append((RIVERS[t.get('waterway')], pts))
 
+    def building(self, w):
+        """Edificio: contorno simplificado (~0,8 m), sin el punto repetido del cierre, en
+        unidades de BQ millonésimas de grado (~0,45 m). Se omiten los de menos de 20 m²."""
+        try:
+            pts = [(n.lon, n.lat) for n in w.nodes]
+        except osmium.InvalidLocationError:
+            return
+        if len(pts) < 4 or pts[0] != pts[-1]:
+            return
+        if self.bbox and not any(self.inside(*p) for p in pts):
+            return
+        self.buildings_seen += 1
+        lat = math.radians(pts[0][1])
+        mx = 111320 * math.cos(lat)
+        area = 0.0
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+            area += (x0 * mx) * (y1 * 110574) - (x1 * mx) * (y0 * 110574)
+        if abs(area) / 2 < 20:
+            self.buildings_small += 1
+            return
+        qpts = [(q(x), q(y)) for x, y in pts]
+        qpts = simplify_ring(qpts, 7)[:-1]
+        qq = []
+        for x, y in qpts:
+            v = (int(round(x / BQ)), int(round(y / BQ)))
+            if not qq or qq[-1] != v:
+                qq.append(v)
+        if len(qq) > 1 and qq[0] == qq[-1]:
+            qq.pop()
+        if len(qq) >= 3:
+            self.buildings.append(qq)
+
     def area(self, a):
         t = a.tags
+        if 'building' in t and not any((k, v) in WATER or (k, v) in PARK for k, v in t) and not place_kind(t):
+            return
         if t.get('boundary') == 'administrative':
             level = t.get('admin_level', '')
             self.admin_levels[level] = self.admin_levels.get(level, 0) + 1
@@ -481,6 +523,57 @@ def data_date(src):
     return None
 
 
+def varint(out, v):
+    while True:
+        b = v & 0x7F
+        v >>= 7
+        if v:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return
+
+
+def zz(v):
+    return (v << 1) ^ (v >> 63)
+
+
+def building_section(buildings):
+    """0.9.0: edificios por cuadro, en una sección aparte al final del archivo (las versiones
+    anteriores de la app no la leen). Cada cuadro, comprimido con zlib:
+      varint n; por edificio: varint (puntos − 3), primer punto como diferencia zigzag con el
+      primer punto del edificio anterior (el primero, con la esquina del cuadro) y los demás como
+      diferencias zigzag con el punto anterior; todo en pasos de BQ millonésimas."""
+    step = STEP // BQ
+    tiles = {}
+    for b in buildings:
+        x0, y0 = b[0]
+        tiles.setdefault((y0 // step, x0 // step), []).append(b)
+    blobs = []
+    raw_total = 0
+    for key in sorted(tiles):
+        lst = sorted(tiles[key], key=lambda b: (b[0][1], b[0][0]))
+        out = bytearray()
+        varint(out, len(lst))
+        px, py = key[1] * step, key[0] * step
+        for b in lst:
+            varint(out, len(b) - 3)
+            fx, fy = b[0]
+            varint(out, zz(fx - px))
+            varint(out, zz(fy - py))
+            px, py = fx, fy
+            lx, ly = fx, fy
+            for x, y in b[1:]:
+                varint(out, zz(x - lx))
+                varint(out, zz(y - ly))
+                lx, ly = x, y
+        c = zlib.compressobj(9, zlib.DEFLATED, -15)
+        comp = c.compress(bytes(out)) + c.flush()
+        blobs.append((key, comp, len(out)))
+        raw_total += len(out)
+    return blobs, raw_total
+
+
 def build(src, dst, bbox=None, date=None):
     t0 = time.time()
     r = Reader(bbox)
@@ -572,13 +665,30 @@ def build(src, dst, bbox=None, date=None):
               struct.pack('<iii', col0 * STEP, row0 * STEP, STEP) + struct.pack('<II', ncols, nrows) +
               struct.pack('<Q', stamp) + struct.pack('<QQQQ', pos_names, pos_places, pos_index, pos_data))
     assert len(header) == header_len
+    # 0.9.0: edificios. Sección aparte al final: índice (fila absoluta i32, columna absoluta i32,
+    # posición u32, tamaño u32, tamaño sin comprimir u32) y datos; la cola del archivo dice dónde
+    # empieza: «CFBLD1\0\0», posición del índice (u64), número de cuadros (u32), BQ (u32).
+    bblobs, braw = building_section(r.buildings)
+    pos_bindex = header_len + len(name_sec) + len(place_sec) + len(index) + len(data)
+    bindex = bytearray()
+    bdata = bytearray()
+    for (row, col), comp, rawlen in bblobs:
+        bindex += struct.pack('<iiIII', row, col, len(bdata), len(comp), rawlen)
+        bdata += comp
+    tail = b'CFBLD1\0\0' + struct.pack('<QII', pos_bindex, len(bblobs), BQ)
     with open(dst, 'wb') as f:
         f.write(header)
         f.write(name_sec)
         f.write(place_sec)
         f.write(index)
         f.write(data)
-    total = header_len + len(name_sec) + len(place_sec) + len(index) + len(data)
+        f.write(bindex)
+        f.write(bdata)
+        f.write(tail)
+    print(f'edificios: {len(r.buildings)} guardados de {r.buildings_seen} ({r.buildings_small} de menos de 20 m² omitidos); '
+          f'{len(bblobs)} cuadros, {len(bdata) / 1e6:.1f} MB comprimidos de {braw / 1e6:.1f} MB '
+          f'({len(bdata) / max(1, len(r.buildings)):.1f} bytes por edificio)')
+    total = header_len + len(name_sec) + len(place_sec) + len(index) + len(data) + len(bindex) + len(bdata) + len(tail)
     print(f'escrito {dst}: {total / 1e6:.1f} MB ({len(blobs)} cuadros, datos {len(data) / 1e6:.1f} MB '
           f'comprimidos de {raw_total / 1e6:.1f} MB; nombres {len(name_sec) / 1e6:.1f} MB; '
           f'lugares {len(place_sec) / 1e6:.1f} MB) en {time.time() - t0:.0f} s', file=sys.stderr)

@@ -14,7 +14,7 @@ permissions:
 jobs:
   mapa:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Herramientas
@@ -29,7 +29,7 @@ jobs:
             w/leisure=park,garden,recreation_ground,golf_course,stadium w/landuse=grass,forest,recreation_ground,reservoir w/natural=wood \
             r/leisure=park r/landuse=forest r/natural=wood \
             n/place nwr/amenity nwr/shop nwr/tourism nwr/leisure=stadium nwr/aeroway=aerodrome \
-            r/boundary=administrative nwr/name -o filtrado.osm.pbf
+            r/boundary=administrative nwr/name w/building -o filtrado.osm.pbf
           ls -la filtrado.osm.pbf
       - name: Buscar nombres en OpenStreetMap completo (diagnóstico)
         run: |
