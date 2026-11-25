@@ -196,9 +196,10 @@ final class SpotifyService: NSObject, ObservableObject {
     /// Vuelta desde la app de Spotify (cfmotolink://spotify-login…).
     @discardableResult
     func handle(_ url: URL) -> Bool {
-        guard url.scheme == SpotifyService.redirect.scheme else { return false }
+        guard url.scheme == SpotifyService.redirect.scheme, url.host == SpotifyService.redirect.host else { return false }
         #if canImport(SpotifyiOS)
-        guard let r = remote else { return true }
+        // Solo se acepta la vuelta que MotoLink pidió: otra app no puede colar un permiso ajeno.
+        guard let r = remote, phase == .authorizing else { return true }
         let params = r.authorizationParameters(from: url)
         if let t = params?[SPTAppRemoteAccessTokenKey] {
             token = t

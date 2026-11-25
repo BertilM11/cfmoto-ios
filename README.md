@@ -174,6 +174,7 @@ firmar en *Releases*.
 - [docs/MAPA_IPHONE_BLOQUEADO.md](docs/MAPA_IPHONE_BLOQUEADO.md): mapa con el iPhone bloqueado (qué permite Apple, cobertura y alternativas).
 - [docs/DISENO_0.6.2.md](docs/DISENO_0.6.2.md): diseño de la 0.6.2 (música, instrucciones y hora) con capturas.
 - [docs/LIMITATIONS.md](docs/LIMITATIONS.md): limitaciones pendientes y qué haría falta.
+- [SECURITY.md](SECURITY.md) y [SECURITY/](SECURITY/README.md): política de seguridad, revisión, riesgos y mantenimiento.
 
 ## Créditos y licencia
 

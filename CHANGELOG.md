@@ -1,5 +1,14 @@
 # Registro de cambios
 
+## Seguridad (sin número de versión, 25 de noviembre de 2026)
+
+- El registro de diagnóstico de la extensión de transmisión solo se puede leer desde el propio iPhone
+  (antes también desde otros equipos de la misma red Wi-Fi). La pantalla de Diagnóstico lo sigue mostrando igual.
+- El aviso de lluvia envía la ubicación con unos 1 km de precisión (antes ~11 m); el pronóstico es el mismo.
+- La vuelta de Spotify solo se acepta cuando MotoLink pidió el permiso.
+- Flujos de GitHub fijados por SHA, análisis de código con CodeQL y Dependabot para las acciones.
+- Política de seguridad (`SECURITY.md`) y documentación en `SECURITY/`.
+
 ## 0.9.0 — Spotify sin trabarse, letra de la canción, mapa «Póster» con edificios y correcciones (25 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.8.2` y etiqueta `v0.8.2`.
