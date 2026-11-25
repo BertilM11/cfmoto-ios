@@ -349,7 +349,11 @@ extension HUDRenderer {
                     guard s1 - s0 >= 3 else { continue }
                     let first = cam.screen(OSMPoint(x: t.xs[s0], y: t.ys[s0]))
                     if !limit2.contains(first) { continue }
-                    let h = (UInt32(bitPattern: t.xs[s0]) &* 73_856_093) ^ (UInt32(bitPattern: t.ys[s0]) &* 19_349_663)
+                    // Mezcla de bits (las coordenadas van de 8 en 8: sin mezclar, todos daban el mismo color).
+                    var h = (UInt32(bitPattern: t.xs[s0] >> 3) &* 73_856_093) ^ (UInt32(bitPattern: t.ys[s0] >> 3) &* 19_349_663)
+                    h ^= h >> 13
+                    h = h &* 0x5BD1_E995
+                    h ^= h >> 15
                     let path = groups[Int(h % 4)]
                     path.move(to: first)
                     for j in (s0 + 1)..<s1 { path.addLine(to: cam.screen(OSMPoint(x: t.xs[j], y: t.ys[j]))) }

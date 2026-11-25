@@ -2493,6 +2493,21 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
         check("0.9.0: el tema Póster cambia el mapa (colores de prettymaps y edificios)",
               differing(classic, posterDay) > 40_000 && colors(posterDay, rows: 120..<330) > 40,
               "\(differing(classic, posterDay)) píxeles distintos, \(colors(posterDay, rows: 120..<330)) colores")
+        // Los edificios usan los 4 colores de la paleta (no uno solo).
+        var warm = Set<UInt32>()
+        let pal = OSMPalette.make(night: false, poster: true)
+        let targets: [(Int, Int, Int)] = pal.buildings.map { c in
+            let comps = c.converted(to: CGColorSpace(name: CGColorSpace.sRGB)!, intent: .defaultIntent, options: nil)?.components ?? [0, 0, 0]
+            return (Int(comps[0] * 255), Int(comps[1] * 255), Int(comps[2] * 255))
+        }
+        for y in stride(from: 110, to: 330, by: 3) {
+            for x in stride(from: 20, to: 780, by: 3) {
+                let o = y * posterDay.rowBytes + x * 4
+                let b = Int(posterDay.data[o]), g = Int(posterDay.data[o + 1]), r = Int(posterDay.data[o + 2])
+                for (i, t) in targets.enumerated() where abs(t.0 - r) < 14 && abs(t.1 - g) < 14 && abs(t.2 - b) < 14 { warm.insert(UInt32(i)) }
+            }
+        }
+        check("0.9.0: los edificios salen con varios colores de la paleta", warm.count >= 3, "\(warm.count) de 4 colores a la vista")
         if let img = posterDay.image { save(img, "090-poster-dia") }
         if let img = posterNight.image { save(img, "090-poster-noche") }
         if let img = classic.image { save(img, "090-clasico-dia") }
