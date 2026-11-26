@@ -3,7 +3,7 @@
 // 0.9.1: Spotify por internet (Web API), para cuando la conexión local (App Remote) no está.
 // La conexión local se corta cuando Spotify se pausa y solo se puede volver a abrir con la app
 // de Spotify en pantalla; con el iPhone bloqueado era imposible. Por internet, MotoLink pregunta
-// cada 4 s qué suena (título, artista, portada, posición) y puede pausar, reanudar o cambiar de
+// cada 2 s (4 s en pausa) qué suena (título, artista, portada, posición) y puede pausar, reanudar o cambiar de
 // canción (esto último exige Spotify Premium).
 //
 // Seguridad:
@@ -79,7 +79,9 @@ final class SpotifyWeb: NSObject, ObservableObject, ASWebAuthenticationPresentat
     func start() {
         guard timer == nil else { return }
         if signedIn { phase = .ready }
-        let t = Timer(timeInterval: 4, repeats: true) { [weak self] _ in self?.tick() }
+        // 0.9.3: se revisa cada segundo; se pregunta cada 2 s mientras suena (4 s en pausa) y justo
+        // al terminar la canción, para que el cambio de canción salga sin retraso.
+        let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
@@ -100,8 +102,16 @@ final class SpotifyWeb: NSObject, ObservableObject, ASWebAuthenticationPresentat
             logLine(want ? "[SPOTIFY] leyendo Spotify por internet (sin conexión local)" : "[SPOTIFY] dejo de leer Spotify por internet")
         }
         guard want, !inFlight, Date() >= backoffUntil else { return }
+        let now = Date()
+        let gap: TimeInterval = lastPlaying ? 2 : 4
+        let ended = trackEnd.map { now >= $0 } ?? false
+        guard ended || now.timeIntervalSince(lastPoll) >= gap else { return }
         poll()
     }
+
+    /// 0.9.3: hora de la última pregunta y hora en que termina la canción que suena.
+    private var lastPoll = Date.distantPast
+    private var trackEnd: Date?
 
     // MARK: - Inicio de sesión (PKCE)
 
@@ -246,6 +256,8 @@ final class SpotifyWeb: NSObject, ObservableObject, ASWebAuthenticationPresentat
 
     private func poll() {
         inFlight = true
+        lastPoll = Date()
+        trackEnd = nil
         withToken { [weak self] token in
             guard let self = self else { return }
             var req = URLRequest(url: URL(string: "https://api.spotify.com/v1/me/player?additional_types=episode")!)
@@ -338,6 +350,7 @@ final class SpotifyWeb: NSObject, ObservableObject, ASWebAuthenticationPresentat
         m.positionTime = Date().timeIntervalSinceReferenceDate
         m.artwork = artwork
         m.palette = palette
+        trackEnd = p.playing && p.duration > 0 ? Date().addingTimeInterval(max(0.5, p.duration - p.position + 0.4)) : nil
         let started = p.playing && !lastPlaying
         lastPlaying = p.playing
         SpotifyService.shared.adoptFromWeb(m, started: started)

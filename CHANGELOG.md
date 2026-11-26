@@ -1,5 +1,17 @@
 # Registro de cambios
 
+## 0.9.3 — Letra a pantalla completa y Spotify por internet más rápido (25 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.2` y etiqueta `v0.9.2`.
+
+- **Sin franja negra en la letra**: en Música + Letra, el fondo de la portada cubre toda la zona,
+  también la franja de arriba junto a la hora.
+- **Spotify por internet con menos retraso**: con el iPhone bloqueado iOS no deja rehacer la
+  conexión local de Spotify, así que la de internet es la que sostiene el tablero. Ahora pregunta
+  cada 2 s mientras suena (4 s en pausa) y justo cuando termina la canción, para que el cambio de
+  canción y la portada salgan casi al momento (unos 4–7 MB por hora).
+- No cambia nada de la conexión con la moto: velocidad, RPM, marcha, combustible y testigos igual.
+
 ## 0.9.2 — Ajustes estéticos: colores del mapa, hora centrada y letra sobre la portada (25 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.9.1` y etiqueta `v0.9.1`.

@@ -2,7 +2,7 @@ name: Prueba en simulador
 
 on:
   push:
-    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5, dev/0.7, dev/0.7.1, dev/0.7.2, dev/0.7.4, dev/0.7.5, dev/0.8.0, dev/0.8.1, dev/0.8.2, dev/0.9.0, dev/0.9.1, dev/0.9.2]
+    branches: [dev/navegacion, dev/dashboard, dev/mapa, dev/0.6.1, dev/0.6.2, dev/0.6.3, dev/0.6.4, dev/0.6.5, dev/0.7, dev/0.7.1, dev/0.7.2, dev/0.7.4, dev/0.7.5, dev/0.8.0, dev/0.8.1, dev/0.8.2, dev/0.9.0, dev/0.9.1, dev/0.9.2, dev/0.9.3]
   workflow_dispatch:
 
 permissions:

@@ -2569,6 +2569,20 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
               differing(sDay, sClassic) > 20_000, "\(differing(sDay, sClassic)) píxeles distintos")
         check("0.9.2: el fondo de la letra es la portada de la canción", differing(sDay, sNoArt) > 8_000,
               "\(differing(sDay, sNoArt)) píxeles distintos con y sin portada")
+        // 0.9.3: en Música + Letra, la portada cubre también la franja de arriba (junto a la hora).
+        func musicLyrics93(art: Bool) -> (image: CGImage?, data: [UInt8], rowBytes: Int) {
+            var x = split92(.dark, poster: false, art: art)
+            x.layout = .preset(.musicNotices)
+            return render(x).px
+        }
+        let mlArt = musicLyrics93(art: true)
+        let mlNo = musicLyrics93(art: false)
+        let a93 = rgbAt(mlArt, 600, 16)
+        let b93 = rgbAt(mlNo, 600, 16)
+        let d93 = abs(a93.r - b93.r) + abs(a93.g - b93.g) + abs(a93.b - b93.b)
+        check("0.9.3: el fondo de la letra llena toda la zona, también la franja junto a la hora", d93 > 0.05,
+              String(format: "diferencia %.3f en la franja de arriba", d93))
+        if let img = mlArt.image { save(img, "093-musica-letra") }
         if let img = sDay.image { save(img, "092-dividida-dia") }
         if let img = sNight.image { save(img, "092-dividida-noche") }
         if let img = render(posterSnap(.light, poster: true, limit: 60)).px.image { save(img, "092-completa-dia") }
