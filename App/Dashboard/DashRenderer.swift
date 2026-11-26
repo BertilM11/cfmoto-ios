@@ -43,16 +43,9 @@ extension HUDRenderer {
         let frames = DashLayoutEngine.frames(s.layout, in: area, gap: gap)
         // 0.9.2: con la zona del mapa con tarjetas, la hora va más grande, arriba y centrada en el
         // hueco libre entre la tarjeta de la maniobra y el borde del mapa.
-        if let nav = frames.first(where: { $0.module == .nav }) {
-            let showTrip = s.nav.navigating && !s.nav.arrived
-            let L = NavZoneLayout.make(nav.rect, s.layout.overlay, k: k, reserve: nil, trip: showTrip)
-            if let c = DashLayoutEngine.centeredClock(in: nav.rect, avoid: [L.card] + (showTrip ? [L.trip] : []), k: k) {
-                clock = c
-            }
-        }
-        if frames.isEmpty {
-            let m = measure("Panel vacío: activa un módulo en Mi pantalla", size: 22 * k, bold: true, color: p.dim)
-            put(m, x: area.midX - m.width / 2, baseline: area.midY, ctx)
+        if !strip {
+            clock = DashLayoutEngine.panelClock(s.layout, in: CGRect(x: 0, y: 0, width: width, height: height), k: k,
+                                                trip: s.nav.navigating && !s.nav.arrived)
         }
         for f in frames {
             ctx.saveGState()
@@ -94,6 +87,7 @@ extension HUDRenderer {
         }
 
         dashStatusClock(p, now, clock, ctx)
+        if HUDRenderer.recordText { HUDRenderer.drawnClock = clock }
         // Etiquetas de estado (DEMO, SIMULACIÓN…). 0.6.3: dentro de la zona del mapa, arriba a la
         // derecha, para no caer sobre la música ni los avisos; sin mapa, junto a la hora.
         var right = clock.minX - 8 * k
@@ -450,6 +444,7 @@ extension HUDRenderer {
                 dashClockPill(p, now, r, ctx)
             case .time:
                 dashStatusClock(p, now, r, ctx)
+                if HUDRenderer.recordText { HUDRenderer.drawnClock = r }
             case .compass:
                 break
             }

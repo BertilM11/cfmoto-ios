@@ -760,9 +760,9 @@ extension DashLayoutEngine {
 
     /// 0.9.2: la hora arriba, centrada en el espacio libre más ancho de la franja de arriba de
     /// `zone` (entre la tarjeta de la maniobra y el borde del mapa). nil si no cabe.
-    static func centeredClock(in zone: CGRect, avoid: [CGRect], k: CGFloat) -> CGRect? {
+    static func centeredClock(in zone: CGRect, avoid: [CGRect], k: CGFloat, margin: CGFloat = 12) -> CGRect? {
         let size = CGSize(width: centeredClockSize.width * k, height: centeredClockSize.height * k)
-        let m = 10 * k
+        let m = margin * k
         let gap = 8 * k
         guard zone.width > 2 * m, zone.height > size.height + 2 * m else { return nil }
         let band = CGRect(x: zone.minX + m, y: zone.minY + m, width: zone.width - 2 * m, height: size.height)
@@ -779,6 +779,18 @@ extension DashLayoutEngine {
         guard let best = free.max(by: { ($0.1 - $0.0) < ($1.1 - $1.0) }), best.1 - best.0 >= size.width else { return nil }
         let cx = (best.0 + best.1) / 2
         return CGRect(x: (cx - size.width / 2).rounded(), y: band.minY.rounded(), width: size.width.rounded(), height: size.height.rounded())
+    }
+
+    /// 0.9.2: la hora en los diseños por zonas: centrada arriba de la zona del mapa con tarjetas
+    /// (en el hueco entre la maniobra y el borde); sin esa zona, o si no cabe, arriba a la derecha.
+    static func panelClock(_ layout: DashLayout, in full: CGRect, k: CGFloat, trip: Bool) -> CGRect {
+        let gap = (6 * k).rounded()
+        let frames = DashLayoutEngine.frames(layout, in: full.insetBy(dx: gap, dy: gap), gap: gap)
+        if let nav = frames.first(where: { $0.module == .nav }) {
+            let L = NavZoneLayout.make(nav.rect, layout.overlay, k: k, reserve: nil, trip: trip)
+            if let c = centeredClock(in: nav.rect, avoid: [L.card] + (trip ? [L.trip] : []), k: k, margin: 9) { return c }
+        }
+        return statusClock(in: full, k: k)
     }
 
     /// Tarjetas flotantes sobre el mapa. Las que comparten esquina se apilan; ninguna se sale
