@@ -2520,6 +2520,39 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
         tPoster = Date().timeIntervalSince(t0) * 1000 / 20
         OSMPalette.current = false
         check("0.9.0: el mapa Póster se dibuja rápido una vez guardado su fondo", tPoster < 40, String(format: "%.1f ms por fotograma", tPoster))
+        // 0.9.2: pantalla dividida (mapa + música + letra) con los colores del mapa Póster.
+        let ly92 = LyricsSnapshot(key: LyricsSnapshot.key(title: "Luces de la ciudad", artist: "Banda de ejemplo"),
+                                  lines: LRC.parse("[00:01.00] cuando cae la tarde\n[00:04.00] y el motor me cuenta\n[00:08.00] lo que no se dice\n[00:12.00] me lleva hasta tu barrio"),
+                                  synced: true)
+        func split92(_ theme: DashTheme, poster: Bool, art: Bool = true) -> DashSnapshot {
+            var s = posterSnap(theme, poster: poster, limit: 60)
+            s.layout = DashLayout(template: .mainSide, slots: [.nav, .music, .notices], split: 0.65)
+            let m = musicSnap(.preset(.musicNotices), theme, art: art ? neon : nil)
+            s.music = m.music
+            s.music.title = "Luces de la ciudad"
+            s.music.artist = "Banda de ejemplo"
+            s.music.position = 5
+            s.music.positionTime = now.timeIntervalSinceReferenceDate
+            s.music.playing = false
+            s.notices = []
+            s.lyricsOn = true
+            s.lyrics = ly92
+            return s
+        }
+        let sDay = render(split92(.light, poster: true)).px
+        let sNight = render(split92(.dark, poster: true)).px
+        let sClassic = render(split92(.light, poster: false)).px
+        let sNoArt = render(split92(.light, poster: true, art: false)).px
+        OSMPalette.current = false
+        check("0.9.2: con el Póster, el tablero toma los colores del mapa (pantalla dividida)",
+              differing(sDay, sClassic) > 20_000, "\(differing(sDay, sClassic)) píxeles distintos")
+        check("0.9.2: el fondo de la letra es la portada de la canción", differing(sDay, sNoArt) > 8_000,
+              "\(differing(sDay, sNoArt)) píxeles distintos con y sin portada")
+        if let img = sDay.image { save(img, "092-dividida-dia") }
+        if let img = sNight.image { save(img, "092-dividida-noche") }
+        if let img = render(posterSnap(.light, poster: true, limit: 60)).px.image { save(img, "092-completa-dia") }
+        if let img = render(posterSnap(.dark, poster: true, limit: 60)).px.image { save(img, "092-completa-noche") }
+        OSMPalette.current = false
     }
     OSMMapData.override = nil
 } else {
@@ -2707,6 +2740,30 @@ do {
           && RouteOptions(avoidUnpaved: true, avoidHighways: false).factor(cls: 2, unpaved: true) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 7, unpaved: false) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 2, unpaved: false) == 1, "")
+}
+
+// 0.9.2: la hora arriba, centrada en el hueco entre la tarjeta de la maniobra y el borde del mapa.
+do {
+    let zone = CGRect(x: 0, y: 0, width: 800, height: 400)
+    let card = CGRect(x: 12, y: 12, width: 200, height: 96)
+    let c = DashLayoutEngine.centeredClock(in: zone, avoid: [card], k: 1)
+    let mid = (card.maxX + 8 + zone.maxX - 10) / 2
+    check("0.9.2: la hora queda centrada entre la maniobra y el borde del mapa",
+          c != nil && abs(c!.midX - mid) <= 1 && !c!.intersects(card) && c!.minY <= 12 && c!.width >= 128,
+          c.map { "centro \($0.midX), esperado \(mid)" } ?? "no cupo")
+    let narrow = CGRect(x: 0, y: 0, width: 330, height: 400)
+    check("0.9.2: si no hay hueco, la hora vuelve a su esquina",
+          DashLayoutEngine.centeredClock(in: narrow, avoid: [CGRect(x: 10, y: 10, width: 200, height: 90)], k: 1) == nil, "")
+    var bad = 0
+    for preset in [DashMode.gps, .gpsMusic, .full, .gpsNotices] {
+        let cards = DashLayoutEngine.overlayCards(DashLayout.preset(preset).overlay, in: zone, k: 1, centeredClock: true)
+        guard let t = cards.first(where: { $0.item == .time }) else { bad += 1; continue }
+        if cards.contains(where: { $0.item != .time && $0.rect.intersects(t.rect) }) { bad += 1 }
+    }
+    check("0.9.2: la hora centrada no tapa ninguna tarjeta sobre el mapa", bad == 0, "\(bad) diseños con choque")
+    let L = NavZoneLayout.make(CGRect(x: 6, y: 6, width: 512, height: 388), OverlaySettings(), k: 1, reserve: nil, trip: true)
+    check("0.9.2: la barra del viaje va centrada en la zona del mapa", abs(L.trip.midX - (6 + 256)) <= 1,
+          "centro \(L.trip.midX)")
 }
 
 // 0.9.0: letra sincronizada (formato LRC), su línea según la posición y su dibujo en la moto.

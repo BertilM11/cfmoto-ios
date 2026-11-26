@@ -1,5 +1,25 @@
 # Registro de cambios
 
+## 0.9.2 — Ajustes estéticos: colores del mapa, hora centrada y letra sobre la portada (25 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.1` y etiqueta `v0.9.1`.
+
+- **Colores del mapa Póster en todo el tablero**: con el mapa propio en estilo Póster, la tarjeta
+  de la maniobra, la barra del viaje, la hora y el fondo de la pantalla toman los colores del
+  mapa (crema y carbón de día; carbón y ámbar de noche). La flecha del giro va en ámbar sobre
+  carbón (día) o en carbón sobre ámbar (noche). Con el estilo Clásico y con Apple Maps no cambia nada.
+- **Hora más grande y centrada**: arriba, en medio del espacio libre entre la tarjeta del giro y
+  el borde del mapa (en pantalla completa y en pantalla dividida). Si no cabe, vuelve a la esquina.
+- **Barra del viaje centrada** (Distancia · Restante · Llegada) en la zona del mapa de la pantalla dividida.
+- **Letra sobre la portada**: el fondo de la letra es la misma portada de la canción, ampliada y
+  desenfocada, con un velo para que el texto blanco se lea; cambia con cada canción. Sin portada,
+  los colores de siempre. La tarjeta de música sigue con los colores de la portada.
+- **Créditos**: sobre el mapa queda solo «© OpenStreetMap», más pequeño (lo exige su licencia);
+  el crédito de prettymaps pasa a Más › Acerca de y al README.
+- El logo de BERL sigue arriba de la señal de velocidad; con el Póster lleva una tarjetita para
+  que no se pierda en el mapa.
+- No cambia nada de la conexión con la moto: velocidad, RPM, marcha, combustible y testigos igual.
+
 ## Seguridad (sin número de versión, 25 de noviembre de 2026)
 
 - El registro de diagnóstico de la extensión de transmisión solo se puede leer desde el propio iPhone

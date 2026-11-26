@@ -337,6 +337,8 @@ struct SettingsScreen: View {
                 Text("MotoLink \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") — Smart Dashboard")
                 Text("Una creación de BERL · Bertil Raxón")
                 Text("Proyecto no oficial, sin relación con CFMOTO. Código: github.com/BertilM11/cfmoto-ios")
+                Text("Créditos: datos del mapa © colaboradores de OpenStreetMap (ODbL). Tema Póster inspirado en prettymaps de Marcelo Prates (AGPL-3.0). Letras sincronizadas de LRCLIB.")
+                    .foregroundStyle(.secondary)
                 BrandFooter(height: 58).padding(.top, 4)
             }
             .font(.footnote)

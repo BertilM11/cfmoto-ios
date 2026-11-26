@@ -48,6 +48,10 @@ struct HUDPalette {
     let routeLight: CGColor
     /// Marca del destino.
     let pin: CGColor
+    /// 0.9.2: color de la flecha dentro del mosaico de la maniobra (nil: `onAccent`).
+    var tileInk: CGColor? = nil
+    /// 0.9.2: borde de las tarjetas sobre el mapa Póster (nil: el borde luminoso de siempre).
+    var cardLine: CGColor? = nil
 
     private static func c(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
         CGColor(
@@ -119,6 +123,80 @@ struct HUDPalette {
         routeLight: c(0x7DB6FF),
         pin: c(0xE5243B)
     )
+
+    /// 0.9.2: con el mapa Póster, las tarjetas, el fondo y el mosaico de la maniobra toman los
+    /// colores del mapa (crema y carbón de día; carbón y ámbar de noche). La ruta, los avisos y
+    /// los colores de estado no cambian.
+    static let posterDay = HUDPalette(
+        background: c(0xE6E8BE),
+        panel: c(0xEDEFC8),
+        text: c(0x232A2A),
+        dim: c(0x5E6656),
+        accent: c(0x1463E0),
+        onAccent: c(0xFFFFFF),
+        route: c(0x1A6FEA),
+        routeCasing: c(0xFFFFFF),
+        routeDone: c(0xA9AC8E),
+        warn: c(0xC46A00),
+        good: c(0x0E9F5B),
+        line: c(0xCFD1A6),
+        dark: false,
+        faint: c(0x7A8070),
+        cardTop: c(0xFBFBEC, 0.97),
+        cardBottom: c(0xF2F3D6, 0.97),
+        edgeTop: c(0x2F3737, 0.55),
+        edgeBottom: c(0x2F3737, 0.75),
+        halo: c(0x2F3737, 0),
+        shadow: c(0x1E2414, 0.26),
+        panelTop: c(0xF2F4CB),
+        panelBottom: c(0xE6E8BE),
+        divider: c(0x2F3737, 0.16),
+        tileTop: c(0x3A4444),
+        tileBottom: c(0x252C2C),
+        routeGlow: c(0x1A6FEA, 0.2),
+        routeLight: c(0x7DB6FF),
+        pin: c(0xE5243B),
+        tileInk: c(0xFFC857),
+        cardLine: c(0x2F3737, 0.85)
+    )
+
+    static let posterNight = HUDPalette(
+        background: c(0x14181C),
+        panel: c(0x1D2228),
+        text: c(0xF2F4CB),
+        dim: c(0xA7AC8E),
+        accent: c(0x2F86FF),
+        onAccent: c(0xFFFFFF),
+        route: c(0x2B8CFF),
+        routeCasing: c(0x0A3A99),
+        routeDone: c(0x4A4F48),
+        warn: c(0xFFB020),
+        good: c(0x22C46E),
+        line: c(0x2E353C),
+        dark: true,
+        faint: c(0x80856C),
+        cardTop: c(0x283038, 0.95),
+        cardBottom: c(0x1D2228, 0.96),
+        edgeTop: c(0xFFC857, 0.85),
+        edgeBottom: c(0xC99A3A, 0.5),
+        halo: c(0xFFC857, 0.1),
+        shadow: c(0x000000, 0.55),
+        panelTop: c(0x1D2228),
+        panelBottom: c(0x14181C),
+        divider: c(0xF2F4CB, 0.14),
+        tileTop: c(0xFFD27A),
+        tileBottom: c(0xF2A93B),
+        routeGlow: c(0x2B8CFF, 0.26),
+        routeLight: c(0x8CC4FF),
+        pin: c(0xFF3B4A),
+        tileInk: c(0x1D2228),
+        cardLine: c(0xFFC857, 0.9)
+    )
+
+    /// 0.9.2: la paleta del tablero según el tema y el mapa elegido.
+    static func dash(night: Bool, poster: Bool) -> HUDPalette {
+        poster ? (night ? posterNight : posterDay) : (night ? HUDPalette.night : HUDPalette.day)
+    }
 }
 
 /// Iconos de maniobra hechos con trazos, para que sean idénticos en el iPhone y en la moto.
@@ -319,6 +397,8 @@ final class HUDRenderer {
     var ambientCache: [(art: CGImage, night: Bool, image: CGImage, signature: String)] = []
     /// 0.6.4: la luz de la portada ya ampliada al tamaño del reproductor.
     var ambientScaledCache: [(art: CGImage, night: Bool, w: Int, h: Int, image: CGImage)] = []
+    /// 0.9.2: portada desenfocada para el fondo de la letra (y su luminosidad media).
+    var lyricsArtCache: (art: CGImage, image: CGImage, luma: CGFloat)?
     /// 0.6.4: sombras difuminadas de la portada ya dibujadas, por tamaño y tema.
     var shadowImages: [String: CGImage] = [:]
     /// Solo para las pruebas (0.6.4): cada botón del reproductor que se dibuja (anterior,
