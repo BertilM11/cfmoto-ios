@@ -197,7 +197,7 @@ struct MusicScreen: View {
             Divider()
             // 0.9.1: Spotify por internet, para cuando la conexión local se corta.
             Text("Spotify por internet (recomendado)").font(.subheadline.weight(.semibold))
-            Text("Si Spotify se pausa o entra una llamada, la conexión local se corta y no se puede rehacer con el iPhone bloqueado. Con esto, MotoLink pregunta a Spotify por internet qué suena (cada 4 s, unos 2–4 MB por hora) y los botones siguen funcionando (Premium). Se usa solo cuando la conexión local no está.")
+            Text("Si Spotify se pausa o entra una llamada, la conexión local se corta y no se puede rehacer con el iPhone bloqueado. Con esto, MotoLink pregunta a Spotify por internet qué suena (cada 2 s mientras suena y al cambiar de canción, unos 4–7 MB por hora) y los botones siguen funcionando (Premium). Se usa solo cuando la conexión local no está.")
                 .font(.caption).foregroundColor(Brand.dim)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Antes, en developer.spotify.com › tu app › Settings › Edit:")

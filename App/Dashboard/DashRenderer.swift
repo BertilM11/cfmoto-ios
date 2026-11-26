@@ -67,7 +67,7 @@ extension HUDRenderer {
             case .map: dashMap(s, p, now, f.rect, ctx)
             case .trip: dashTrip(s.nav, p, now, belowStatus(f.rect), ctx)
             case .music: dashPlayer(s, p, now, f.rect, ctx, card: nil)
-            case .notices: dashNotices(s, p, now, belowStatus(f.rect), ctx)
+            case .notices: dashNotices(s, p, now, belowStatus(f.rect), ctx, full: f.rect)
             case .clock: dashClock(p, now, belowStatus(f.rect), ctx)
             }
             ctx.restoreGState()
@@ -1820,10 +1820,11 @@ extension HUDRenderer {
     /// Zona de avisos (0.6.3): cabecera con la campana, tarjetas de vidrio con el icono de quién
     /// lo envía, el título, el mensaje y cuánto hace; sin avisos, un estado vacío centrado (antes
     /// quedaba casi toda la zona en blanco).
-    func dashNotices(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
+    func dashNotices(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext, full: CGRect? = nil) {
         // 0.9.0: con «Letra en lugar de avisos», la letra ocupa la zona mientras no haya avisos.
         if s.notices.isEmpty, let ly = s.currentLyrics(now: now) {
-            dashLyricsPanel(ly.lines, ly.index, p, r, ctx, art: s.music.artwork, night: s.night)
+            // 0.9.3: el fondo de la portada cubre toda la zona, también detrás de la hora.
+            dashLyricsPanel(ly.lines, ly.index, p, r, ctx, art: s.music.artwork, night: s.night, backdrop: full)
             return
         }
         let pad = max(9 * k, min(14 * k, min(r.width, r.height) * 0.05))
@@ -1908,9 +1909,9 @@ extension HUDRenderer {
     /// Zona completa de la letra (en lugar de «Avisos»): la línea que suena en grande, las
     /// anteriores y siguientes en gris, y el crédito de LRCLIB abajo.
     func dashLyricsPanel(_ lines: [LyricLine], _ index: Int, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext,
-                         art: CGImage? = nil, night: Bool = false) {
+                         art: CGImage? = nil, night: Bool = false, backdrop: CGRect? = nil) {
         // 0.9.2: el fondo es la misma portada de la canción (desenfocada); el texto, en blanco.
-        let ink = lyricsInk(art, p, r, radius: 14 * k, night: night, ctx)
+        let ink = lyricsInk(art, p, backdrop ?? r, radius: 14 * k, night: night, ctx)
         let pad = max(10 * k, min(16 * k, min(r.width, r.height) * 0.05))
         let hs = 14 * k
         let note = CGRect(x: r.minX + pad, y: r.minY + pad + 1 * k, width: hs * 0.85, height: hs)
