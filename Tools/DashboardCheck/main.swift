@@ -1704,15 +1704,17 @@ lowSnap.mapCoverage = lowCoverage
 let lowRender = render(lowSnap)
 var lowLive = lowSnap
 lowLive.map = base
+let lowProblems = textProblems(lowRender.marks, clock: clockSpot)
 let lowSplit = { () -> [HUDRenderer.TextMark] in
     var s = lowSnap
     s.layout = .preset(.split)
     return render(s).marks
 }()
+let lowSplitProblems = textProblems(lowSplit, clock: clockSpot)
 check("Moto: el aviso se dibuja sin tapar nada (mapa completo y pantalla dividida)",
       lowRender.marks.contains { $0.text == "MAPA GUARDADO: 1.4 KM" } && !render(lowLive).marks.contains { $0.text.hasPrefix("MAPA GUARDADO") }
-      && textProblems(lowRender.marks, clock: clockSpot).isEmpty && lowSplit.contains { $0.text == "MAPA GUARDADO: 1.4 KM" }
-      && textProblems(lowSplit, clock: clockSpot).isEmpty)
+      && lowProblems.isEmpty && lowSplit.contains { $0.text == "MAPA GUARDADO: 1.4 KM" }
+      && lowSplitProblems.isEmpty, (lowProblems + lowSplitProblems).joined(separator: "; "))
 if let image = lowRender.px.image { save(image, "064-aviso-mapa-guardado") }
 
 // Precarga: más imágenes a la vez y más memoria.
