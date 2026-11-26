@@ -755,10 +755,50 @@ extension DashLayoutEngine {
                       width: size.width * k, height: size.height * k)
     }
 
+    /// 0.9.2: tamaño de la hora centrada (más grande que la de la esquina).
+    static let centeredClockSize = CGSize(width: 128, height: 40)
+
+    /// 0.9.2: la hora arriba, centrada en el espacio libre más ancho de la franja de arriba de
+    /// `zone` (entre la tarjeta de la maniobra y el borde del mapa). nil si no cabe.
+    static func centeredClock(in zone: CGRect, avoid: [CGRect], k: CGFloat, margin: CGFloat = 12) -> CGRect? {
+        let size = CGSize(width: centeredClockSize.width * k, height: centeredClockSize.height * k)
+        let m = margin * k
+        let gap = 8 * k
+        guard zone.width > 2 * m, zone.height > size.height + 2 * m else { return nil }
+        let band = CGRect(x: zone.minX + m, y: zone.minY + m, width: zone.width - 2 * m, height: size.height)
+        let cuts = avoid.filter { !$0.isEmpty && $0.intersects(band.insetBy(dx: 0, dy: -gap / 2)) }
+            .map { ($0.minX - gap, $0.maxX + gap) }
+            .sorted { $0.0 < $1.0 }
+        var free: [(CGFloat, CGFloat)] = []
+        var x = band.minX
+        for c in cuts {
+            if c.0 > x { free.append((x, c.0)) }
+            x = max(x, c.1)
+        }
+        if band.maxX > x { free.append((x, band.maxX)) }
+        guard let best = free.max(by: { ($0.1 - $0.0) < ($1.1 - $1.0) }), best.1 - best.0 >= size.width else { return nil }
+        let cx = (best.0 + best.1) / 2
+        return CGRect(x: (cx - size.width / 2).rounded(), y: band.minY.rounded(), width: size.width.rounded(), height: size.height.rounded())
+    }
+
+    /// 0.9.2: la hora en los diseños por zonas: centrada arriba de la zona del mapa con tarjetas
+    /// (en el hueco entre la maniobra y el borde); sin esa zona, o si no cabe, arriba a la derecha.
+    static func panelClock(_ layout: DashLayout, in full: CGRect, k: CGFloat, trip: Bool) -> CGRect {
+        let gap = (6 * k).rounded()
+        let frames = DashLayoutEngine.frames(layout, in: full.insetBy(dx: gap, dy: gap), gap: gap)
+        if let nav = frames.first(where: { $0.module == .nav }) {
+            let L = NavZoneLayout.make(nav.rect, layout.overlay, k: k, reserve: nil, trip: trip)
+            if let c = centeredClock(in: nav.rect, avoid: [L.card] + (trip ? [L.trip] : []), k: k, margin: 9) { return c }
+        }
+        return statusClock(in: full, k: k)
+    }
+
     /// Tarjetas flotantes sobre el mapa. Las que comparten esquina se apilan; ninguna se sale
     /// del área ni se monta sobre otra (si no caben, se descartan las menos importantes).
+    /// `centeredClock` (0.9.2): la hora va arriba, centrada en el hueco libre; si no cabe, en la
+    /// esquina de arriba a la derecha como antes.
     static func overlayCards(_ o: OverlaySettings, in area: CGRect, k: CGFloat, showNotices: Bool = true,
-                             noticesSize: CGSize? = nil) -> [OverlayCard] {
+                             noticesSize: CGSize? = nil, centeredClock centered: Bool = false) -> [OverlayCard] {
         let margin = 12 * k
         let gap = 8 * k
         let inner = area.insetBy(dx: margin, dy: margin)
@@ -774,9 +814,11 @@ extension DashLayoutEngine {
         var stackTop: [CardSpot: CGFloat] = [:]
         var stackBottom: [CardSpot: CGFloat] = [:]
         // La hora va primero y no se mueve: lo que vaya arriba a la derecha se pone debajo.
-        let clock = statusClock(in: area, k: k)
-        placed.append(OverlayCard(item: .time, rect: clock))
-        stackTop[.topRight] = clock.maxY + gap
+        if !centered {
+            let clock = statusClock(in: area, k: k)
+            placed.append(OverlayCard(item: .time, rect: clock))
+            stackTop[.topRight] = clock.maxY + gap
+        }
 
         func attempt(_ item: OverlayItem, _ spot: CardSpot) -> CGRect? {
             var size = (item == .notices ? noticesSize : nil) ?? cardSize(item, o)
@@ -838,6 +880,12 @@ extension DashLayoutEngine {
 
         for (item, spot) in wanted {
             if let rect = attempt(item, spot) { commit(item, spot, rect) }
+        }
+        if centered {
+            guard let clock = DashLayoutEngine.centeredClock(in: area, avoid: placed.map { $0.rect }, k: k) else {
+                return overlayCards(o, in: area, k: k, showNotices: showNotices, noticesSize: noticesSize, centeredClock: false)
+            }
+            placed.append(OverlayCard(item: .time, rect: clock))
         }
         // La brújula, pequeña, en la primera esquina que tenga sitio.
         let used = Set(placed.filter { $0.item != .time }.map { o.spot($0.item) })
@@ -1220,7 +1268,9 @@ struct NavZoneLayout: Equatable {
             if !top, let c = clock, c.maxY > ty, c.minX < right { right = min(right, c.minX - 8 * k) }
             if !top && card.minY < ty + tripH + 6 * k { ty = min(ty, card.minY - 6 * k - tripH) }
             let tw = max(0, min(right - left, 300 * k))
-            tripRect = CGRect(x: top ? right - tw : left, y: ty, width: tw, height: tripH)
+            // 0.9.2: centrada en el mapa (si cabe entre los límites de antes).
+            let tx = max(left, min(zone.midX - tw / 2, right - tw))
+            tripRect = CGRect(x: tx.rounded(), y: ty, width: tw, height: tripH)
         }
 
         // Brújula: abajo a la derecha si está libre; si no, arriba a la derecha (debajo de la

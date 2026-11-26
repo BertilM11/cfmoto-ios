@@ -11,7 +11,9 @@ extension HUDRenderer {
 
     /// Dibuja el panel completo en toda la imagen (o en la parte que el usuario deje libre).
     func drawDashboard(_ s: DashSnapshot, now: Date, in ctx: CGContext) {
-        let p = s.night ? HUDPalette.night : HUDPalette.day
+        let p = HUDPalette.dash(night: s.night, poster: s.mapSettings.provider == .osm && s.mapSettings.osmTheme == .poster)
+        // 0.9.2: el tema del mapa se conoce antes de colocar las tarjetas (el emblema lo usa).
+        OSMPalette.current = s.mapSettings.provider == .osm && s.mapSettings.osmTheme == .poster
         ctx.setFillColor(p.background)
         ctx.fill(CGRect(x: 0, y: 0, width: width, height: fullHeight))
 
@@ -27,21 +29,25 @@ extension HUDRenderer {
             let area = CGRect(x: 0, y: 0, width: width, height: height)
             let streets = drawOverlay(s, p, now, area, ctx)
             if s.mapSettings.streets && !streets && !s.demo { tags.append("MAPA SIMPLE") }
-            drawTags(tags, p, top: area.minY + 12 * k, ctx)
+            // 0.9.2: debajo de la hora (que ahora va arriba, centrada en el hueco).
+            let c = overlayClock
+            drawTags(tags, p, top: max(area.minY + 12 * k, (c?.maxY ?? 0) + 6 * k), centerX: c?.midX, ctx)
             return
         }
 
         let gap = (6 * k).rounded()
         var area = CGRect(x: 0, y: 0, width: width, height: height).insetBy(dx: gap, dy: gap)
         // La hora actual: el mismo sitio que en los modos con mapa (arriba a la derecha).
-        let clock = DashLayoutEngine.statusClock(in: CGRect(x: 0, y: 0, width: width, height: height), k: k)
+        var clock = DashLayoutEngine.statusClock(in: CGRect(x: 0, y: 0, width: width, height: height), k: k)
         // Si el diseño no muestra la ruta y hay una en curso, el próximo giro va en una franja.
         let strip = !s.layout.showsRoute && s.nav.navigating && !s.nav.arrived
         if strip { area.size.height -= 62 * k + gap }
         let frames = DashLayoutEngine.frames(s.layout, in: area, gap: gap)
-        if frames.isEmpty {
-            let m = measure("Panel vacío: activa un módulo en Mi pantalla", size: 22 * k, bold: true, color: p.dim)
-            put(m, x: area.midX - m.width / 2, baseline: area.midY, ctx)
+        // 0.9.2: con la zona del mapa con tarjetas, la hora va más grande, arriba y centrada en el
+        // hueco libre entre la tarjeta de la maniobra y el borde del mapa.
+        if !strip {
+            clock = DashLayoutEngine.panelClock(s.layout, in: CGRect(x: 0, y: 0, width: width, height: height), k: k,
+                                                trip: s.nav.navigating && !s.nav.arrived)
         }
         for f in frames {
             ctx.saveGState()
@@ -83,6 +89,7 @@ extension HUDRenderer {
         }
 
         dashStatusClock(p, now, clock, ctx)
+        if HUDRenderer.recordText { HUDRenderer.drawnClock = clock }
         // Etiquetas de estado (DEMO, SIMULACIÓN…). 0.6.3: dentro de la zona del mapa, arriba a la
         // derecha, para no caer sobre la música ni los avisos; sin mapa, junto a la hora.
         var right = clock.minX - 8 * k
@@ -120,11 +127,11 @@ extension HUDRenderer {
     }
 
     /// Etiquetas de estado (DEMO, SIMULACIÓN…) centradas arriba.
-    func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, _ ctx: CGContext) {
+    func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, centerX: CGFloat? = nil, _ ctx: CGContext) {
         guard !tags.isEmpty else { return }
         let ms = tags.map { measure($0, size: 13 * k, bold: true, color: HUDRenderer.tagInk) }
         let total = ms.reduce(0) { $0 + $1.width + 14 * k } + CGFloat(ms.count - 1) * 6 * k
-        var x = width / 2 - total / 2
+        var x = max(8 * k, min((centerX ?? width / 2) - total / 2, width - 8 * k - total))
         for m in ms {
             let pill = CGRect(x: x, y: top, width: m.width + 14 * k, height: 22 * k)
             tagPill(pill, ctx)
@@ -260,7 +267,8 @@ extension HUDRenderer {
         // La parte decimal de la posición se respeta dentro de la imagen guardada.
         let fx = r.minX - r.minX.rounded(.down)
         let fy = r.minY - r.minY.rounded(.down)
-        let key = String(format: "%.2f|%.2f|%.2f|%.2f|%.2f|%d%d%d", r.width, r.height, rad, fx, fy, p.dark ? 1 : 0, shadow ? 1 : 0, body ? 1 : 0)
+        let key = String(format: "%.2f|%.2f|%.2f|%.2f|%.2f|%d%d%d%d", r.width, r.height, rad, fx, fy, p.dark ? 1 : 0, shadow ? 1 : 0, body ? 1 : 0,
+                         p.cardLine == nil ? 0 : 1)
         var image = cardImages[key]
         if image == nil {
             let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
@@ -391,12 +399,13 @@ extension HUDRenderer {
     func drawOverlay(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ area: CGRect, _ ctx: CGContext) -> Bool {
         let n = s.nav
         let o = s.layout.overlay
+        overlayClock = nil
         // 0.9.0: letra en la tarjeta de avisos mientras no haya avisos; se quita cerca de un giro.
         let lyricsNow = s.notices.isEmpty ? s.currentLyrics(now: now) : nil
         let nearTurn = n.navigating && !n.arrived && n.distanceToManeuver < 300
         let showLyrics = lyricsNow != nil && !nearTurn
         let cards = DashLayoutEngine.overlayCards(o, in: area, k: k, showNotices: !s.notices.isEmpty || showLyrics,
-                                                  noticesSize: showLyrics ? CGSize(width: 320, height: 104) : nil)
+                                                  noticesSize: showLyrics ? CGSize(width: 320, height: 104) : nil, centeredClock: true)
         let compass = cards.first { $0.item == .compass }?.rect
         // 0.8.1: señal del límite de velocidad junto a la brújula, sin tapar ninguna tarjeta.
         let sign = n.navigating && !n.arrived && n.speedLimit > 0
@@ -432,12 +441,14 @@ extension HUDRenderer {
                     cardBackground(r, p, ctx, radius: 14 * k)
                     dashNoticeCard(note, s.privacy, p, now, r, ctx)
                 } else if showLyrics, let ly = lyricsNow {
-                    dashLyricsCard(ly.lines, ly.index, s.music, p, r, ctx)
+                    dashLyricsCard(ly.lines, ly.index, s.music, p, r, ctx, night: s.night)
                 }
             case .clock:
                 dashClockPill(p, now, r, ctx)
             case .time:
+                overlayClock = r
                 dashStatusClock(p, now, r, ctx)
+                if HUDRenderer.recordText { HUDRenderer.drawnClock = r }
             case .compass:
                 break
             }
@@ -514,7 +525,7 @@ extension HUDRenderer {
             ctx.addLine(to: CGPoint(x: 0, y: a * 0.35))
             ctx.addLine(to: CGPoint(x: -a * 0.7, y: a * 0.75))
             ctx.closePath()
-            ctx.setFillColor(p.onAccent)
+            ctx.setFillColor(p.tileInk ?? p.onAccent)
             ctx.fillPath()
             ctx.restoreGState()
             let km = hypot(dx, dy)
@@ -607,9 +618,11 @@ extension HUDRenderer {
         glassCard(r, radius: r.height / 2, p, ctx)
         // 0.6.3: con el símbolo del reloj, para que no se confunda con la hora de llegada (que
         // va siempre con la palabra «Llegada» en los datos del viaje).
-        let t = measure(c.time, size: 17.5 * k, bold: true, color: p.text)
-        let sfx = measure(c.suffix, size: 10.5 * k, bold: true, color: p.dim)
-        let g = 11 * k
+        // 0.9.2: la letra crece con la tarjeta (la hora centrada es más alta).
+        let z = max(1, r.height / (30 * k))
+        let t = measure(c.time, size: 17.5 * k * z, bold: true, color: p.text)
+        let sfx = measure(c.suffix, size: 10.5 * k * z, bold: true, color: p.dim)
+        let g = 11 * k * z
         let total = g + 5 * k + t.width + 3 * k + sfx.width
         let x = r.midX - total / 2
         let base = r.midY + (t.ascent - t.descent) / 2
@@ -692,7 +705,7 @@ extension HUDRenderer {
         let t = r.height - 16 * k
         let tile = CGRect(x: r.minX + 8 * k, y: r.minY + 8 * k, width: t, height: t)
         iconTile(tile, look.tile, ctx)
-        HUDIcons.draw(look.kind, in: tile.insetBy(dx: t * 0.15, dy: t * 0.15), color: p.onAccent, hole: look.tile.1, ctx: ctx)
+        HUDIcons.draw(look.kind, in: tile.insetBy(dx: t * 0.15, dy: t * 0.15), color: p.tileInk ?? p.onAccent, hole: look.tile.1, ctx: ctx)
         let big = measure(look.big, size: (look.unit.isEmpty ? 22 : 30) * k, bold: true, color: p.text)
         let unit = measure(look.unit, size: 15 * k, bold: false, color: p.dim)
         let x = tile.maxX + 12 * k
@@ -884,7 +897,7 @@ extension HUDRenderer {
     /// La flecha en su mosaico con degradado y brillo (como en la referencia).
     func maneuverTile(_ look: ManeuverLook, _ r: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
         iconTile(r, look.tile, ctx)
-        HUDIcons.draw(look.kind, in: r.insetBy(dx: r.width * 0.15, dy: r.height * 0.15), color: p.onAccent, hole: look.tile.1, ctx: ctx)
+        HUDIcons.draw(look.kind, in: r.insetBy(dx: r.width * 0.15, dy: r.height * 0.15), color: p.tileInk ?? p.onAccent, hole: look.tile.1, ctx: ctx)
     }
 
     /// La distancia en grande con su unidad, ajustada al ancho. `baseline` o, si es nil, centrada
@@ -1810,7 +1823,7 @@ extension HUDRenderer {
     func dashNotices(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ r: CGRect, _ ctx: CGContext) {
         // 0.9.0: con «Letra en lugar de avisos», la letra ocupa la zona mientras no haya avisos.
         if s.notices.isEmpty, let ly = s.currentLyrics(now: now) {
-            dashLyricsPanel(ly.lines, ly.index, p, r, ctx)
+            dashLyricsPanel(ly.lines, ly.index, p, r, ctx, art: s.music.artwork, night: s.night)
             return
         }
         let pad = max(9 * k, min(14 * k, min(r.width, r.height) * 0.05))
@@ -1894,16 +1907,19 @@ extension HUDRenderer {
 
     /// Zona completa de la letra (en lugar de «Avisos»): la línea que suena en grande, las
     /// anteriores y siguientes en gris, y el crédito de LRCLIB abajo.
-    func dashLyricsPanel(_ lines: [LyricLine], _ index: Int, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
+    func dashLyricsPanel(_ lines: [LyricLine], _ index: Int, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext,
+                         art: CGImage? = nil, night: Bool = false) {
+        // 0.9.2: el fondo es la misma portada de la canción (desenfocada); el texto, en blanco.
+        let ink = lyricsInk(art, p, r, radius: 14 * k, night: night, ctx)
         let pad = max(10 * k, min(16 * k, min(r.width, r.height) * 0.05))
         let hs = 14 * k
         let note = CGRect(x: r.minX + pad, y: r.minY + pad + 1 * k, width: hs * 0.85, height: hs)
-        noteGlyph(note, p.text, ctx)
-        let head = measure("Letra", size: 15 * k, bold: true, color: p.text)
+        noteGlyph(note, ink.text, ctx)
+        let head = measure("Letra", size: 15 * k, bold: true, color: ink.text)
         put(head, x: note.maxX + 6 * k, baseline: note.midY + (head.ascent - head.descent) / 2, ctx)
-        let tag = measure("sincronizada", size: 12 * k, bold: false, color: p.dim)
+        let tag = measure("sincronizada", size: 12 * k, bold: false, color: ink.dim)
         put(tag, x: note.maxX + 6 * k + head.width + 8 * k, baseline: note.midY + (head.ascent - head.descent) / 2, ctx)
-        let credit = measure("Letra: LRCLIB", size: 10 * k, bold: false, color: p.faint)
+        let credit = measure("Letra: LRCLIB", size: 10 * k, bold: false, color: ink.faint)
         put(credit, x: r.minX + pad, baseline: r.maxY - pad, ctx)
         let top = note.maxY + 14 * k
         let bottom = r.maxY - pad - 16 * k
@@ -1915,13 +1931,13 @@ extension HUDRenderer {
         // Línea actual (hasta dos renglones). Antes de que empiece la letra, la primera en gris.
         let curTop = mid - 26 * k
         let curEnd = paragraph(lines[cur].text, sizes: [24 * k, 22 * k, 20 * k, 18 * k], bold: true,
-                               color: index < 0 ? p.dim : p.text, x: x, top: curTop, width: w, maxLines: 2, ctx)
+                               color: index < 0 ? ink.dim : ink.text, x: x, top: curTop, width: w, maxLines: 2, ctx)
         // Siguientes, hacia abajo.
         var y = curEnd + 12 * k
         var i = cur + 1
         var fade: CGFloat = 0.85
         while i < lines.count && y + 18 * k <= bottom {
-            textLine(lines[i].text, sizes: [16 * k, 15 * k, 14 * k], bold: false, color: p.dim.copy(alpha: fade) ?? p.dim,
+            textLine(lines[i].text, sizes: [16 * k, 15 * k, 14 * k], bold: false, color: ink.dim.copy(alpha: fade) ?? ink.dim,
                      x: x, top: y, width: w, ctx)
             y += 30 * k
             i += 1
@@ -1932,7 +1948,7 @@ extension HUDRenderer {
         i = cur - 1
         fade = 0.6
         while index >= 0 && i >= 0 && y >= top {
-            textLine(lines[i].text, sizes: [15 * k, 14 * k], bold: false, color: p.faint.copy(alpha: fade) ?? p.faint,
+            textLine(lines[i].text, sizes: [15 * k, 14 * k], bold: false, color: ink.faint.copy(alpha: fade) ?? ink.faint,
                      x: x, top: y, width: w, ctx)
             y -= 30 * k
             i -= 1
@@ -1940,27 +1956,90 @@ extension HUDRenderer {
         }
     }
 
+    /// 0.9.2: pinta el fondo de la letra con la portada (si la hay) y devuelve los colores del
+    /// texto: blanco sobre la portada; sin portada, los del tema.
+    func lyricsInk(_ art: CGImage?, _ p: HUDPalette, _ r: CGRect, radius: CGFloat, night: Bool,
+                   _ ctx: CGContext) -> (text: CGColor, dim: CGColor, faint: CGColor) {
+        guard let art = art, let blur = blurredArt(art) else { return (p.text, p.dim, p.faint) }
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        ctx.clip()
+        // Ampliada para cubrir toda la zona (como la portada de fondo de la música).
+        let side = max(r.width, r.height) * 1.1
+        let dst = CGRect(x: r.midX - side / 2, y: r.midY - side * 0.55, width: side, height: side)
+        ctx.interpolationQuality = .high
+        ctx.translateBy(x: dst.minX, y: dst.maxY)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(blur.image, in: CGRect(x: 0, y: 0, width: dst.width, height: dst.height))
+        ctx.restoreGState()
+        // Velo para que el texto blanco se lea también con portadas claras.
+        let veil = night ? max(0.42, blur.luma * 0.7) : max(0.22, min(0.62, blur.luma * 0.75 - 0.05))
+        ctx.saveGState()
+        ctx.addPath(CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        ctx.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: veil))
+        ctx.fillPath()
+        ctx.restoreGState()
+        return (HUDRenderer.white(1), HUDRenderer.white(0.66), HUDRenderer.white(0.5))
+    }
+
+    /// 0.9.2: la portada reducida a 12×12 y ampliada con suavizado (un desenfoque fuerte y
+    /// barato). Se calcula una vez por portada.
+    func blurredArt(_ art: CGImage) -> (image: CGImage, luma: CGFloat)? {
+        if let c = lyricsArtCache, c.art === art { return (c.image, c.luma) }
+        let n = 12
+        var px = [UInt8](repeating: 0, count: n * n * 4)
+        let tiny: CGImage? = px.withUnsafeMutableBytes { raw -> CGImage? in
+            guard let g = CGContext(data: raw.baseAddress, width: n, height: n, bitsPerComponent: 8, bytesPerRow: n * 4,
+                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+            g.interpolationQuality = .high
+            g.draw(art, in: CGRect(x: 0, y: 0, width: n, height: n))
+            return g.makeImage()
+        }
+        guard let small = tiny else { return nil }
+        var sum: CGFloat = 0
+        for i in 0..<(n * n) {
+            let o = i * 4
+            sum += (0.2126 * CGFloat(px[o]) + 0.7152 * CGFloat(px[o + 1]) + 0.0722 * CGFloat(px[o + 2])) / 255
+        }
+        let luma = sum / CGFloat(n * n)
+        let side = 96
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let big = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return nil }
+        big.interpolationQuality = .high
+        big.draw(small, in: CGRect(x: 0, y: 0, width: side, height: side))
+        guard let image = big.makeImage() else { return nil }
+        lyricsArtCache = (art, image, luma)
+        return (image, luma)
+    }
+
     /// Tarjeta de la letra sobre el mapa: anterior, actual (grande) y siguiente.
-    func dashLyricsCard(_ lines: [LyricLine], _ index: Int, _ music: MusicSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext) {
-        cardBackground(r, p, ctx, radius: 14 * k)
+    func dashLyricsCard(_ lines: [LyricLine], _ index: Int, _ music: MusicSnapshot, _ p: HUDPalette, _ r: CGRect, _ ctx: CGContext,
+                        night: Bool = false) {
+        if music.artwork != nil {
+            glassCard(r, radius: 14 * k, p, ctx, body: false)
+        } else {
+            cardBackground(r, p, ctx, radius: 14 * k)
+        }
+        let ink = lyricsInk(music.artwork, p, r, radius: 14 * k, night: night, ctx)
         let pad = 14 * k
         let x = r.minX + pad
         let w = r.width - 2 * pad
         let note = CGRect(x: x, y: r.minY + 10 * k, width: 10 * k, height: 12 * k)
-        noteGlyph(note, p.dim, ctx)
+        noteGlyph(note, ink.dim, ctx)
         let title = [music.title, music.artist].filter { !$0.isEmpty }.joined(separator: " · ")
-        textLine(title, sizes: [11 * k, 10 * k], bold: true, color: p.dim, x: note.maxX + 6 * k, top: r.minY + 9 * k,
+        textLine(title, sizes: [11 * k, 10 * k], bold: true, color: ink.dim, x: note.maxX + 6 * k, top: r.minY + 9 * k,
                  width: w - 16 * k, ctx)
         let cur = max(0, index)
         var y = r.minY + 30 * k
         if index > 0 {
-            textLine(lines[cur - 1].text, sizes: [13 * k, 12 * k], bold: false, color: p.faint, x: x, top: y, width: w, ctx)
+            textLine(lines[cur - 1].text, sizes: [13 * k, 12 * k], bold: false, color: ink.faint, x: x, top: y, width: w, ctx)
         }
         y += 22 * k
-        let end = paragraph(lines[cur].text, sizes: [20 * k, 18 * k, 16 * k], bold: true, color: index < 0 ? p.dim : p.text,
+        let end = paragraph(lines[cur].text, sizes: [20 * k, 18 * k, 16 * k], bold: true, color: index < 0 ? ink.dim : ink.text,
                             x: x, top: y, width: w, maxLines: 1, ctx)
         if cur + 1 < lines.count, end + 20 * k <= r.maxY - 4 * k {
-            textLine(lines[cur + 1].text, sizes: [13 * k, 12 * k], bold: false, color: p.dim, x: x, top: end + 6 * k, width: w, ctx)
+            textLine(lines[cur + 1].text, sizes: [13 * k, 12 * k], bold: false, color: ink.dim, x: x, top: end + 6 * k, width: w, ctx)
         }
     }
 
@@ -1969,7 +2048,7 @@ extension HUDRenderer {
     func dashNoticeIcon(_ kind: NoticeKind, _ r: CGRect, _ p: HUDPalette, _ ctx: CGContext) {
         let colors: (CGColor, CGColor)
         switch kind {
-        case .nav: colors = tileColors(.blue, p)
+        case .nav: colors = (HUDRenderer.rgb(0x3D8BFF), HUDRenderer.rgb(0x1250CC))
         case .link: colors = tileColors(.good, p)
         case .battery: colors = tileColors(.amber, p)
         case .test: colors = tileColors(.violet, p)

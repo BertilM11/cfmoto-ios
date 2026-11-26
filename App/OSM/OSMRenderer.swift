@@ -535,8 +535,16 @@ extension HUDRenderer {
     func drawOSMAttribution(night: Bool, _ r: CGRect, _ ctx: CGContext) {
         if HUDRenderer.hideText { return }
         let pal = OSMPalette.make(night: night)
-        // 0.9.0: con el tema Póster, también el crédito de prettymaps (lo pide su autor).
-        let m = measure(pal.poster ? "© OpenStreetMap · prettymaps" : "© OpenStreetMap", size: 10 * k, bold: false, color: pal.attribution)
+        // 0.9.2: solo «© OpenStreetMap» (lo exige su licencia), más pequeño; el crédito de
+        // prettymaps pasa a la app (Acerca de) y al README. Con el Póster, sobre una pastilla tenue.
+        let m = measure("© OpenStreetMap", size: (pal.poster ? 9 : 10) * k, bold: false,
+                        color: pal.poster ? (pal.attribution.copy(alpha: 0.85) ?? pal.attribution) : pal.attribution)
+        if pal.poster {
+            let pill = CGRect(x: r.minX + 4 * k, y: r.maxY - 7 * k - m.ascent - 3 * k, width: m.width + 8 * k, height: m.ascent + m.descent + 6 * k)
+            ctx.addPath(CGPath(roundedRect: pill, cornerWidth: pill.height / 2, cornerHeight: pill.height / 2, transform: nil))
+            ctx.setFillColor(pal.bgMid.copy(alpha: 0.82) ?? pal.bgMid)
+            ctx.fillPath()
+        }
         ctx.saveGState()
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         ctx.textPosition = CGPoint(x: r.minX + 8 * k, y: r.maxY - 7 * k)
@@ -560,20 +568,36 @@ extension HUDRenderer {
     func brandRect(above anchor: CGRect?, zone: CGRect, busy: [CGRect]) -> CGRect? {
         guard let a = anchor, !a.isEmpty, BrandMark.mask != nil else { return nil }
         let size = brandSize
-        let gap = 6 * k
+        // 0.9.2: con el Póster el emblema lleva tarjeta: más separación.
+        let gap = (OSMPalette.current ? 12 : 6) * k
         let up = a.midY > zone.midY
         var x = a.midX - size.width / 2
         x = min(max(x, zone.minX + 4 * k), zone.maxX - size.width - 4 * k)
         let y = up ? a.minY - gap - size.height : a.maxY + gap
         let cand = CGRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
         guard zone.contains(cand) else { return nil }
-        if busy.contains(where: { !$0.isEmpty && $0.intersects(cand.insetBy(dx: -2 * k, dy: -2 * k)) }) { return nil }
+        if busy.contains(where: { !$0.isEmpty && $0.intersects(cand.insetBy(dx: (OSMPalette.current ? -9 : -2) * k, dy: (OSMPalette.current ? -7 : -2) * k)) }) { return nil }
         return cand
     }
 
     /// 0.9.0: dibuja el emblema en `rect` con el color tenue del aviso de la licencia.
     func drawBrand(in rect: CGRect, night: Bool, _ ctx: CGContext) {
         let pal = OSMPalette.make(night: night)
+        // 0.9.2: con el Póster, sobre una tarjetita del color del mapa para que no se pierda.
+        if pal.poster {
+            let card = rect.insetBy(dx: -7 * k, dy: -5 * k)
+            ctx.addPath(CGPath(roundedRect: card, cornerWidth: 10 * k, cornerHeight: 10 * k, transform: nil))
+            ctx.setFillColor(pal.bgMid.copy(alpha: 0.92) ?? pal.bgMid)
+            ctx.fillPath()
+            ctx.addPath(CGPath(roundedRect: card.insetBy(dx: 0.6 * k, dy: 0.6 * k), cornerWidth: 10 * k, cornerHeight: 10 * k, transform: nil))
+            ctx.setStrokeColor(night ? CGColor(srgbRed: 1, green: 0.784, blue: 0.341, alpha: 0.85) : CGColor(srgbRed: 0.184, green: 0.216, blue: 0.216, alpha: 0.7))
+            ctx.setLineWidth(1.2 * k)
+            ctx.strokePath()
+        }
+        if pal.poster {
+            drawBrandMark(color: pal.label, x: rect.minX, baseline: rect.maxY - 2 * k, ctx)
+            return
+        }
         drawBrandMark(color: pal.attribution, x: rect.minX, baseline: rect.maxY - 2 * k, ctx)
     }
 

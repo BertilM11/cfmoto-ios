@@ -1000,21 +1000,25 @@ let fullImage = CGRect(x: 0, y: 0, width: W, height: H)
 let clockSpot = DashLayoutEngine.statusClock(in: fullImage, k: 1)
 var clockProblem: String?
 for mode in DashMode.allCases where DashLayout.preset(mode).template == .overlay {
-    let cards = DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1)
-    if cards.first(where: { $0.item == .time })?.rect != clockSpot {
-        clockProblem = "\(mode.label): la hora no está en su sitio"
-    } else if let hit = cards.first(where: { $0.item != .time && $0.rect.intersects(clockSpot) }) {
+    let cards = DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1, centeredClock: true)
+    guard let t = cards.first(where: { $0.item == .time })?.rect else {
+        clockProblem = "\(mode.label): falta la hora"
+        continue
+    }
+    if t.minY > 14 {
+        clockProblem = "\(mode.label): la hora no está arriba"
+    } else if let hit = cards.first(where: { $0.item != .time && $0.rect.intersects(t) }) {
         clockProblem = "\(mode.label): \(hit.item) tapa la hora"
     }
 }
-check("Hora actual: el mismo sitio en los modos con mapa y nada encima", clockProblem == nil,
-      clockProblem ?? String(format: "arriba a la derecha: x %.0f, y %.0f, %.0f×%.0f", clockSpot.minX, clockSpot.minY, clockSpot.width, clockSpot.height))
+check("Hora actual: arriba en los modos con mapa (0.9.2: centrada en el hueco) y nada encima", clockProblem == nil,
+      clockProblem ?? "sin choques")
 
 // Píxeles del color del texto dentro del sitio de la hora (blanco de noche, casi negro de día).
-func clockInk(_ r: (image: CGImage?, data: [UInt8], rowBytes: Int), night: Bool) -> Int {
+func clockInk(_ r: (image: CGImage?, data: [UInt8], rowBytes: Int), night: Bool, at spot: CGRect = clockSpot) -> Int {
     var n = 0
-    for y in Int(clockSpot.minY)..<Int(clockSpot.maxY) {
-        for x in Int(clockSpot.minX)..<Int(clockSpot.maxX) {
+    for y in Int(spot.minY)..<Int(spot.maxY) {
+        for x in Int(spot.minX)..<Int(spot.maxX) {
             let o = y * r.rowBytes + x * 4
             let b = Int(r.data[o])
             let g = Int(r.data[o + 1])
@@ -1037,7 +1041,8 @@ for mode in DashMode.allCases {
                 s.nav.course = heading
             }
             clockRenders += 1
-            if clockInk(pixels(s), night: theme == .dark) < 40 {
+            if clockInk(pixels(s), night: theme == .dark,
+                        at: clockFor(s.layout, trip: s.nav.navigating && !s.nav.arrived, notices: !s.notices.isEmpty)) < 40 {
                 clockMissing.append("\(mode.label) \(theme == .dark ? "oscuro" : "claro") \(routeOn ? "con" : "sin") ruta")
             }
         }
@@ -1293,6 +1298,16 @@ func render(_ s: DashSnapshot, width: Int = Int(W), height: Int = Int(H), hideTe
     return ((image, data, width * 4), renderer.textMarks, renderer.controlMarks)
 }
 
+/// 0.9.2: dónde va la hora en cada diseño (centrada sobre el mapa; sin mapa, a la derecha).
+func clockFor(_ layout: DashLayout, trip: Bool = true, notices: Bool = true, width: CGFloat = W, height: CGFloat = H, k: CGFloat = 1) -> CGRect {
+    let full = CGRect(x: 0, y: 0, width: width, height: height)
+    if layout.template == .overlay {
+        return DashLayoutEngine.overlayCards(layout.overlay, in: full, k: k, showNotices: notices, centeredClock: true)
+            .first { $0.item == .time }?.rect ?? .null
+    }
+    return DashLayoutEngine.panelClock(layout, in: full, k: k, trip: trip)
+}
+
 /// Textos que se salen de la imagen o de su zona o tarjeta (también por las esquinas
 /// redondeadas), que se montan entre sí o que caen encima de la hora actual.
 func textProblems(_ marks: [HUDRenderer.TextMark], width: CGFloat = W, height: CGFloat = H, clock: CGRect?) -> [String] {
@@ -1320,7 +1335,7 @@ func textProblems(_ marks: [HUDRenderer.TextMark], width: CGFloat = W, height: C
         if corners.contains(where: { $0.2 && hypot($0.0.x - $0.1.x, $0.0.y - $0.1.y) > rad + 0.5 }) {
             out.append("«\(m.text)» cortado por la esquina redondeada")
         }
-        if let c = clock, r.intersects(c), !c.insetBy(dx: -1, dy: -1).contains(r) {
+        if let c = HUDRenderer.drawnClock ?? clock, r.intersects(c), !c.insetBy(dx: -1, dy: -1).contains(r) {
             out.append("«\(m.text)» tapa la hora")
         }
     }
@@ -1361,7 +1376,7 @@ func musicZone(_ layout: DashLayout, area: CGRect = zoneArea) -> CGRect? {
     DashLayoutEngine.frames(layout, in: area, gap: 6).first { $0.module == .music }?.rect
 }
 func musicCard(_ o: OverlaySettings) -> CGRect? {
-    DashLayoutEngine.overlayCards(o, in: fullImage, k: 1).first { $0.item == .music }?.rect
+    DashLayoutEngine.overlayCards(o, in: fullImage, k: 1, centeredClock: true).first { $0.item == .music }?.rect
 }
 var largeMusic = DashLayout.preset(.gpsMusic).overlay
 largeMusic.musicSize = .large
@@ -1377,8 +1392,9 @@ let playerCases: [(name: String, rect: CGRect?, card: CardSize?, style: MusicPla
     ("Tarjeta grande", musicCard(largeMusic), .large, .row),
     ("Principal + 2 (zona lateral)", musicZone(sideLayout), nil, .row),
 ]
-func playerLayout(_ r: CGRect, _ card: CardSize?) -> MusicPlayerLayout {
-    MusicPlayerLayout.make(r, k: 1, artwork: true, size: .normal, reserve: card == nil ? clockSpot : nil, card: card)
+func playerLayout(_ r: CGRect, _ card: CardSize?, layout: DashLayout? = nil) -> MusicPlayerLayout {
+    let c = layout.map { clockFor($0) } ?? clockSpot
+    return MusicPlayerLayout.make(r, k: 1, artwork: true, size: .normal, reserve: card == nil && c.intersects(r) ? c : nil, card: card)
 }
 var styleProblems: [String] = []
 var geometryProblems: [String] = []
@@ -1464,7 +1480,7 @@ for ps in playerSnaps {
                     }
                 }
             }
-            let L = playerLayout(r, ps.card)
+            let L = playerLayout(r, ps.card, layout: ps.layout)
             // Lejos de la portada el fondo es el degradado de la portada.
             let far: CGPoint
             switch L.style {
@@ -1688,15 +1704,17 @@ lowSnap.mapCoverage = lowCoverage
 let lowRender = render(lowSnap)
 var lowLive = lowSnap
 lowLive.map = base
+let lowProblems = textProblems(lowRender.marks, clock: clockSpot)
 let lowSplit = { () -> [HUDRenderer.TextMark] in
     var s = lowSnap
     s.layout = .preset(.split)
     return render(s).marks
 }()
+let lowSplitProblems = textProblems(lowSplit, clock: clockSpot)
 check("Moto: el aviso se dibuja sin tapar nada (mapa completo y pantalla dividida)",
       lowRender.marks.contains { $0.text == "MAPA GUARDADO: 1.4 KM" } && !render(lowLive).marks.contains { $0.text.hasPrefix("MAPA GUARDADO") }
-      && textProblems(lowRender.marks, clock: clockSpot).isEmpty && lowSplit.contains { $0.text == "MAPA GUARDADO: 1.4 KM" }
-      && textProblems(lowSplit, clock: clockSpot).isEmpty)
+      && lowProblems.isEmpty && lowSplit.contains { $0.text == "MAPA GUARDADO: 1.4 KM" }
+      && lowSplitProblems.isEmpty, (lowProblems + lowSplitProblems).joined(separator: "; "))
 if let image = lowRender.px.image { save(image, "064-aviso-mapa-guardado") }
 
 // Precarga: más imágenes a la vez y más memoria.
@@ -1727,23 +1745,25 @@ let tripMarks = render(musicSnap(.preset(.split), .dark, art: neon)).marks
 let etaClock063 = HUDFormat.clock(now.addingTimeInterval(18 * 60))
 check("Dividida: «Llegada», hora de llegada, tiempo y distancia por separado, y la hora actual arriba",
       ["Llegada", etaClock063.time, "18 min", "7.4 km"].allSatisfy { t in tripMarks.contains { $0.text == t } }
-      && tripMarks.contains { $0.text == HUDFormat.clock(now).time && clockSpot.contains($0.rect) })
+      && tripMarks.contains { $0.text == HUDFormat.clock(now).time && clockFor(.preset(.split)).contains($0.rect) && $0.rect.minY < 60 })
 
 // 10f. Rediseño premium (0.6.3): mismas posiciones que la 0.6.2, las mismas piezas en todas las
 // tarjetas (vidrio con borde luminoso), datos del viaje y avisos como en la referencia.
 func overlayRect(_ mode: DashMode, _ item: OverlayItem) -> CGRect? {
-    DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1, showNotices: true).first { $0.item == item }?.rect
+    DashLayoutEngine.overlayCards(DashLayout.preset(mode).overlay, in: fullImage, k: 1, showNotices: true, centeredClock: true).first { $0.item == item }?.rect
 }
 let expectedOverlay: [(DashMode, OverlayItem, CGRect)] = [
     (.gps, .maneuver, CGRect(x: 12, y: 12, width: 200, height: 96)),
     (.gps, .trip, CGRect(x: 200, y: 342, width: 400, height: 46)),
-    (.gps, .time, CGRect(x: 672, y: 12, width: 116, height: 30)),
+    // 0.9.2: la hora, más grande, centrada entre la maniobra y lo que haya a la derecha.
+    (.gps, .time, CGRect(x: 440, y: 12, width: 128, height: 40)),
     (.gpsMusic, .maneuver, CGRect(x: 12, y: 12, width: 200, height: 96)),
-    (.gpsMusic, .music, CGRect(x: 538, y: 50, width: 250, height: 84)),
+    (.gpsMusic, .music, CGRect(x: 538, y: 12, width: 250, height: 84)),
+    (.gpsMusic, .time, CGRect(x: 311, y: 12, width: 128, height: 40)),
     (.gpsMusic, .trip, CGRect(x: 200, y: 342, width: 400, height: 46)),
-    (.full, .music, CGRect(x: 538, y: 50, width: 250, height: 84)),
-    (.full, .notices, CGRect(x: 526, y: 142, width: 262, height: 58)),
-    (.gpsNotices, .notices, CGRect(x: 526, y: 50, width: 262, height: 58)),
+    (.full, .music, CGRect(x: 538, y: 12, width: 250, height: 84)),
+    (.full, .notices, CGRect(x: 526, y: 104, width: 262, height: 58)),
+    (.gpsNotices, .notices, CGRect(x: 526, y: 12, width: 262, height: 58)),
 ]
 let expectedZones: [(DashMode, DashModule, CGRect)] = [
     (.split, .nav, CGRect(x: 6, y: 6, width: 454, height: 388)),
@@ -1820,11 +1840,12 @@ let valueOverLabel = [("7.4 km", "Distancia"), ("18 min", "Restante")].allSatisf
 check("Rediseño: datos del viaje en tres bloques (Distancia, Restante, Llegada), cada cifra sobre su nombre",
       tripOrder.count == 3 && tripOrder[0] < tripOrder[1] && tripOrder[1] < tripOrder[2] && valueOverLabel,
       tripOrder.map { String(format: "%.0f", $0) }.joined(separator: " < "))
-let clockTexts = navMarks.filter { clockSpot.contains($0.rect) }.map { $0.text }
+let gpsClock = clockFor(.preset(.gps))
+let clockTexts = navMarks.filter { gpsClock.contains($0.rect) }.map { $0.text }
 let etaText = HUDFormat.clock(now.addingTimeInterval(18 * 60)).time
 check("Rediseño: la hora actual (con su reloj, arriba) y la de llegada (con «Llegada», abajo) no se confunden",
       clockTexts.contains(HUDFormat.clock(now).time) && !clockTexts.contains("Llegada") && !clockTexts.contains(etaText)
-      && navMarks.contains { $0.text == etaText && !clockSpot.intersects($0.rect) }
+      && navMarks.contains { $0.text == etaText && !gpsClock.intersects($0.rect) }
       && navMarks.contains { $0.text == "Llegada" && $0.rect.minY > H / 2 },
       "arriba: \(clockTexts.joined(separator: " ")); llegada: \(etaText)")
 
@@ -2520,6 +2541,39 @@ if let gt = OSMMapData(url: URL(fileURLWithPath: "Tools/DashboardCheck/Guatemala
         tPoster = Date().timeIntervalSince(t0) * 1000 / 20
         OSMPalette.current = false
         check("0.9.0: el mapa Póster se dibuja rápido una vez guardado su fondo", tPoster < 40, String(format: "%.1f ms por fotograma", tPoster))
+        // 0.9.2: pantalla dividida (mapa + música + letra) con los colores del mapa Póster.
+        let ly92 = LyricsSnapshot(key: LyricsSnapshot.key(title: "Luces de la ciudad", artist: "Banda de ejemplo"),
+                                  lines: LRC.parse("[00:01.00] cuando cae la tarde\n[00:04.00] y el motor me cuenta\n[00:08.00] lo que no se dice\n[00:12.00] me lleva hasta tu barrio"),
+                                  synced: true)
+        func split92(_ theme: DashTheme, poster: Bool, art: Bool = true) -> DashSnapshot {
+            var s = posterSnap(theme, poster: poster, limit: 60)
+            s.layout = DashLayout(template: .mainSide, slots: [.nav, .music, .notices], split: 0.65)
+            let m = musicSnap(.preset(.musicNotices), theme, art: art ? neon : nil)
+            s.music = m.music
+            s.music.title = "Luces de la ciudad"
+            s.music.artist = "Banda de ejemplo"
+            s.music.position = 5
+            s.music.positionTime = now.timeIntervalSinceReferenceDate
+            s.music.playing = false
+            s.notices = []
+            s.lyricsOn = true
+            s.lyrics = ly92
+            return s
+        }
+        let sDay = render(split92(.light, poster: true)).px
+        let sNight = render(split92(.dark, poster: true)).px
+        let sClassic = render(split92(.light, poster: false)).px
+        let sNoArt = render(split92(.light, poster: true, art: false)).px
+        OSMPalette.current = false
+        check("0.9.2: con el Póster, el tablero toma los colores del mapa (pantalla dividida)",
+              differing(sDay, sClassic) > 20_000, "\(differing(sDay, sClassic)) píxeles distintos")
+        check("0.9.2: el fondo de la letra es la portada de la canción", differing(sDay, sNoArt) > 8_000,
+              "\(differing(sDay, sNoArt)) píxeles distintos con y sin portada")
+        if let img = sDay.image { save(img, "092-dividida-dia") }
+        if let img = sNight.image { save(img, "092-dividida-noche") }
+        if let img = render(posterSnap(.light, poster: true, limit: 60)).px.image { save(img, "092-completa-dia") }
+        if let img = render(posterSnap(.dark, poster: true, limit: 60)).px.image { save(img, "092-completa-noche") }
+        OSMPalette.current = false
     }
     OSMMapData.override = nil
 } else {
@@ -2707,6 +2761,30 @@ do {
           && RouteOptions(avoidUnpaved: true, avoidHighways: false).factor(cls: 2, unpaved: true) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 7, unpaved: false) > 1
           && RouteOptions(avoidUnpaved: false, avoidHighways: true).factor(cls: 2, unpaved: false) == 1, "")
+}
+
+// 0.9.2: la hora arriba, centrada en el hueco entre la tarjeta de la maniobra y el borde del mapa.
+do {
+    let zone = CGRect(x: 0, y: 0, width: 800, height: 400)
+    let card = CGRect(x: 12, y: 12, width: 200, height: 96)
+    let c = DashLayoutEngine.centeredClock(in: zone, avoid: [card], k: 1)
+    let mid = (card.maxX + 8 + zone.maxX - 12) / 2
+    check("0.9.2: la hora queda centrada entre la maniobra y el borde del mapa",
+          c != nil && abs(c!.midX - mid) <= 1 && !c!.intersects(card) && c!.minY <= 12 && c!.width >= 128,
+          c.map { "centro \($0.midX), esperado \(mid)" } ?? "no cupo")
+    let narrow = CGRect(x: 0, y: 0, width: 330, height: 400)
+    check("0.9.2: si no hay hueco, la hora vuelve a su esquina",
+          DashLayoutEngine.centeredClock(in: narrow, avoid: [CGRect(x: 10, y: 10, width: 200, height: 90)], k: 1) == nil, "")
+    var bad = 0
+    for preset in [DashMode.gps, .gpsMusic, .full, .gpsNotices] {
+        let cards = DashLayoutEngine.overlayCards(DashLayout.preset(preset).overlay, in: zone, k: 1, centeredClock: true)
+        guard let t = cards.first(where: { $0.item == .time }) else { bad += 1; continue }
+        if cards.contains(where: { $0.item != .time && $0.rect.intersects(t.rect) }) { bad += 1 }
+    }
+    check("0.9.2: la hora centrada no tapa ninguna tarjeta sobre el mapa", bad == 0, "\(bad) diseños con choque")
+    let L = NavZoneLayout.make(CGRect(x: 6, y: 6, width: 512, height: 388), OverlaySettings(), k: 1, reserve: nil, trip: true)
+    check("0.9.2: la barra del viaje va centrada en la zona del mapa", abs(L.trip.midX - (6 + 256)) <= 1,
+          "centro \(L.trip.midX)")
 }
 
 // 0.9.0: letra sincronizada (formato LRC), su línea según la posición y su dibujo en la moto.
