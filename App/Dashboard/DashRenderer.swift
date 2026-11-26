@@ -29,7 +29,9 @@ extension HUDRenderer {
             let area = CGRect(x: 0, y: 0, width: width, height: height)
             let streets = drawOverlay(s, p, now, area, ctx)
             if s.mapSettings.streets && !streets && !s.demo { tags.append("MAPA SIMPLE") }
-            drawTags(tags, p, top: area.minY + 12 * k, ctx)
+            // 0.9.2: debajo de la hora (que ahora va arriba, centrada en el hueco).
+            let c = overlayClock
+            drawTags(tags, p, top: max(area.minY + 12 * k, (c?.maxY ?? 0) + 6 * k), centerX: c?.midX, ctx)
             return
         }
 
@@ -125,11 +127,11 @@ extension HUDRenderer {
     }
 
     /// Etiquetas de estado (DEMO, SIMULACIÓN…) centradas arriba.
-    func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, _ ctx: CGContext) {
+    func drawTags(_ tags: [String], _ p: HUDPalette, top: CGFloat, centerX: CGFloat? = nil, _ ctx: CGContext) {
         guard !tags.isEmpty else { return }
         let ms = tags.map { measure($0, size: 13 * k, bold: true, color: HUDRenderer.tagInk) }
         let total = ms.reduce(0) { $0 + $1.width + 14 * k } + CGFloat(ms.count - 1) * 6 * k
-        var x = width / 2 - total / 2
+        var x = max(8 * k, min((centerX ?? width / 2) - total / 2, width - 8 * k - total))
         for m in ms {
             let pill = CGRect(x: x, y: top, width: m.width + 14 * k, height: 22 * k)
             tagPill(pill, ctx)
@@ -397,6 +399,7 @@ extension HUDRenderer {
     func drawOverlay(_ s: DashSnapshot, _ p: HUDPalette, _ now: Date, _ area: CGRect, _ ctx: CGContext) -> Bool {
         let n = s.nav
         let o = s.layout.overlay
+        overlayClock = nil
         // 0.9.0: letra en la tarjeta de avisos mientras no haya avisos; se quita cerca de un giro.
         let lyricsNow = s.notices.isEmpty ? s.currentLyrics(now: now) : nil
         let nearTurn = n.navigating && !n.arrived && n.distanceToManeuver < 300
@@ -443,6 +446,7 @@ extension HUDRenderer {
             case .clock:
                 dashClockPill(p, now, r, ctx)
             case .time:
+                overlayClock = r
                 dashStatusClock(p, now, r, ctx)
                 if HUDRenderer.recordText { HUDRenderer.drawnClock = r }
             case .compass:

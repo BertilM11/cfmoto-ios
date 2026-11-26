@@ -399,6 +399,8 @@ final class HUDRenderer {
     var ambientScaledCache: [(art: CGImage, night: Bool, w: Int, h: Int, image: CGImage)] = []
     /// 0.9.2: dónde se dibujó la hora en el último fotograma (solo para las pruebas).
     static var drawnClock: CGRect?
+    /// 0.9.2: la hora sobre el mapa completo (las etiquetas de estado van debajo).
+    var overlayClock: CGRect?
     /// 0.9.2: portada desenfocada para el fondo de la letra (y su luminosidad media).
     var lyricsArtCache: (art: CGImage, image: CGImage, luma: CGFloat)?
     /// 0.6.4: sombras difuminadas de la portada ya dibujadas, por tamaño y tema.
