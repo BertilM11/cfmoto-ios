@@ -59,6 +59,26 @@ final class H264Encoder {
     private var usingSoftware = false
     private var recreateCount = 0
     private var lastRecreate = Date.distantPast
+    /// 0.9.5: desde cuándo se usa el codificador por software (para volver al de hardware).
+    private var softwareSince: Date?
+    private var lastFailure = Date.distantPast
+    private var upgrading = false
+
+    /// 0.9.5: momento del último cambio de primer a segundo plano (o al revés). iOS invalida el
+    /// codificador por hardware en ese cambio: esos fallos son normales y no deben llevar al de
+    /// software. Lo marca la app.
+    private static let transitionLock = NSLock()
+    private static var transitionAt = Date.distantPast
+    static func noteAppTransition() {
+        transitionLock.lock()
+        transitionAt = Date()
+        transitionLock.unlock()
+    }
+    private static func sinceTransition() -> TimeInterval {
+        transitionLock.lock()
+        defer { transitionLock.unlock() }
+        return Date().timeIntervalSince(transitionAt)
+    }
 
     private let queue = FrameQueue(capacity: 8)
     private let lock = NSLock()
@@ -157,6 +177,7 @@ final class H264Encoder {
         sessionLock.lock()
         session = s
         usingSoftware = software
+        softwareSince = software ? Date() : nil
         sessionLock.unlock()
         if !quiet {
             logLine("[VIDEO] codificador H.264 listo \(width)x\(height) @\(fps)fps \(bitrate / 1000)kbps · pedido=\(software ? "software" : "hardware") · acelerado=\(accelerated)")
@@ -176,7 +197,7 @@ final class H264Encoder {
 
     /// La app volvió al frente: si se estaba usando el codificador por software, volver al de
     /// hardware, que gasta menos batería.
-    func preferHardware() {
+    func preferHardware(quiet: Bool = false) {
         sessionLock.lock()
         let software = usingSoftware
         let old = session
@@ -188,11 +209,36 @@ final class H264Encoder {
         sessionLock.unlock()
         guard software else { return }
         if let old = old { VTCompressionSessionInvalidate(old) }
-        _ = openSession(software: false, quiet: false) || openSession(software: true, quiet: false)
+        let hw = openSession(software: false, quiet: quiet)
+        if !hw { _ = openSession(software: true, quiet: true) }
+        if hw && quiet { logLine("[VIDEO] de vuelta al codificador por hardware (gasta menos batería)") }
         restartStream()
     }
 
+    /// 0.9.5: si lleva un minuto en software sin fallos, se intenta volver al de hardware
+    /// (también con la app en segundo plano: iOS lo permite una vez hecho el cambio).
+    private func maybeUpgrade() {
+        sessionLock.lock()
+        let due = usingSoftware && !upgrading
+            && (softwareSince.map { Date().timeIntervalSince($0) > 60 } ?? false)
+            && Date().timeIntervalSince(lastFailure) > 30
+            && Self.sinceTransition() > 10
+        if due { upgrading = true }
+        sessionLock.unlock()
+        guard due else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+            self.preferHardware(quiet: true)
+            self.sessionLock.lock()
+            self.upgrading = false
+            // Si no se pudo, se vuelve a intentar dentro de otro minuto.
+            if self.usingSoftware { self.softwareSince = Date() }
+            self.sessionLock.unlock()
+        }
+    }
+
     func encode(_ pixelBuffer: CVPixelBuffer) {
+        maybeUpgrade()
         sessionLock.lock()
         let current = session
         sessionLock.unlock()
@@ -247,6 +293,7 @@ final class H264Encoder {
         }
 
         sessionLock.lock()
+        lastFailure = Date()
         if Date().timeIntervalSince(lastRecreate) < 1.0 {
             sessionLock.unlock()
             return
@@ -264,7 +311,11 @@ final class H264Encoder {
         // 0.7.5: hardware primero (gasta menos batería). Software primero solo si el hardware
         // acaba de fallar hace menos de 10 s (fallos seguidos). Antes se alternaba y, al pasar
         // dos veces a segundo plano, el viaje entero quedaba en software.
-        let softwareFirst = attempt > 1 && sincePrevious < 10
+        // 0.9.5: los fallos justo después de pasar a (o volver de) segundo plano no cuentan: en
+        // el viaje del 26 de noviembre, tres cambios seguidos al arrancar dejaron todo el viaje
+        // en software.
+        let expected = Self.sinceTransition() < 5
+        let softwareFirst = attempt > 1 && sincePrevious < 10 && !expected
         let ok = openSession(software: softwareFirst, quiet: !verbose) || openSession(software: !softwareFirst, quiet: !verbose)
         if verbose {
             logLine("[VIDEO] reinicio del codificador #\(attempt): \(ok ? "hecho" : "sin éxito")")
