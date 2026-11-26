@@ -43,11 +43,57 @@ struct TrafficPace {
         return 1.0
     }
 
+    // MARK: - 0.9.4: tráfico aprendido de tus viajes
+    //
+    // Al llegar, se guarda cuánto tardaste de verdad frente a lo calculado, por franja horaria
+    // (entre semana / fin de semana y hora de salida). La próxima ruta a esa hora empieza con ese
+    // ritmo en lugar del fijo. Solo se guardan números (sin lugares ni rutas), en este iPhone.
+
+    static let learnedKey = "trafficLearned.v1"
+
+    /// Franja de una fecha: «wd-17» (entre semana, 17 h) o «we-10» (fin de semana, 10 h).
+    static func slot(_ date: Date, timeZone: TimeZone = TimeZone(identifier: "America/Guatemala") ?? .current) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = timeZone
+        let c = cal.dateComponents([.weekday, .hour], from: date)
+        let weekend = c.weekday == 1 || c.weekday == 7
+        return String(format: "%@-%02d", weekend ? "we" : "wd", c.hour ?? 0)
+    }
+
+    /// Factor con el que empieza una ruta: el aprendido de esa franja (si lo hay) o el fijo.
+    static func startFactor(_ date: Date, store: [String: Double]) -> Double {
+        let fixed = hourFactor(date)
+        guard let learned = store[slot(date)] else { return fixed }
+        return min(maxFactor, max(minFactor, learned))
+    }
+
+    /// Guarda lo observado en un viaje terminado. Se mezcla con lo anterior (60 % / 40 %) para
+    /// que un día raro o una parada no lo desajuste. Viajes muy cortos o absurdos no cuentan.
+    static func learn(_ store: inout [String: Double], departure: Date, realSeconds: Double, plannedSeconds: Double) -> Double? {
+        guard plannedSeconds >= 300, realSeconds > 0 else { return nil }
+        let observed = realSeconds / plannedSeconds
+        guard observed >= 0.6, observed <= 4 else { return nil }
+        let clamped = min(maxFactor, max(minFactor, observed))
+        let key = slot(departure)
+        let old = store[key] ?? hourFactor(departure)
+        let new = old * 0.6 + clamped * 0.4
+        store[key] = new
+        return new
+    }
+
+    static func loadLearned() -> [String: Double] {
+        UserDefaults.standard.dictionary(forKey: learnedKey) as? [String: Double] ?? [:]
+    }
+
+    static func saveLearned(_ store: [String: Double]) {
+        UserDefaults.standard.set(store, forKey: learnedKey)
+    }
+
     /// Nueva ruta. `trafficIncluded` = la ruta ya trae el tráfico (Apple). Tras un recálculo
     /// se conserva lo aprendido en el camino.
     mutating func start(at date: Date, progress: Double, trafficIncluded: Bool, keepLearned: Bool) {
         if !keepLearned {
-            prior = trafficIncluded ? 1 : Self.hourFactor(date)
+            prior = trafficIncluded ? 1 : Self.startFactor(date, store: Self.loadLearned())
         } else if trafficIncluded {
             prior = max(1, factor * 0.8)
         } else {

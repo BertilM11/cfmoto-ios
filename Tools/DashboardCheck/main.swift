@@ -2693,6 +2693,24 @@ do {
     check("0.7.4: con el ritmo real, la llegada se acerca a lo que de verdad tarda (faltaban 36 min)",
           f > 1.8 && f < 2.3 && abs(left - 36) < 6, String(format: "×%.2f, faltan %.0f min", f, left))
 
+    // 0.9.4: los viajes a Casa de las 17 h tardaron 42 y 37 min sobre 17 calculados. Tras ellos,
+    // la siguiente ruta a esa hora ya empieza con un ritmo cercano al real.
+    var store: [String: Double] = [:]
+    _ = TrafficPace.learn(&store, departure: at(2026, 11, 24, 17, 19), realSeconds: 42 * 60, plannedSeconds: 17 * 60)
+    _ = TrafficPace.learn(&store, departure: at(2026, 11, 25, 17, 20), realSeconds: 37 * 60, plannedSeconds: 17 * 60)
+    let next = TrafficPace.startFactor(at(2026, 11, 26, 17, 10), store: store)
+    let otherHour = TrafficPace.startFactor(at(2026, 11, 26, 11, 0), store: store)
+    let weekend17 = TrafficPace.startFactor(at(2026, 11, 28, 17, 10), store: store)
+    check("0.9.4: el tráfico aprendido de tus viajes sube la estimación de esa hora (y no las demás)",
+          next > 2.0 && next < 2.4 && otherHour == TrafficPace.hourFactor(at(2026, 11, 26, 11, 0))
+            && weekend17 == TrafficPace.hourFactor(at(2026, 11, 28, 17, 10)),
+          String(format: "17 h: ×%.2f (antes ×1.70) · 11 h: ×%.2f · sábado: ×%.2f", next, otherHour, weekend17))
+    var store2: [String: Double] = [:]
+    let shortTrip = TrafficPace.learn(&store2, departure: at(2026, 11, 25, 17, 0), realSeconds: 600, plannedSeconds: 120)
+    let absurd = TrafficPace.learn(&store2, departure: at(2026, 11, 25, 17, 0), realSeconds: 9000, plannedSeconds: 1000)
+    check("0.9.4: viajes muy cortos o con paradas largas no cuentan para lo aprendido",
+          shortTrip == nil && absurd == nil && store2.isEmpty, "")
+
     var apple = TrafficPace()
     apple.start(at: t0, progress: 0, trafficIncluded: true, keepLearned: false)
     var fast = TrafficPace()

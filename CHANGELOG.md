@@ -1,5 +1,20 @@
 # Registro de cambios
 
+## 0.9.4 — Hora de llegada que aprende el tráfico de tus viajes (25 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.3` y etiqueta `v0.9.3`.
+
+- **Llegada más realista en hora pico**: los viajes a Casa de las 17 h tardaron 42 y 37 min sobre
+  17 calculados, pero cada vez la app empezaba con el ×1.70 fijo (≈29 min). La ruta elegida era
+  correcta: el retraso era el tráfico. Ahora, al llegar, se guarda el ritmo real de esa franja
+  (entre semana o fin de semana, y hora de salida) y la próxima ruta a esa hora empieza con él
+  (con esos dos viajes, ×2.08 ≈ 35 min). Se mezcla 60 % / 40 % para que un día raro no lo
+  desajuste; no cuentan viajes de menos de 5 min calculados ni los que tardan más de 4 veces.
+- El tiempo real se mide desde que empieza el viaje, aunque haya recálculos (antes se reiniciaba
+  en cada recálculo).
+- Solo se guardan números por franja horaria en este iPhone (sin lugares ni recorridos).
+- No cambia nada de la conexión con la moto: velocidad, RPM, marcha, combustible y testigos igual.
+
 ## 0.9.3 — Letra a pantalla completa y Spotify por internet más rápido (25 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.9.2` y etiqueta `v0.9.2`.
