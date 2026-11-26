@@ -74,6 +74,8 @@ final class NavEngine: ObservableObject {
     var rainNote: String?
     private var guidanceStarted = Date()
     private var guidancePlanned: TimeInterval = 0
+    /// 0.9.4: de dónde salió la ruta del viaje (las de Apple ya traen el tráfico).
+    private var guidanceSource: PlannedRoute.Source?
 
     private var destinationItem: MKMapItem?
     private var directions: MKDirections?
@@ -408,10 +410,15 @@ final class NavEngine: ObservableObject {
             // 0.8.1: pronóstico de lluvia (solo al empezar; los recálculos siguen con el mismo).
             DispatchQueue.main.async { RainWatch.shared.routeStarted() }
         }
-        guidanceStarted = Date()
-        guidancePlanned = route.expectedTravelTime
+        if guided == nil {
+            guidanceStarted = Date()
+            guidancePlanned = route.expectedTravelTime
+            guidanceSource = route.source
+        }
         logLine(String(format: "[RUTA] tráfico: ×%.2f sobre %d min calculados (%@)", pace.factor,
-                       Int(route.expectedTravelTime / 60), guided != nil ? "ritmo aprendido" : "por la hora"))
+                       Int(route.expectedTravelTime / 60),
+                       guided != nil ? "ritmo de este viaje"
+                           : (TrafficPace.loadLearned()[TrafficPace.slot(Date())] != nil ? "aprendido de tus viajes a esta hora" : "por la hora")))
         guided = g
         lastSegment = 0
         progress = 0
@@ -586,6 +593,16 @@ final class NavEngine: ObservableObject {
         voice.say("Has llegado a tu destino")
         logLine(String(format: "[RUTA] llegada a «%@»: %d min reales, %d min calculados sin tráfico, corrección ×%.2f",
                        destinationName, Int(Date().timeIntervalSince(guidanceStarted) / 60), Int(guidancePlanned / 60), pace.factor))
+        // 0.9.4: se aprende el tráfico de esta franja horaria para las próximas rutas (solo rutas
+        // propias; las de Apple ya traen el tráfico).
+        if !simulating, guidanceSource != .apple {
+            var store = TrafficPace.loadLearned()
+            if let f = TrafficPace.learn(&store, departure: guidanceStarted, realSeconds: Date().timeIntervalSince(guidanceStarted),
+                                         plannedSeconds: guidancePlanned) {
+                TrafficPace.saveLearned(store)
+                logLine(String(format: "[RUTA] tráfico aprendido para %@: ×%.2f", TrafficPace.slot(guidanceStarted), f))
+            }
+        }
         refreshDriving()
         pushHUD()
     }
