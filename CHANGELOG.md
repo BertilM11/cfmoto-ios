@@ -1,5 +1,22 @@
 # Registro de cambios
 
+## 0.9.5 — Menos batería: codificador por hardware y sin reintentos inútiles de Spotify (26 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.4` y etiqueta `v0.9.4`.
+
+- **Codificador de vídeo por hardware todo el viaje**: en el viaje del 26 de noviembre, tres
+  cambios seguidos a segundo plano al arrancar dejaron los 35 min en el codificador por software
+  (gasta más batería). Ahora los fallos justo después de pasar a (o volver de) segundo plano no
+  cuentan para cambiar a software, y si aun así queda en software, al minuto sin fallos vuelve
+  solo al de hardware.
+- **Spotify sin reintentos inútiles**: con el iPhone bloqueado iOS no deja rehacer la conexión
+  local de Spotify (60 intentos fallidos en 34 min). Si ya se lee por internet, ya no se intenta
+  hasta desbloquear o abrir MotoLink.
+- La ruta de las 09:09 de ese viaje (vuelta en U a los 9 km hacia Avenida Petapa) se revisó: bajó
+  la distancia total de 24.0 a 22.4 km y el camino que tomaste quedó casi igual de largo; no era
+  un desvío.
+- No cambia nada de la conexión con la moto: velocidad, RPM, marcha, combustible y testigos igual.
+
 ## 0.9.4 — Hora de llegada que aprende el tráfico de tus viajes (25 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.9.3` y etiqueta `v0.9.3`.

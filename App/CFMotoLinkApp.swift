@@ -61,6 +61,13 @@ enum AppRuntime {
     private static var locked = false
     private static var installed = false
 
+    /// 0.9.5: el iPhone está bloqueado.
+    static var isLocked: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return locked
+    }
+
     static var description: String {
         lock.lock()
         defer { lock.unlock() }
@@ -81,6 +88,7 @@ enum AppRuntime {
         let center = NotificationCenter.default
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             update(foreground: false)
+            H264Encoder.noteAppTransition()
             logLine("[APP] pasa a segundo plano")
             // 0.9.0: menos memoria en segundo plano (iOS cierra antes las apps que ocupan mucho).
             OSMMapData.current?.trimCache(keep: 64)
@@ -93,6 +101,7 @@ enum AppRuntime {
         }
         center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
             update(foreground: true)
+            H264Encoder.noteAppTransition()
             logLine("[APP] vuelve al frente")
             center.post(name: .cfmAppBecameActive, object: nil)
         }

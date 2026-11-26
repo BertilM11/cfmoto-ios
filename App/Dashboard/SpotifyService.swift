@@ -106,6 +106,10 @@ final class SpotifyService: NSObject, ObservableObject {
         let lost = lostAt ?? now
         let otherAudio = AVAudioSession.sharedInstance().isOtherAudioPlaying
         // 0.9.1: si ya se lee por internet, la conexión local se reintenta sin prisa.
+        // 0.9.5: con el iPhone bloqueado iOS no deja rehacer la conexión local (en el viaje del
+        // 26 de noviembre: 60 intentos fallidos en 34 min). Si ya se lee por internet, no se
+        // intenta hasta desbloquear o abrir MotoLink: ahorra batería.
+        if SpotifyWeb.shared.polling && AppRuntime.isLocked { return }
         let wait = SpotifyWeb.shared.polling ? 30 : (otherAudio ? 4 : SpotifyService.retryDelay(sinceLost: now.timeIntervalSince(lost)))
         guard now.timeIntervalSince(lastAttempt) >= wait else { return }
         attempt(r, reason: otherAudio ? "Spotify está sonando" : "reintento")
