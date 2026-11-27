@@ -51,6 +51,30 @@ struct TrafficPace {
 
     static let learnedKey = "trafficLearned.v1"
 
+    /// 0.9.6: las paradas largas (más de 3 min sin moverse: gasolinera, compras, la moto
+    /// apagada) no son tráfico y no cuentan para lo aprendido. En el viaje a Casa del 26 de
+    /// noviembre, una parada de ~10 min hizo que se aprendiera ×1.92 en lugar de ~×1.78.
+    struct PauseClock {
+        static let limit: TimeInterval = 180
+        private(set) var paused: TimeInterval = 0
+        private var lastMoving: Date?
+
+        mutating func reset(at date: Date) {
+            paused = 0
+            lastMoving = date
+        }
+
+        /// Un fijo del GPS. Solo cuenta como «en marcha» a partir de 1.5 m/s.
+        mutating func sample(at date: Date, speed: Double) {
+            guard speed >= 1.5 else { return }
+            if let last = lastMoving {
+                let gap = date.timeIntervalSince(last)
+                if gap > Self.limit { paused += gap }
+            }
+            lastMoving = date
+        }
+    }
+
     /// Franja de una fecha: «wd-17» (entre semana, 17 h) o «we-10» (fin de semana, 10 h).
     static func slot(_ date: Date, timeZone: TimeZone = TimeZone(identifier: "America/Guatemala") ?? .current) -> String {
         var cal = Calendar(identifier: .gregorian)

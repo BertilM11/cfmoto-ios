@@ -76,6 +76,8 @@ final class NavEngine: ObservableObject {
     private var guidancePlanned: TimeInterval = 0
     /// 0.9.4: de dónde salió la ruta del viaje (las de Apple ya traen el tráfico).
     private var guidanceSource: PlannedRoute.Source?
+    /// 0.9.6: tiempo de paradas largas del viaje (no es tráfico).
+    private var pauseClock = TrafficPace.PauseClock()
 
     private var destinationItem: MKMapItem?
     private var directions: MKDirections?
@@ -414,6 +416,7 @@ final class NavEngine: ObservableObject {
             guidanceStarted = Date()
             guidancePlanned = route.expectedTravelTime
             guidanceSource = route.source
+            pauseClock.reset(at: guidanceStarted)
         }
         logLine(String(format: "[RUTA] tráfico: ×%.2f sobre %d min calculados (%@)", pace.factor,
                        Int(route.expectedTravelTime / 60),
@@ -476,6 +479,7 @@ final class NavEngine: ObservableObject {
         guard let g = guided else { return }
         let snap = g.snap(g.local(location.coordinate), hint: lastSegment, lastProgress: progress)
         let speed = max(0, location.speed)
+        if !simulating { pauseClock.sample(at: location.timestamp, speed: speed) }
         let accuracy = max(0, location.horizontalAccuracy)
         let limit = max(45, min(90, accuracy * 2))
         var off = snap.lateral > limit
@@ -597,7 +601,12 @@ final class NavEngine: ObservableObject {
         // propias; las de Apple ya traen el tráfico).
         if !simulating, guidanceSource != .apple {
             var store = TrafficPace.loadLearned()
-            if let f = TrafficPace.learn(&store, departure: guidanceStarted, realSeconds: Date().timeIntervalSince(guidanceStarted),
+            let paused = pauseClock.paused
+            if paused > 0 {
+                logLine(String(format: "[RUTA] paradas largas: %d min (no cuentan como tráfico)", Int(paused / 60)))
+            }
+            if let f = TrafficPace.learn(&store, departure: guidanceStarted,
+                                         realSeconds: Date().timeIntervalSince(guidanceStarted) - paused,
                                          plannedSeconds: guidancePlanned) {
                 TrafficPace.saveLearned(store)
                 logLine(String(format: "[RUTA] tráfico aprendido para %@: ×%.2f", TrafficPace.slot(guidanceStarted), f))
