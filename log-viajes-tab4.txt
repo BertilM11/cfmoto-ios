@@ -1,0 +1,4 @@
+01:15:11.935 [APP] vuelve al frente
+01:15:12.296 [RED] con salida
+01:15:12.296 [RED] datos móviles: no disponibles
+01:15:14.017 [BUSCAR] índice sin internet: 72141 lugares en 1.27 s

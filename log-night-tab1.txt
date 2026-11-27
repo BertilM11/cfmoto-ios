@@ -1,0 +1,43 @@
+01:07:45.396 [APP] vuelve al frente
+01:07:45.917 [RED] con salida
+01:07:45.917 [RED] datos móviles: no disponibles
+01:07:48.445 [BUSCAR] índice sin internet: 72141 lugares en 1.27 s
+01:07:51.516 [RUTA] OpenStreetMap: 3 ruta(s) en 0.30 s (app: al frente)
+01:07:51.517 [RUTA] 3 ruta(s) a «Aeropuerto La Aurora»: 8057 m/11 min, 9137 m/11 min, 8264 m/11 min
+01:07:51.518 [RUTA] tráfico: ×1.70 sobre 11 min calculados (por la hora)
+01:07:51.518 [RUTA] guía lista: 8057 m, 10 maniobras, textos al maniobras propias de OpenStreetMap
+01:07:51.518 [RUTA] paso 0: 260 m «Gira a la izquierda por 4a Avenida»
+01:07:51.518 [RUTA] paso 1: 1378 m «Mantente a la izquierda»
+01:07:51.518 [RUTA] paso 2: 273 m «Gira ligeramente a la derecha por 6a Avenida»
+01:07:51.518 [RUTA] paso 3: 3000 m «Gira a la derecha por Calle Montúfar»
+01:07:51.519 [RUTA] paso 4: 822 m «Gira ligeramente a la izquierda por 7a Avenida»
+01:07:51.519 [RUTA] paso 5: 1481 m «Gira ligeramente a la izquierda por 10a Calle»
+01:07:51.519 [RUTA] paso 6: 71 m «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+01:07:51.519 [RUTA] paso 7: 388 m «En la rotonda, toma la 3.ª salida hacia Llegadas»
+01:07:51.519 [RUTA] paso 8: 176 m «Gira a la izquierda por Llegadas»
+01:07:51.519 [RUTA] paso 9: 204 m «Has llegado a tu destino»
+01:07:51.530 [RUTA] maniobra 0: a 260 m, tipo left, «Gira a la izquierda por 4a Avenida»
+01:07:51.531 [RUTA] maniobra 1: a 1639 m, tipo keepLeft, «Mantente a la izquierda»
+01:07:51.531 [RUTA] maniobra 2: a 1913 m, tipo slightRight, «Gira ligeramente a la derecha por 6a Avenida»
+01:07:51.531 [RUTA] maniobra 3: a 4913 m, tipo right, «Gira a la derecha por Calle Montúfar»
+01:07:51.531 [RUTA] maniobra 4: a 5735 m, tipo slightLeft, «Gira ligeramente a la izquierda por 7a Avenida»
+01:07:51.531 [RUTA] maniobra 5: a 7217 m, tipo slightLeft, «Gira ligeramente a la izquierda por 10a Calle»
+01:07:51.532 [RUTA] maniobra 6: a 7288 m, tipo roundabout, «En la rotonda, toma la 1.ª salida hacia 8a Avenida»
+01:07:51.532 [RUTA] maniobra 7: a 7676 m, tipo roundabout, «En la rotonda, toma la 3.ª salida hacia Llegadas»
+01:07:51.532 [RUTA] maniobra 8: a 7853 m, tipo left, «Gira a la izquierda por Llegadas»
+01:07:51.532 [RUTA] maniobra 9: a 8057 m, tipo arrive, «Has llegado a tu destino»
+01:07:51.534 [VOZ] Simulación de recorrido iniciada
+01:07:52.716 [GUÍA] en la pantalla bloqueada
+01:07:53.009 [VOZ] En 250 metros, mantente a la izquierda
+01:07:55.917 [DIAG] app=al frente gps=10s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=147MB red=con salida · sin datos móviles temp=normal
+01:08:05.982 [DIAG] app=al frente gps=20s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=156MB red=con salida · sin datos móviles temp=normal
+01:08:09.267 [VOZ] Mantente a la izquierda
+01:08:13.761 [VOZ] En 250 metros, gira ligeramente a la derecha por 6a Avenida
+01:08:15.920 [DIAG] app=al frente gps=30s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=158MB red=con salida · sin datos móviles temp=normal
+01:08:25.927 [DIAG] app=al frente gps=40s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=159MB red=con salida · sin datos móviles temp=normal
+01:08:30.327 [VOZ] Gira ligeramente a la derecha por 6a Avenida
+01:08:34.277 [VOZ] Continúa 3 kilómetros
+01:08:35.935 [DIAG] app=al frente gps=50s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=163MB red=con salida · sin datos móviles temp=normal
+01:08:45.917 [DIAG] app=al frente gps=60s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=155MB red=con salida · sin datos móviles temp=normal
+01:08:55.917 [DIAG] app=al frente gps=70s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=168MB red=con salida · sin datos móviles temp=normal
+01:09:05.917 [DIAG] app=al frente gps=80s±5m fijos=1/0bg mapa=propio (OpenStreetMap) dibujo=0.0ms envio=0.0fps cod=-/0f mem=157MB red=con salida · sin datos móviles temp=normal
