@@ -2705,6 +2705,16 @@ do {
           next > 2.0 && next < 2.4 && otherHour == TrafficPace.hourFactor(at(2026, 11, 26, 11, 0))
             && weekend17 == TrafficPace.hourFactor(at(2026, 11, 28, 17, 10)),
           String(format: "17 h: ×%.2f (antes ×1.70) · 11 h: ×%.2f · sábado: ×%.2f", next, otherHour, weekend17))
+    // 0.9.6: una parada de 10 min (la moto apagada) no cuenta; los semáforos de 2 min, sí.
+    var pc = TrafficPace.PauseClock()
+    let p0 = at(2026, 11, 26, 17, 10)
+    pc.reset(at: p0)
+    pc.sample(at: p0.addingTimeInterval(60), speed: 8)
+    pc.sample(at: p0.addingTimeInterval(180), speed: 6)            // semáforo de 2 min
+    pc.sample(at: p0.addingTimeInterval(180 + 600), speed: 7)      // parada de 10 min
+    pc.sample(at: p0.addingTimeInterval(180 + 600 + 30), speed: 0) // detenido: no cuenta
+    check("0.9.6: las paradas largas no cuentan como tráfico (los semáforos sí)",
+          abs(pc.paused - 600) < 1, String(format: "pausa %.0f s", pc.paused))
     var store2: [String: Double] = [:]
     let shortTrip = TrafficPace.learn(&store2, departure: at(2026, 11, 25, 17, 0), realSeconds: 600, plannedSeconds: 120)
     let absurd = TrafficPace.learn(&store2, departure: at(2026, 11, 25, 17, 0), realSeconds: 9000, plannedSeconds: 1000)

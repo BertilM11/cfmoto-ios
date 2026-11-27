@@ -1,5 +1,16 @@
 # Registro de cambios
 
+## 0.9.6 — Las paradas largas no cuentan como tráfico (26 de noviembre de 2026)
+
+Respaldo de la versión anterior: rama `backup/v0.9.5` y etiqueta `v0.9.5`.
+
+- En el viaje a Casa del 26 de noviembre hubo una parada de unos 10 min con la moto apagada;
+  la llegada quedó en 62 min reales y se aprendió ×1.92 para las 17 h. Ahora las paradas de más
+  de 3 min sin moverse (gasolinera, compras, moto apagada) se descuentan del tiempo real antes de
+  aprender; los semáforos y el tráfico lento sí cuentan. El registro muestra
+  «[RUTA] paradas largas: N min».
+- No cambia nada de la conexión con la moto: velocidad, RPM, marcha, combustible y testigos igual.
+
 ## 0.9.5 — Menos batería: codificador por hardware y sin reintentos inútiles de Spotify (26 de noviembre de 2026)
 
 Respaldo de la versión anterior: rama `backup/v0.9.4` y etiqueta `v0.9.4`.
